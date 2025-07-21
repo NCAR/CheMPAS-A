@@ -464,10 +464,17 @@ module atm_core_interface
       use mpas_pool_routines, only : mpas_pool_get_config
       use mpas_log, only : mpas_log_write
 
+      use mpas_runtime_vars
+      use mpas_derived_types, only : mpas_pool_type
+      use mpas_pool_routines, only : mpas_pool_get_subpool
+
       implicit none
 
       type (block_type), pointer :: block
       integer :: ierr
+
+      type (MPAS_var) :: foobar
+      type (mpas_pool_type), pointer :: diagPool
 
       integer, pointer :: cam_pcnst
       integer :: err_level
@@ -494,6 +501,19 @@ module atm_core_interface
          call mpas_log_write('')
          ierr = atm_allocate_scalars(block, cam_pcnst)
       end if
+
+      foobar % name = 'foobar'
+      foobar % ndims = 2
+      foobar % units = 'dimensionless'
+      foobar % description = 'runtime foo bar'
+      allocate(foobar % dimensions(2))
+      foobar % dimensions(1) = 'nVertLevels'
+      foobar % dimensions(2) = 'nCells'
+
+      nullify(diagPool)
+      call mpas_pool_get_subpool(block % structs, 'diag', diagPool)
+
+      call foobar % instantiate_in_pools(block, diagPool, block % allFields)
 
    end function atm_setup_block
 
