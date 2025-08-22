@@ -473,7 +473,7 @@ module atm_core_interface
       type (block_type), pointer :: block
       integer :: ierr
 
-      type (MPAS_var) :: foobar
+      type (MPAS_var) :: foobar, blaz
       type (mpas_pool_type), pointer :: diagPool
 
       integer, pointer :: cam_pcnst
@@ -502,6 +502,9 @@ module atm_core_interface
          ierr = atm_allocate_scalars(block, cam_pcnst)
       end if
 
+      nullify(diagPool)
+      call mpas_pool_get_subpool(block % structs, 'diag', diagPool)
+
       foobar % name = 'foobar'
       foobar % ndims = 2
       foobar % units = 'dimensionless'
@@ -510,10 +513,19 @@ module atm_core_interface
       foobar % dimensions(1) = 'nVertLevels'
       foobar % dimensions(2) = 'nCells'
 
-      nullify(diagPool)
-      call mpas_pool_get_subpool(block % structs, 'diag', diagPool)
+      call foobar % add_to_pool(block, block % allFields)
+      call foobar % add_to_pool(block, diagPool)
 
-      call foobar % instantiate_in_pools(block, diagPool, block % allFields)
+      blaz % name = 'blaz'
+      blaz % ndims = 1
+      blaz % units = 'm s^-1'
+      blaz % description = 'blaz at cell centers'
+      allocate(blaz % dimensions(1))
+      blaz % dimensions(1) = 'nCells'
+      blaz % packages = 'runtimevar'
+
+      call blaz % add_to_pool(block, block % allFields)
+      call blaz % add_to_pool(block, diagPool)
 
    end function atm_setup_block
 
