@@ -20,6 +20,8 @@ module mpas_runtime_vars
 
     use mpas_kind_types, only : ShortStrKIND
     use mpas_derived_types, only : mpas_pool_type, &
+                                   field1DInteger, &
+                                   field2DInteger, &
                                    field1DReal, &
                                    field2DReal, &
                                    field3DReal
@@ -38,11 +40,10 @@ module mpas_runtime_vars
                                   MPAS_VAR_CHAR    = 1003
 
 ! TO DO:
-!        - handle packages
+!        - time dimension
 !        - maybe dimensions can be a string?
 !        - defaultValue
 !        - missingValue
-!        - time dimension
 
     type MPAS_var
         ! Public members
@@ -58,6 +59,8 @@ module mpas_runtime_vars
         character(len=ShortStrKIND):: packages = ''
 
         ! Private members
+        type (field1DReal), dimension(:), pointer, private :: int1d => null()
+        type (field2DReal), dimension(:), pointer, private :: int2d => null()
         type (field1DReal), dimension(:), pointer, private :: real1d => null()
         type (field2DReal), dimension(:), pointer, private :: real2d => null()
         type (field3DReal), dimension(:), pointer, private :: real3d => null()
@@ -90,21 +93,81 @@ module mpas_runtime_vars
 contains
 
 
-    subroutine add_to_pool(self, block, pool, ierr)
+    subroutine add_to_pool(self, block, fieldPool, packagePool, ierr)
 
         use mpas_pool_routines, only : mpas_pool_add_field
         use mpas_derived_types, only : block_type
         use mpas_attlist, only : mpas_add_att
 
+        implicit none
+
+        ! Arguments
         class (MPAS_var), intent(inout) :: self
         type (block_type), target, intent(in) :: block
-        type (mpas_pool_type), target, intent(inout) :: pool
+        type (mpas_pool_type), target, intent(inout) :: fieldPool
+        type (mpas_pool_type), intent(in) :: packagePool
         integer, intent(out), optional :: ierr
 
 
         if (present(ierr)) ierr = MPAS_VAR_OK
 
         select case (self % vartype)
+        case (MPAS_VAR_INTEGER)
+
+            select case (self % ndims)
+            case (1)
+                if (.not. associated(self % int1d)) then
+                    allocate(self % int1d(1))
+
+                    self % int1d(1) % block => block
+                    self % int1d(1) % fieldName = self % name
+                    self % int1d(1) % dimNames(1) = self % dimensions(1)
+                    self % int1d(1) % defaultValue = 0
+                    self % int1d(1) % missingValue = 0
+                    self % int1d(1) % isDecomposed = .true.
+                    self % int1d(1) % hasTimeDimension = .true.
+                    self % int1d(1) % isActive = contains_active_package(self % packages, packagePool)
+                    self % int1d(1) % isVarArray = .false.
+                    self % int1d(1) % isPersistent = .true.
+
+                    allocate(self % int1d(1) % attLists(1))
+                    allocate(self % int1d(1) % attLists(1) % attList)
+
+                    call mpas_add_att(self % int1d(1) % attLists(1) % attList, 'units', self % units)
+                    call mpas_add_att(self % int1d(1) % attLists(1) % attList, 'long_name', self % description)
+                end if
+
+                call mpas_pool_add_field(fieldPool, trim(self % int1d(1) % fieldName), self % int1d)
+
+            case (2)
+                if (.not. associated(self % int2d)) then
+                    allocate(self % int2d(1))
+
+                    self % int2d(1) % block => block
+                    self % int2d(1) % fieldName = self % name
+                    self % int2d(1) % dimNames(1) = self % dimensions(1)
+                    self % int2d(1) % dimNames(2) = self % dimensions(2)
+                    self % int2d(1) % defaultValue = 0
+                    self % int2d(1) % missingValue = 0
+                    self % int2d(1) % isDecomposed = .true.
+                    self % int2d(1) % hasTimeDimension = .true.
+                    self % int2d(1) % isActive = contains_active_package(self % packages, packagePool)
+                    self % int2d(1) % isVarArray = .false.
+                    self % int2d(1) % isPersistent = .true.
+
+                    allocate(self % int2d(1) % attLists(1))
+                    allocate(self % int2d(1) % attLists(1) % attList)
+
+                    call mpas_add_att(self % int2d(1) % attLists(1) % attList, 'units', self % units)
+                    call mpas_add_att(self % int2d(1) % attLists(1) % attList, 'long_name', self % description)
+                end if
+
+                call mpas_pool_add_field(fieldPool, trim(self % int2d(1) % fieldName), self % int2d)
+
+            case default
+                if (present(ierr)) ierr = MPAS_VAR_INVALID_NDIMS
+            end select
+
         case (MPAS_VAR_REAL)
 
             select case (self % ndims)
@@ -118,8 +181,8 @@ contains
                     self % real1d(1) % defaultValue = 0.0
                     self % real1d(1) % missingValue = 0.0
                     self % real1d(1) % isDecomposed = .true.
-                    self % real1d(1) % hasTimeDimension = .false.
-                    self % real1d(1) % isActive = .false. ! MGD should depend on packages
+                    self % real1d(1) % hasTimeDimension = .true.
+                    self % real1d(1) % isActive = contains_active_package(self % packages, packagePool)
                     self % real1d(1) % isVarArray = .false.
                     self % real1d(1) % isPersistent = .true.
 
@@ -130,7 +193,7 @@ contains
                     call mpas_add_att(self % real1d(1) % attLists(1) % attList, 'long_name', self % description)
                 end if
 
-                call mpas_pool_add_field(pool, trim(self % real1d(1) % fieldName), self % real1d)
+                call mpas_pool_add_field(fieldPool, trim(self % real1d(1) % fieldName), self % real1d)
 
             case (2)
                 if (.not. associated(self % real2d)) then
@@ -143,8 +206,8 @@ contains
                     self % real2d(1) % defaultValue = 0.0
                     self % real2d(1) % missingValue = 0.0
                     self % real2d(1) % isDecomposed = .true.
-                    self % real2d(1) % hasTimeDimension = .false.
-                    self % real2d(1) % isActive = .true.
+                    self % real2d(1) % hasTimeDimension = .true.
+                    self % real2d(1) % isActive = contains_active_package(self % packages, packagePool)
                     self % real2d(1) % isVarArray = .false.
                     self % real2d(1) % isPersistent = .true.
 
@@ -155,7 +218,7 @@ contains
                     call mpas_add_att(self % real2d(1) % attLists(1) % attList, 'long_name', self % description)
                 end if
 
-                call mpas_pool_add_field(pool, trim(self % real2d(1) % fieldName), self % real2d)
+                call mpas_pool_add_field(fieldPool, trim(self % real2d(1) % fieldName), self % real2d)
 
             case (3)
                 if (.not. associated(self % real3d)) then
@@ -169,8 +232,8 @@ contains
                     self % real3d(1) % defaultValue = 0.0
                     self % real3d(1) % missingValue = 0.0
                     self % real3d(1) % isDecomposed = .true.
-                    self % real3d(1) % hasTimeDimension = .false.
-                    self % real3d(1) % isActive = .true.
+                    self % real3d(1) % hasTimeDimension = .true.
+                    self % real3d(1) % isActive = contains_active_package(self % packages, packagePool)
                     self % real3d(1) % isVarArray = .false.
                     self % real3d(1) % isPersistent = .true.
 
@@ -181,7 +244,7 @@ contains
                     call mpas_add_att(self % real3d(1) % attLists(1) % attList, 'long_name', self % description)
                 end if
 
-                call mpas_pool_add_field(pool, trim(self % real3d(1) % fieldName), self % real3d)
+                call mpas_pool_add_field(fieldPool, trim(self % real3d(1) % fieldName), self % real3d)
 
             case default
                 if (present(ierr)) ierr = MPAS_VAR_INVALID_NDIMS
@@ -258,5 +321,56 @@ contains
         end do COPY_LOOP
 
     end subroutine mpas_split_string_new
+
+
+    logical function contains_active_package(packageList, packagePool)
+
+        use mpas_pool_routines, only : mpas_pool_get_package
+
+        implicit none
+
+        ! Arguments
+        character(len=*), intent(in) :: packageList
+        type (mpas_pool_type), intent(in) :: packagePool
+
+        ! Local variables
+        integer :: i
+        logical, pointer :: active
+        character(len=:), dimension(:), allocatable :: packages
+
+
+        contains_active_package = .false.
+
+        !
+        ! If there are no packages at all, consider that equivalent to having
+        ! an active package
+        !
+        if (len_trim(packageList) == 0) then
+            contains_active_package = .true.
+            return
+        end if
+
+        !
+        ! If there are packages, check each one
+        !
+        call mpas_split_string_new(packageList, ';', packages)
+
+        do i = 1, size(packages)
+            ! write(0,*) 'Considering package '//trim(packages(i))
+            nullify(active)
+            call mpas_pool_get_package(packagePool, trim(packages(i))//'Active', active)
+            if (associated(active)) then
+                if (active) then
+                    contains_active_package = .true.
+                    exit
+                end if
+            else
+                write(0,*) 'Package does not exist!'
+            end if
+        end do
+
+        deallocate(packages)
+
+    end function contains_active_package
 
 end module mpas_runtime_vars

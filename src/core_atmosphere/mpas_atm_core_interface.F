@@ -513,8 +513,8 @@ module atm_core_interface
       foobar % dimensions(1) = 'nVertLevels'
       foobar % dimensions(2) = 'nCells'
 
-      call foobar % add_to_pool(block, block % allFields)
-      call foobar % add_to_pool(block, diagPool)
+      call foobar % add_to_pool(block, block % allFields, block % packages)
+      call foobar % add_to_pool(block, diagPool, block % packages)
 
       blaz % name = 'blaz'
       blaz % ndims = 1
@@ -524,8 +524,8 @@ module atm_core_interface
       blaz % dimensions(1) = 'nCells'
       blaz % packages = 'runtimevar'
 
-      call blaz % add_to_pool(block, block % allFields)
-      call blaz % add_to_pool(block, diagPool)
+      call blaz % add_to_pool(block, block % allFields, block % packages)
+      call blaz % add_to_pool(block, diagPool, block % packages)
 
    end function atm_setup_block
 
