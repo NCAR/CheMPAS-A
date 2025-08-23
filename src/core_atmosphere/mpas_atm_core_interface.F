@@ -474,6 +474,8 @@ module atm_core_interface
       integer :: ierr
 
       type (MPAS_var) :: foobar, blaz
+      type (MPAS_var) :: o3, no, no2
+      type (MPAS_var_array) :: chem
       type (mpas_pool_type), pointer :: diagPool
 
       integer, pointer :: cam_pcnst
@@ -526,6 +528,42 @@ module atm_core_interface
 
       call blaz % add_to_pool(block, block % allFields, block % packages)
       call blaz % add_to_pool(block, diagPool, block % packages)
+
+      chem % name = 'chem'
+
+      o3 % name = 'o3'
+      o3 % vartype = MPAS_VAR_REAL
+      o3 % ndims = 2
+      o3 % units = 'kg kg^-1'
+      o3 % description = 'ozone'
+      allocate(o3 % dimensions(2))
+      o3 % dimensions(1) = 'nVertLevels'
+      o3 % dimensions(2) = 'nCells'
+      call chem % add_constituent(o3, 'micm')
+
+      no % name = 'no'
+      no % vartype = MPAS_VAR_REAL
+      no % ndims = 2
+      no % units = 'kg kg^-1'
+      no % description = 'nitric oxide'
+      allocate(no % dimensions(2))
+      no % dimensions(1) = 'nVertLevels'
+      no % dimensions(2) = 'nCells'
+      no % packages = 'runtimevar'
+      call chem % add_constituent(no, 'micm')
+
+      no2 % name = 'no2'
+      no2 % vartype = MPAS_VAR_REAL
+      no2 % ndims = 2
+      no2 % units = 'kg kg^-1'
+      no2 % description = 'nitric dioxide'
+      allocate(no2 % dimensions(2))
+      no2 % dimensions(1) = 'nVertLevels'
+      no2 % dimensions(2) = 'nCells'
+      call chem % add_constituent(no2, 'micm')
+
+      call chem % add_to_pool(block, block % allFields, block % packages)
+      call chem % add_to_pool(block, diagPool, block % packages)
 
    end function atm_setup_block
 

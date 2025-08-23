@@ -16,6 +16,9 @@
 !>
 !
 !-----------------------------------------------------------------------
+
+#define PTR_CAST(PTR, RES, TYPE) if (associated(PTR)) then; select type(PTR); type is (TYPE); RES => PTR; end select; end if
+
 module mpas_runtime_vars
 
     use mpas_kind_types, only : ShortStrKIND
@@ -28,7 +31,8 @@ module mpas_runtime_vars
 
     private
 
-    public :: MPAS_var
+    public :: MPAS_var, &
+              MPAS_var_array
 
     integer, parameter, public :: MPAS_VAR_OK            =     0, &
                                   MPAS_VAR_INVALID_TYPE  = -1000, &
@@ -41,9 +45,32 @@ module mpas_runtime_vars
 
 ! TO DO:
 !        - time dimension
+!        - multiple time levels
 !        - maybe dimensions can be a string?
 !        - defaultValue
 !        - missingValue
+
+    type linked_list_node
+        character(len=ShortStrKIND) :: key
+        class(*), pointer :: item
+        type (linked_list_node), pointer :: next => null()
+    end type linked_list_node
+
+
+    type linked_list
+        ! Private members
+        integer, private :: nitems = 0
+        type (linked_list_node), pointer, private :: head => null()
+        type (linked_list_node), pointer, private :: iter_next => null()
+    contains
+        procedure, pass :: length => ll_length
+        procedure, pass :: insert => ll_insert
+        procedure, pass :: remove => ll_remove
+        procedure, pass :: find => ll_find
+        procedure, pass :: begin_iteration => ll_begin_iteration
+        procedure, pass :: get_next_item => ll_get_next_item
+    end type linked_list
+
 
     type MPAS_var
         ! Public members
@@ -53,10 +80,8 @@ module mpas_runtime_vars
         character(len=ShortStrKIND) :: units = '-'
         character(len=ShortStrKIND) :: description = 'unknown'
         character(len=ShortStrKIND), dimension(:), allocatable :: dimensions
-        character(len=ShortStrKIND) :: group = 'default'  ! MGD maybe group only matters
-                                                          !   when adding constitutent to
-                                                          !   a var_array?
-        character(len=ShortStrKIND):: packages = ''
+        character(len=ShortStrKIND) :: group = ''  ! Only matters for constituents of an MPAS_var_array
+        character(len=ShortStrKIND) :: packages = ''
 
         ! Private members
         type (field1DReal), dimension(:), pointer, private :: int1d => null()
@@ -65,35 +90,49 @@ module mpas_runtime_vars
         type (field2DReal), dimension(:), pointer, private :: real2d => null()
         type (field3DReal), dimension(:), pointer, private :: real3d => null()
     contains
-        procedure :: add_to_pool
+        procedure :: add_to_pool => add_to_pool_var
         final :: destroy_mpas_var
     end type MPAS_var
 
-!    type MPAS_var_array
-!        character(len=ShortStrKIND) :: name = ''
-!
-!        !MGD everything else private?
-!
-!        integer :: ndims = 2
-!        integer :: vartype = MPAS_VAR_REAL
-!        character(len=ShortStrKIND) :: units = '-'
-!        character(len=ShortStrKIND) :: description = 'unknown'
-!        character(len=ShortStrKIND), dimension(:), allocatable :: dimensions
-!        character(len=ShortStrKIND) :: group = 'default'  ! MGD maybe group only matters
-!                                                          !   when adding constitutent to
-!                                                          !   a var_array?
-!        character(len=ShortStrKIND):: packages = ''
-!    contains
-!        procedure :: add_constituent
-!        procedure :: instantiate_in_pools
-!        final :: destroy_mpas_var
-!    end type MPAS_var_array
+
+    type MPAS_var_array
+        ! Public members
+        character(len=ShortStrKIND) :: name = ''
+        character(len=ShortStrKIND) :: packages = ''
+
+        ! Private members
+        integer, private :: ndims = -1
+        integer, private :: vartype = MPAS_VAR_INVALID_TYPE
+        character(len=ShortStrKIND), dimension(:), allocatable, private :: dimensions
+        type (linked_list), allocatable :: const_list
+        type (field3DReal), dimension(:), pointer, private :: real3d => null()
+    contains
+        procedure :: add_constituent
+        procedure :: add_to_pool => add_to_pool_var_array
+        final :: destroy_mpas_var_array
+    end type MPAS_var_array
 
 
 contains
 
 
-    subroutine add_to_pool(self, block, fieldPool, packagePool, ierr)
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
+    subroutine add_to_pool_var(self, block, fieldPool, packagePool, ierr)
 
         use mpas_pool_routines, only : mpas_pool_add_field
         use mpas_derived_types, only : block_type
@@ -254,11 +293,28 @@ contains
             if (present(ierr)) ierr = MPAS_VAR_INVALID_TYPE
         end select
 
-    end subroutine add_to_pool
+    end subroutine add_to_pool_var
 
 
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
     subroutine destroy_mpas_var(self)
 
+        ! Arguments
         type (MPAS_var), intent(inout) :: self
 
         if (allocated(self % dimensions)) deallocate(self % dimensions)
@@ -266,6 +322,324 @@ contains
     end subroutine destroy_mpas_var
 
 
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
+    subroutine add_constituent(self, constituent, group)
+
+        ! Arguments
+        class (MPAS_var_array), intent(inout) :: self
+        type (MPAS_var), intent(inout) :: constituent
+        character(len=*), intent(in) :: group
+
+        ! Local variables
+        integer :: i
+
+        if (self % ndims == -1) then
+            ! write(0,*) 'Adding first constituent '//trim(constituent % name)
+            self % ndims = constituent % ndims + 1
+            self % vartype = constituent % vartype
+            allocate(self % dimensions(self % ndims))
+            do i = 1, constituent % ndims
+                self % dimensions(i+1) = constituent % dimensions(i)
+            end do
+            ! self % dimensions(1) will be set when instantiating in a pool
+            allocate(self % const_list)
+        else
+            ! write(0,*) 'Adding constituent '//trim(constituent % name)
+            if ((self % ndims - 1) /= constituent % ndims) then
+                write(0,*) 'Constituent dimensions incompatible...'
+            end if
+            if (self % vartype /= constituent % vartype) then
+                write(0,*) 'Constituent type incompatible...'
+            end if
+            do i = 1, constituent % ndims
+                if (trim(self % dimensions(i+1)) /= trim(constituent % dimensions(i))) then
+                    write(0,*) 'Constituent dimension incompatible...'
+                end if
+            end do
+        end if
+
+        constituent % group = trim(group)
+        call self % const_list % insert(trim(constituent % name), constituent)
+
+    end subroutine add_constituent
+
+
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
+    subroutine add_to_pool_var_array(self, block, fieldPool, packagePool, ierr)
+
+        use mpas_pool_routines, only : mpas_pool_add_field, mpas_pool_add_dimension
+        use mpas_derived_types, only : block_type
+        use mpas_attlist, only : mpas_add_att
+
+        implicit none
+
+        ! Arguments
+        class (MPAS_var_array), intent(inout) :: self
+        type (block_type), target, intent(in) :: block
+        type (mpas_pool_type), target, intent(inout) :: fieldPool
+        type (mpas_pool_type), intent(in) :: packagePool
+        integer, intent(out), optional :: ierr
+
+        ! Local variables
+        class (*), pointer :: current, cursor
+        type (MPAS_var), pointer :: current_cnst, cursor_cnst
+        type (linked_list) :: sorted_list
+        integer :: idx, n, ncnst
+
+
+        if (present(ierr)) ierr = MPAS_VAR_OK
+
+        call sort_constituents(self % const_list, sorted_list, packagePool)
+
+        write(0,*) 'num_'//trim(self % name)//' = ', sorted_list % length()
+        call mpas_pool_add_dimension(fieldPool, 'num_'//trim(self % name), sorted_list % length())
+
+        call sorted_list % begin_iteration()
+        cursor => sorted_list % get_next_item()
+        current => cursor
+        nullify(current_cnst)
+        PTR_CAST(current, current_cnst, MPAS_var)
+        n = 1
+        ncnst = sorted_list % length()
+        do idx = 1, ncnst
+            nullify(cursor_cnst)
+            PTR_CAST(cursor, cursor_cnst, MPAS_var)
+
+            if (n == 1) then
+                write(0,*) trim(current_cnst % group)//'_start = ', idx
+                call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_start', idx)
+            end if
+           
+            if (trim(cursor_cnst % group) /= trim(current_cnst % group)) then
+                write(0,*) trim(current_cnst % group)//'_end = ', idx
+                call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_end', idx)
+                write(0,*) 'num_'//trim(current_cnst % group)//' = ', n
+                call mpas_pool_add_dimension(fieldPool, 'num_'//trim(current_cnst % group), n)
+                n = 1
+                current => cursor
+                nullify(current_cnst)
+                PTR_CAST(current, current_cnst, MPAS_var)
+            end if
+
+            if (idx == ncnst) then
+                write(0,*) trim(current_cnst % group)//'_end = ', idx
+                call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_end', idx)
+                write(0,*) 'num_'//trim(current_cnst % group)//' = ', n
+                call mpas_pool_add_dimension(fieldPool, 'num_'//trim(current_cnst % group), n)
+            end if
+
+            n = n + 1
+            cursor => sorted_list % get_next_item()
+        end do
+
+        select case (self % vartype)
+        case (MPAS_VAR_REAL)
+
+            select case (self % ndims)
+            case (3)
+                if (.not. associated(self % real3d)) then
+                    allocate(self % real3d(1))
+
+                    self % real3d(1) % block => block
+                    self % real3d(1) % fieldName = self % name
+                    self % real3d(1) % dimNames(1) = 'num_chem'
+                    self % real3d(1) % dimNames(2) = self % dimensions(2)
+                    self % real3d(1) % dimNames(3) = self % dimensions(3)
+                    self % real3d(1) % defaultValue = 0.0
+                    self % real3d(1) % missingValue = 0.0
+                    self % real3d(1) % isDecomposed = .true.
+                    self % real3d(1) % hasTimeDimension = .true.
+                    self % real3d(1) % isActive = contains_active_package(self % packages, packagePool)
+                    self % real3d(1) % isVarArray = .true.
+                    self % real3d(1) % isPersistent = .true.
+
+                    allocate(self % real3d(1) % attLists(ncnst))
+                    allocate(self % real3d(1) % attLists(ncnst) % attList)
+                    allocate(self % real3d(1) % constituentNames(ncnst))
+
+                    call sorted_list % begin_iteration()
+                    do idx = 1, ncnst
+                        cursor => sorted_list % get_next_item()
+                        nullify(cursor_cnst)
+                        PTR_CAST(cursor, cursor_cnst, MPAS_var)
+                        self % real3d(1) % constituentNames(idx) = trim(cursor_cnst % name)
+                        call mpas_add_att(self % real3d(1) % attLists(idx) % attList, 'units', &
+                                          cursor_cnst % units)
+                        call mpas_add_att(self % real3d(1) % attLists(idx) % attList, 'long_name', &
+                                          cursor_cnst % description)
+                    end do
+                end if
+
+                call mpas_pool_add_field(fieldPool, trim(self % real3d(1) % fieldName), self % real3d)
+
+            case default
+                if (present(ierr)) ierr = MPAS_VAR_INVALID_NDIMS
+            end select
+
+        case default
+            if (present(ierr)) ierr = MPAS_VAR_INVALID_TYPE
+        end select
+
+    end subroutine add_to_pool_var_array
+
+
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
+    subroutine destroy_mpas_var_array(self)
+
+        ! Arguments
+        type (MPAS_var_array), intent(inout) :: self
+
+        if (allocated(self % dimensions)) deallocate(self % dimensions)
+        if (allocated(self % const_list)) deallocate(self % const_list)
+
+    end subroutine destroy_mpas_var_array
+
+
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
+    subroutine sort_constituents(orig_list, sorted_list, packagePool)
+
+        implicit none
+
+        ! Arguments
+        type (linked_list), intent(inout) :: orig_list
+        type (linked_list), intent(inout) :: sorted_list
+        type (mpas_pool_type), intent(in) :: packagePool
+
+        ! Local variables
+        class (*), pointer :: x, cursor, current
+        type (MPAS_var), pointer :: cursor_cnst, current_cnst
+        type (linked_list) :: tmp_list
+
+
+        !
+        ! Copy orig_list to tmp_list, removing all inactive variables
+        !
+        call orig_list % begin_iteration()
+        cursor => orig_list % get_next_item()
+        do while (associated(cursor))
+            nullify(cursor_cnst)
+            PTR_CAST(cursor, cursor_cnst, MPAS_var)
+
+            if (contains_active_package(cursor_cnst % packages, packagePool)) then
+                ! write(0,*) trim(cnst % name) // ' contains active packages and will be used'
+                call tmp_list % insert(trim(cursor_cnst % name), cursor_cnst)
+            end if
+
+            cursor => orig_list % get_next_item()
+        end do
+
+        !
+        ! Sort items from tmp_list into sorted_list, placing variables with matching groups
+        ! next to each other
+        !
+        do while (tmp_list % length() > 0)
+
+            ! Get item at beginning of tmp_list
+            call tmp_list % begin_iteration()
+            current => tmp_list % get_next_item()
+            nullify(current_cnst)
+            PTR_CAST(current, current_cnst, MPAS_var)
+
+            ! Add first item to sorted_list and remove it from tmp_list
+            write(0,*) 'Adding '//trim(current_cnst % name)//' to sorted_list ('//trim(current_cnst % group)//')'
+            call sorted_list % insert(trim(current_cnst % name), current_cnst)
+            cursor => tmp_list % get_next_item()
+            x => tmp_list % remove(trim(current_cnst % name))
+
+            do while (associated(cursor))
+                nullify(cursor_cnst)
+                PTR_CAST(cursor, cursor_cnst, MPAS_var)
+                if (trim(cursor_cnst % group) == trim(current_cnst % group)) then
+                    write(0,*) 'Adding '//trim(cursor_cnst % name)//' to sorted_list ('//trim(cursor_cnst % group)//')'
+                    call sorted_list % insert(trim(cursor_cnst % name), cursor_cnst)
+                    cursor => tmp_list % get_next_item()
+                    x => tmp_list % remove(trim(cursor_cnst % name))
+                else
+                    cursor => tmp_list % get_next_item()
+                end if
+            end do
+   
+        end do
+
+    end subroutine sort_constituents
+
+
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
     subroutine mpas_split_string_new(string, delimiter, subStrings)
 
         implicit none
@@ -323,6 +697,22 @@ contains
     end subroutine mpas_split_string_new
 
 
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
     logical function contains_active_package(packageList, packagePool)
 
         use mpas_pool_routines, only : mpas_pool_get_package
@@ -372,5 +762,234 @@ contains
         deallocate(packages)
 
     end function contains_active_package
+
+
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
+    integer function ll_length(self) result(length)
+
+        ! Arguments
+        class (linked_list), intent(in) :: self
+
+        length = self % nitems
+
+    end function ll_length
+
+
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
+    subroutine ll_insert(self, key, item)
+
+        ! Arguments
+        class (linked_list), intent(inout) :: self
+        character(len=*), intent(in) :: key
+        class(*), target, intent(in) :: item
+
+        ! Local variables
+        type (linked_list_node), pointer :: cursor
+
+
+        if (.not. associated(self % head)) then
+            allocate(self % head)
+            self % head % key = key
+            self % head % item => item
+        else
+            cursor => self % head
+            do while (associated(cursor % next))
+                cursor => cursor % next
+            end do
+            allocate(cursor % next)
+            cursor => cursor % next
+            cursor % key = key
+            cursor % item => item
+        end if
+
+        self % nitems = self % nitems + 1
+
+    end subroutine ll_insert
+
+
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
+    function ll_remove(self, key) result(item)
+
+        ! Arguments
+        class (linked_list), intent(inout) :: self
+        character(len=*), intent(in) :: key
+
+        ! Return value
+        class(*), pointer :: item
+
+        ! Local variables
+        type (linked_list_node), pointer :: cursor, prev
+
+
+        nullify(item)
+
+        nullify(prev)
+        cursor => self % head
+        do while (associated(cursor))
+            if (trim(cursor % key) == trim(key)) then
+                item => cursor % item
+                if (associated(prev)) then
+                    prev % next => cursor % next
+                else
+                    self % head => cursor % next
+                end if
+                self % nitems = self % nitems - 1
+                deallocate(cursor)
+                exit
+            end if
+            prev => cursor
+            cursor => cursor % next
+        end do
+
+    end function ll_remove
+
+
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
+    function ll_find(self, key) result(item)
+
+        ! Arguments
+        class (linked_list), intent(inout) :: self
+        character(len=*), intent(in) :: key
+
+        ! Return value
+        class(*), pointer :: item
+
+        ! Local variables
+        type (linked_list_node), pointer :: cursor
+
+
+        nullify(item)
+
+        cursor => self % head
+        do while (associated(cursor))
+            if (trim(cursor % key) == trim(key)) then
+                item => cursor % item
+                exit
+            end if
+            cursor => cursor % next
+        end do
+
+    end function ll_find
+
+
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
+    subroutine ll_begin_iteration(self)
+
+        ! Arguments
+        class (linked_list), intent(inout) :: self
+
+        self % iter_next => self % head
+
+    end subroutine ll_begin_iteration
+
+
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
+    function ll_get_next_item(self) result(item)
+
+        ! Arguments
+        class (linked_list), intent(inout) :: self
+
+        ! Return value
+        class(*), pointer :: item
+
+
+        if (associated(self % iter_next)) then
+            item => self % iter_next % item
+            self % iter_next => self % iter_next % next
+        else
+            nullify(item)
+        end if
+
+    end function ll_get_next_item
 
 end module mpas_runtime_vars
