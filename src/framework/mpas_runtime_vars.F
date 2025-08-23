@@ -439,7 +439,7 @@ contains
                 write(0,*) trim(current_cnst % group)//'_start = ', idx
                 call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_start', idx)
             end if
-           
+ 
             if (trim(cursor_cnst % group) /= trim(current_cnst % group)) then
                 write(0,*) trim(current_cnst % group)//'_end = ', idx
                 call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_end', idx)
@@ -618,7 +618,7 @@ contains
                     cursor => tmp_list % get_next_item()
                 end if
             end do
-   
+
         end do
 
     end subroutine sort_constituents
