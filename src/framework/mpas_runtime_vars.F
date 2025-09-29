@@ -81,6 +81,7 @@ module mpas_runtime_vars
         character(len=ShortStrKIND) :: units = '-'
         character(len=ShortStrKIND) :: description = 'unknown'
         character(len=ShortStrKIND), dimension(:), allocatable :: dimensions
+        logical :: hasTimeDimension = .true.
         character(len=ShortStrKIND) :: group = ''  ! Only matters for constituents of an MPAS_var_array
         character(len=ShortStrKIND) :: packages = ''
 
@@ -106,6 +107,7 @@ module mpas_runtime_vars
         integer, private :: vartype = MPAS_VAR_INVALID_TYPE
         character(len=ShortStrKIND), dimension(:), allocatable, private :: dimensions
         type (linked_list), allocatable :: const_list
+        logical :: hasTimeDimension = .true.
         type (field3DReal), dimension(:), pointer, private :: real3d => null()
     contains
         procedure :: add_constituent
@@ -165,7 +167,7 @@ contains
                     self % int1d(1) % defaultValue = 0
                     self % int1d(1) % missingValue = 0
                     self % int1d(1) % isDecomposed = .true.
-                    self % int1d(1) % hasTimeDimension = .true.
+                    self % int1d(1) % hasTimeDimension = self % hasTimeDimension
                     self % int1d(1) % isActive = contains_active_package(self % packages, packagePool)
                     self % int1d(1) % isVarArray = .false.
                     self % int1d(1) % isPersistent = .true.
@@ -190,7 +192,7 @@ contains
                     self % int2d(1) % defaultValue = 0
                     self % int2d(1) % missingValue = 0
                     self % int2d(1) % isDecomposed = .true.
-                    self % int2d(1) % hasTimeDimension = .true.
+                    self % int2d(1) % hasTimeDimension = self % hasTimeDimension
                     self % int2d(1) % isActive = contains_active_package(self % packages, packagePool)
                     self % int2d(1) % isVarArray = .false.
                     self % int2d(1) % isPersistent = .true.
@@ -221,7 +223,7 @@ contains
                     self % real1d(1) % defaultValue = 0.0
                     self % real1d(1) % missingValue = 0.0
                     self % real1d(1) % isDecomposed = .true.
-                    self % real1d(1) % hasTimeDimension = .true.
+                    self % real1d(1) % hasTimeDimension = self % hasTimeDimension
                     self % real1d(1) % isActive = contains_active_package(self % packages, packagePool)
                     self % real1d(1) % isVarArray = .false.
                     self % real1d(1) % isPersistent = .true.
@@ -246,7 +248,7 @@ contains
                     self % real2d(1) % defaultValue = 0.0
                     self % real2d(1) % missingValue = 0.0
                     self % real2d(1) % isDecomposed = .true.
-                    self % real2d(1) % hasTimeDimension = .true.
+                    self % real2d(1) % hasTimeDimension = self % hasTimeDimension
                     self % real2d(1) % isActive = contains_active_package(self % packages, packagePool)
                     self % real2d(1) % isVarArray = .false.
                     self % real2d(1) % isPersistent = .true.
@@ -272,7 +274,7 @@ contains
                     self % real3d(1) % defaultValue = 0.0
                     self % real3d(1) % missingValue = 0.0
                     self % real3d(1) % isDecomposed = .true.
-                    self % real3d(1) % hasTimeDimension = .true.
+                    self % real3d(1) % hasTimeDimension = self % hasTimeDimension
                     self % real3d(1) % isActive = contains_active_package(self % packages, packagePool)
                     self % real3d(1) % isVarArray = .false.
                     self % real3d(1) % isPersistent = .true.
@@ -359,6 +361,9 @@ contains
             end do
             ! self % dimensions(1) will be set when instantiating in a pool
             allocate(self % const_list)
+            ! Assume that the first added constituent will determine whether var_array as
+            ! a whole has a time dimension or not
+            self % hasTimeDimension = constituent % hasTimeDimension
         else
             ! write(0,*) 'Adding constituent '//trim(constituent % name)
             if ((self % ndims - 1) /= constituent % ndims) then
@@ -479,7 +484,7 @@ contains
                     self % real3d(1) % defaultValue = 0.0
                     self % real3d(1) % missingValue = 0.0
                     self % real3d(1) % isDecomposed = .true.
-                    self % real3d(1) % hasTimeDimension = .true.
+                    self % real3d(1) % hasTimeDimension = self % hasTimeDimension
                     self % real3d(1) % isActive = contains_active_package(self % packages, packagePool)
                     self % real3d(1) % isVarArray = .true.
                     self % real3d(1) % isPersistent = .true.

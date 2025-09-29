@@ -475,8 +475,9 @@ module atm_core_interface
 
       type (MPAS_var) :: foobar, blaz
       type (MPAS_var) :: o3, no, no2
+      type (MPAS_var) :: parentCellID
       type (MPAS_var_array) :: chem
-      type (mpas_pool_type), pointer :: diagPool
+      type (mpas_pool_type), pointer :: diagPool, meshPool
 
       integer, pointer :: cam_pcnst
       integer :: err_level
@@ -506,6 +507,9 @@ module atm_core_interface
 
       nullify(diagPool)
       call mpas_pool_get_subpool(block % structs, 'diag', diagPool)
+
+      nullify(meshPool)
+      call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
 
       foobar % name = 'foobar'
       foobar % ndims = 2
@@ -564,6 +568,17 @@ module atm_core_interface
 
       call chem % add_to_pool(block, block % allFields, block % packages)
       call chem % add_to_pool(block, diagPool, block % packages)
+
+      parentCellID % name = 'parentCellID'
+      parentCellID % ndims = 1
+      parentCellID % units = '-'
+      parentCellID % description = 'ID of cell in parent mesh'
+      allocate(parentCellID % dimensions(1))
+      parentCellID % dimensions(1) = 'nCells'
+      parentCellID % hasTimeDimension = .false.
+
+      call parentCellID % add_to_pool(block, block % allFields, block % packages)
+      call parentCellID % add_to_pool(block, meshPool, block % packages)
 
    end function atm_setup_block
 
