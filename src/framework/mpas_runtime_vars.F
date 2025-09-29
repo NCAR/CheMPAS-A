@@ -7,11 +7,11 @@
 !-----------------------------------------------------------------------
 !  mpas_runtime_vars
 !
-!> \brief Provides facilities for defining new fields / variables at runtime
+!> \brief Provides facilities for defining fields / variables at runtime
 !> \author Michael Duda
 !> \date   17 July 2025
 !> \details
-!>  This module provides facilities for defining new fields (e.g., field2DReal)
+!>  This module provides facilities for defining fields (e.g., field2DReal)
 !>  at runtime.
 !>
 !
@@ -52,7 +52,7 @@ module mpas_runtime_vars
 
     type linked_list_node
         character(len=ShortStrKIND) :: key
-        class(*), pointer :: item
+        class(*), pointer :: item => null()
         type (linked_list_node), pointer :: next => null()
     end type linked_list_node
 
@@ -69,6 +69,7 @@ module mpas_runtime_vars
         procedure, pass :: find => ll_find
         procedure, pass :: begin_iteration => ll_begin_iteration
         procedure, pass :: get_next_item => ll_get_next_item
+        final :: ll_destroy
     end type linked_list
 
 
@@ -439,7 +440,7 @@ contains
                 write(0,*) trim(current_cnst % group)//'_start = ', idx
                 call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_start', idx)
             end if
- 
+
             if (trim(cursor_cnst % group) /= trim(current_cnst % group)) then
                 write(0,*) trim(current_cnst % group)//'_end = ', idx
                 call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_end', idx)
@@ -991,5 +992,42 @@ contains
         end if
 
     end function ll_get_next_item
+
+
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
+    subroutine ll_destroy(self)
+
+        ! Arguments
+        type (linked_list), intent(inout) :: self
+
+        ! Local variables
+        type (linked_list_node), pointer :: cursor
+
+
+        do while (associated(self % head))
+            cursor => self % head % next
+            deallocate(self % head)
+            self % head => cursor
+        end do
+
+        nullify(self % iter_next)
+        self % nitems = 0
+
+    end subroutine ll_destroy
 
 end module mpas_runtime_vars
