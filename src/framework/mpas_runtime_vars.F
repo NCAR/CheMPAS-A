@@ -86,8 +86,8 @@ module mpas_runtime_vars
         character(len=ShortStrKIND) :: packages = ''
 
         ! Private members
-        type (field1DReal), dimension(:), pointer, private :: int1d => null()
-        type (field2DReal), dimension(:), pointer, private :: int2d => null()
+        type (field1DInteger), dimension(:), pointer, private :: int1d => null()
+        type (field2DInteger), dimension(:), pointer, private :: int2d => null()
         type (field1DReal), dimension(:), pointer, private :: real1d => null()
         type (field2DReal), dimension(:), pointer, private :: real2d => null()
         type (field3DReal), dimension(:), pointer, private :: real3d => null()
@@ -166,7 +166,7 @@ contains
                     self % int1d(1) % dimNames(1) = self % dimensions(1)
                     self % int1d(1) % defaultValue = 0
                     self % int1d(1) % missingValue = 0
-                    self % int1d(1) % isDecomposed = .true.
+                    self % int1d(1) % isDecomposed = is_decomposed_dim(self % dimensions(1))
                     self % int1d(1) % hasTimeDimension = self % hasTimeDimension
                     self % int1d(1) % isActive = contains_active_package(self % packages, packagePool)
                     self % int1d(1) % isVarArray = .false.
@@ -191,7 +191,7 @@ contains
                     self % int2d(1) % dimNames(2) = self % dimensions(2)
                     self % int2d(1) % defaultValue = 0
                     self % int2d(1) % missingValue = 0
-                    self % int2d(1) % isDecomposed = .true.
+                    self % int2d(1) % isDecomposed = is_decomposed_dim(self % dimensions(2))
                     self % int2d(1) % hasTimeDimension = self % hasTimeDimension
                     self % int2d(1) % isActive = contains_active_package(self % packages, packagePool)
                     self % int2d(1) % isVarArray = .false.
@@ -222,7 +222,7 @@ contains
                     self % real1d(1) % dimNames(1) = self % dimensions(1)
                     self % real1d(1) % defaultValue = 0.0
                     self % real1d(1) % missingValue = 0.0
-                    self % real1d(1) % isDecomposed = .true.
+                    self % real1d(1) % isDecomposed = is_decomposed_dim(self % dimensions(1))
                     self % real1d(1) % hasTimeDimension = self % hasTimeDimension
                     self % real1d(1) % isActive = contains_active_package(self % packages, packagePool)
                     self % real1d(1) % isVarArray = .false.
@@ -247,7 +247,7 @@ contains
                     self % real2d(1) % dimNames(2) = self % dimensions(2)
                     self % real2d(1) % defaultValue = 0.0
                     self % real2d(1) % missingValue = 0.0
-                    self % real2d(1) % isDecomposed = .true.
+                    self % real2d(1) % isDecomposed = is_decomposed_dim(self % dimensions(2))
                     self % real2d(1) % hasTimeDimension = self % hasTimeDimension
                     self % real2d(1) % isActive = contains_active_package(self % packages, packagePool)
                     self % real2d(1) % isVarArray = .false.
@@ -273,7 +273,7 @@ contains
                     self % real3d(1) % dimNames(3) = self % dimensions(3)
                     self % real3d(1) % defaultValue = 0.0
                     self % real3d(1) % missingValue = 0.0
-                    self % real3d(1) % isDecomposed = .true.
+                    self % real3d(1) % isDecomposed = is_decomposed_dim(self % dimensions(3))
                     self % real3d(1) % hasTimeDimension = self % hasTimeDimension
                     self % real3d(1) % isActive = contains_active_package(self % packages, packagePool)
                     self % real3d(1) % isVarArray = .false.
@@ -483,7 +483,7 @@ contains
                     self % real3d(1) % dimNames(3) = self % dimensions(3)
                     self % real3d(1) % defaultValue = 0.0
                     self % real3d(1) % missingValue = 0.0
-                    self % real3d(1) % isDecomposed = .true.
+                    self % real3d(1) % isDecomposed = is_decomposed_dim(self % dimensions(3))
                     self % real3d(1) % hasTimeDimension = self % hasTimeDimension
                     self % real3d(1) % isActive = contains_active_package(self % packages, packagePool)
                     self % real3d(1) % isVarArray = .true.
@@ -1034,5 +1034,38 @@ contains
         self % nitems = 0
 
     end subroutine ll_destroy
+
+
+    !-----------------------------------------------------------------------
+    !  routine is_decomposed_dim
+    !
+    !> \brief Returns logical indicating whether a dimension is decomposed
+    !> \author Michael Duda
+    !> \date   13 October 2025
+    !> \details
+    !>  This function returns a logical value indicating whether the given
+    !>  dimension name corresponds to a decomposed dimension or not.
+    !
+    !-----------------------------------------------------------------------
+    function is_decomposed_dim(dimname) result(is_decomposed)
+
+        ! Arguments
+        character(len=*), intent(in) :: dimname
+
+        ! Return value
+        logical :: is_decomposed
+
+
+        is_decomposed = .false.
+
+        if (trim(dimname) == 'nCells'         &
+            .or. trim(dimname) == 'nVertices' &
+            .or. trim(dimname) == 'nEdges') then
+
+            is_decomposed = .true.
+
+        end if
+
+    end function is_decomposed_dim
 
 end module mpas_runtime_vars
