@@ -68,6 +68,7 @@ module atm_core
       character (len=StrKIND), pointer :: xtime
       character (len=StrKIND), pointer :: initial_time1, initial_time2
       type (MPAS_Time_Type) :: startTime
+      integer, dimension(:), pointer :: days_in_month
 
       real (kind=RKIND), pointer :: nominalMinDc
       real (kind=RKIND), pointer :: config_len_disp
@@ -172,6 +173,20 @@ module atm_core
       call mpas_pool_get_config(domain % blocklist % configs, 'config_len_disp', config_len_disp)
 
       call mpas_log_write('')
+
+call mpas_pool_get_array(mesh, 'daysInMonth', days_in_month)
+days_in_month(1) = 31
+days_in_month(2) = 28
+days_in_month(3) = 31
+days_in_month(4) = 30
+days_in_month(5) = 31
+days_in_month(6) = 30
+days_in_month(7) = 31
+days_in_month(8) = 31
+days_in_month(9) = 30
+days_in_month(10) = 31
+days_in_month(11) = 30
+days_in_month(12) = 31
 
       !
       ! If config_len_disp was specified as a valid value, use that

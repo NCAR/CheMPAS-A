@@ -476,6 +476,7 @@ module atm_core_interface
       type (MPAS_var) :: foobar, blaz
       type (MPAS_var) :: o3, no, no2
       type (MPAS_var) :: parentCellID
+      type (MPAS_var) :: days_in_month
       type (MPAS_var_array) :: chem
       type (mpas_pool_type), pointer :: diagPool, meshPool
 
@@ -579,6 +580,18 @@ module atm_core_interface
 
       call parentCellID % add_to_pool(block, block % allFields, block % packages)
       call parentCellID % add_to_pool(block, meshPool, block % packages)
+
+      days_in_month % name = 'daysInMonth'
+      days_in_month % vartype = MPAS_VAR_INTEGER
+      days_in_month % hasTimeDimension = .false.
+      days_in_month % ndims = 1
+      allocate(days_in_month % dimensions(1))
+      days_in_month % dimensions(1) = 'nMonths'
+      days_in_month % units = '-'
+      days_in_month % description = 'Number of days in the month'
+
+      call days_in_month % add_to_pool(block, block % allFields, block % packages)
+      call days_in_month % add_to_pool(block, meshPool, block % packages)
 
    end function atm_setup_block
 
