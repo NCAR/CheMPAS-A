@@ -437,36 +437,42 @@ contains
         PTR_CAST(current, current_cnst, MPAS_var)
         n = 1
         ncnst = sorted_list % length()
+
+        if (ncnst > 0) then
+            write(0,*) trim(current_cnst % group)//'_start = ', 1
+            call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_start', 1)
+        end if
+
         do idx = 1, ncnst
             nullify(cursor_cnst)
             PTR_CAST(cursor, cursor_cnst, MPAS_var)
-
-            if (n == 1) then
-                write(0,*) trim(current_cnst % group)//'_start = ', idx
-                call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_start', idx)
-            end if
+            write(0,*) 'MGD idx = ', idx, &
+                       ' cnst = '//trim(cursor_cnst % name)//' group = '//trim(cursor_cnst % group)
 
             if (trim(cursor_cnst % group) /= trim(current_cnst % group)) then
-                write(0,*) trim(current_cnst % group)//'_end = ', idx
-                call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_end', idx)
-                write(0,*) 'num_'//trim(current_cnst % group)//' = ', n
-                call mpas_pool_add_dimension(fieldPool, 'num_'//trim(current_cnst % group), n)
+                write(0,*) trim(current_cnst % group)//'_end = ', idx - 1
+                call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_end', idx - 1)
+                write(0,*) 'num_'//trim(current_cnst % group)//' = ', n - 1
+                call mpas_pool_add_dimension(fieldPool, 'num_'//trim(current_cnst % group), n - 1)
+
                 n = 1
                 current => cursor
                 nullify(current_cnst)
                 PTR_CAST(current, current_cnst, MPAS_var)
-            end if
-
-            if (idx == ncnst) then
-                write(0,*) trim(current_cnst % group)//'_end = ', idx
-                call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_end', idx)
-                write(0,*) 'num_'//trim(current_cnst % group)//' = ', n
-                call mpas_pool_add_dimension(fieldPool, 'num_'//trim(current_cnst % group), n)
+                write(0,*) trim(current_cnst % group)//'_start = ', idx
+                call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_start', idx)
             end if
 
             n = n + 1
             cursor => sorted_list % get_next_item()
         end do
+
+        if (ncnst > 0) then
+            write(0,*) trim(current_cnst % group)//'_end = ', idx - 1
+            call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_end', idx - 1)
+            write(0,*) 'num_'//trim(current_cnst % group)//' = ', n - 1
+            call mpas_pool_add_dimension(fieldPool, 'num_'//trim(current_cnst % group), n - 1)
+        end if
 
         select case (self % vartype)
         case (MPAS_VAR_REAL)
@@ -478,7 +484,7 @@ contains
 
                     self % real3d(1) % block => block
                     self % real3d(1) % fieldName = self % name
-                    self % real3d(1) % dimNames(1) = 'num_chem'
+                    self % real3d(1) % dimNames(1) = 'num_'//trim(self % name)
                     self % real3d(1) % dimNames(2) = self % dimensions(2)
                     self % real3d(1) % dimNames(3) = self % dimensions(3)
                     self % real3d(1) % defaultValue = 0.0
@@ -490,7 +496,8 @@ contains
                     self % real3d(1) % isPersistent = .true.
 
                     allocate(self % real3d(1) % attLists(ncnst))
-                    allocate(self % real3d(1) % attLists(ncnst) % attList)
+                    if (ncnst > 0) allocate(self % real3d(1) % attLists(ncnst) % attList)
+
                     allocate(self % real3d(1) % constituentNames(ncnst))
 
                     call sorted_list % begin_iteration()
