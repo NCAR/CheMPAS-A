@@ -82,15 +82,21 @@ module mpas_runtime_vars
         character(len=ShortStrKIND) :: description = 'unknown'
         character(len=ShortStrKIND), dimension(:), allocatable :: dimensions
         logical :: hasTimeDimension = .true.
+        integer :: nTimeLevels = 1
         character(len=ShortStrKIND) :: group = ''  ! Only matters for constituents of an MPAS_var_array
         character(len=ShortStrKIND) :: packages = ''
 
         ! Private members
-        type (field1DInteger), dimension(:), pointer, private :: int1d => null()
-        type (field2DInteger), dimension(:), pointer, private :: int2d => null()
-        type (field1DReal), dimension(:), pointer, private :: real1d => null()
-        type (field2DReal), dimension(:), pointer, private :: real2d => null()
-        type (field3DReal), dimension(:), pointer, private :: real3d => null()
+        type (field1DInteger), pointer, private :: int1d => null()
+        type (field1DInteger), dimension(:), pointer, private :: int1d_arr => null()
+        type (field2DInteger), pointer, private :: int2d => null()
+        type (field2DInteger), dimension(:), pointer, private :: int2d_arr => null()
+        type (field1DReal), pointer, private :: real1d => null()
+        type (field1DReal), dimension(:), pointer, private :: real1d_arr => null()
+        type (field2DReal), pointer, private :: real2d => null()
+        type (field2DReal), dimension(:), pointer, private :: real2d_arr => null()
+        type (field3DReal), pointer, private :: real3d => null()
+        type (field3DReal), dimension(:), pointer, private :: real3d_arr => null()
     contains
         procedure :: add_to_pool => add_to_pool_var
         final :: destroy_mpas_var
@@ -139,6 +145,7 @@ contains
 
         use mpas_pool_routines, only : mpas_pool_add_field
         use mpas_derived_types, only : block_type
+        use mpas_kind_types, only : RKIND
         use mpas_attlist, only : mpas_add_att
 
         implicit none
@@ -150,6 +157,13 @@ contains
         type (mpas_pool_type), intent(in) :: packagePool
         integer, intent(out), optional :: ierr
 
+        ! Local variables
+        integer :: i
+        type (field1DInteger), pointer :: int1d_ptr
+        type (field2DInteger), pointer :: int2d_ptr
+        type (field1DReal), pointer :: real1d_ptr
+        type (field2DReal), pointer :: real2d_ptr
+        type (field3DReal), pointer :: real3d_ptr
 
         if (present(ierr)) ierr = MPAS_VAR_OK
 
@@ -158,53 +172,91 @@ contains
 
             select case (self % ndims)
             case (1)
-                if (.not. associated(self % int1d)) then
-                    allocate(self % int1d(1))
+                if ((.not. associated(self % int1d) .and. self % nTimeLevels == 1) &
+                    .or. (.not. associated(self % int1d_arr) .and. self % nTimeLevels > 1)) then
 
-                    self % int1d(1) % block => block
-                    self % int1d(1) % fieldName = self % name
-                    self % int1d(1) % dimNames(1) = self % dimensions(1)
-                    self % int1d(1) % defaultValue = 0
-                    self % int1d(1) % missingValue = 0
-                    self % int1d(1) % isDecomposed = is_decomposed_dim(self % dimensions(1))
-                    self % int1d(1) % hasTimeDimension = self % hasTimeDimension
-                    self % int1d(1) % isActive = contains_active_package(self % packages, packagePool)
-                    self % int1d(1) % isVarArray = .false.
-                    self % int1d(1) % isPersistent = .true.
+                    if (self % nTimeLevels > 1) then
+                        allocate(self % int1d_arr(self % nTimeLevels))
+                    else
+                        allocate(self % int1d)
+                    end if
 
-                    allocate(self % int1d(1) % attLists(1))
-                    allocate(self % int1d(1) % attLists(1) % attList)
+                    do i = 1, self % nTimeLevels
+                        if (self % nTimeLevels > 1) then
+                            int1d_ptr => self % int1d_arr(i)
+                        else
+                            int1d_ptr => self % int1d
+                        end if
 
-                    call mpas_add_att(self % int1d(1) % attLists(1) % attList, 'units', self % units)
-                    call mpas_add_att(self % int1d(1) % attLists(1) % attList, 'long_name', self % description)
+                        int1d_ptr % block => block
+                        int1d_ptr % fieldName = self % name
+                        int1d_ptr % dimNames(1) = self % dimensions(1)
+                        int1d_ptr % defaultValue = 0
+                        int1d_ptr % missingValue = 0
+                        int1d_ptr % isDecomposed = is_decomposed_dim(self % dimensions(1))
+                        int1d_ptr % hasTimeDimension = self % hasTimeDimension
+                        int1d_ptr % isActive = contains_active_package(self % packages, packagePool)
+                        int1d_ptr % isVarArray = .false.
+                        int1d_ptr % isPersistent = .true.
+
+                        allocate(int1d_ptr % attLists(1))
+                        allocate(int1d_ptr % attLists(1) % attList)
+
+                        call mpas_add_att(int1d_ptr % attLists(1) % attList, 'units', self % units)
+                        call mpas_add_att(int1d_ptr % attLists(1) % attList, 'long_name', self % description)
+                    end do
+
                 end if
 
-                call mpas_pool_add_field(fieldPool, trim(self % int1d(1) % fieldName), self % int1d)
+                if (self % nTimeLevels > 1) then
+                    call mpas_pool_add_field(fieldPool, trim(self % int1d_arr(1) % fieldName), self % int1d_arr)
+                else
+                    call mpas_pool_add_field(fieldPool, trim(self % int1d % fieldName), self % int1d)
+                end if
 
             case (2)
-                if (.not. associated(self % int2d)) then
-                    allocate(self % int2d(1))
+                if ((.not. associated(self % int2d) .and. self % nTimeLevels == 1) &
+                    .or. (.not. associated(self % int2d_arr) .and. self % nTimeLevels > 1)) then
 
-                    self % int2d(1) % block => block
-                    self % int2d(1) % fieldName = self % name
-                    self % int2d(1) % dimNames(1) = self % dimensions(1)
-                    self % int2d(1) % dimNames(2) = self % dimensions(2)
-                    self % int2d(1) % defaultValue = 0
-                    self % int2d(1) % missingValue = 0
-                    self % int2d(1) % isDecomposed = is_decomposed_dim(self % dimensions(2))
-                    self % int2d(1) % hasTimeDimension = self % hasTimeDimension
-                    self % int2d(1) % isActive = contains_active_package(self % packages, packagePool)
-                    self % int2d(1) % isVarArray = .false.
-                    self % int2d(1) % isPersistent = .true.
+                    if (self % nTimeLevels > 1) then
+                        allocate(self % int2d_arr(self % nTimeLevels))
+                    else
+                        allocate(self % int2d)
+                    end if
 
-                    allocate(self % int2d(1) % attLists(1))
-                    allocate(self % int2d(1) % attLists(1) % attList)
+                    do i = 1, self % nTimeLevels
+                        if (self % nTimeLevels > 1) then
+                            int2d_ptr => self % int2d_arr(i)
+                        else
+                            int2d_ptr => self % int2d
+                        end if
 
-                    call mpas_add_att(self % int2d(1) % attLists(1) % attList, 'units', self % units)
-                    call mpas_add_att(self % int2d(1) % attLists(1) % attList, 'long_name', self % description)
+                        int2d_ptr % block => block
+                        int2d_ptr % fieldName = self % name
+                        int2d_ptr % dimNames(1) = self % dimensions(1)
+                        int2d_ptr % dimNames(2) = self % dimensions(2)
+                        int2d_ptr % defaultValue = 0
+                        int2d_ptr % missingValue = 0
+                        int2d_ptr % isDecomposed = is_decomposed_dim(self % dimensions(2))
+                        int2d_ptr % hasTimeDimension = self % hasTimeDimension
+                        int2d_ptr % isActive = contains_active_package(self % packages, packagePool)
+                        int2d_ptr % isVarArray = .false.
+                        int2d_ptr % isPersistent = .true.
+
+                        allocate(int2d_ptr % attLists(1))
+                        allocate(int2d_ptr % attLists(1) % attList)
+
+                        call mpas_add_att(int2d_ptr % attLists(1) % attList, 'units', self % units)
+                        call mpas_add_att(int2d_ptr % attLists(1) % attList, 'long_name', self % description)
+                    end do
+
                 end if
 
-                call mpas_pool_add_field(fieldPool, trim(self % int2d(1) % fieldName), self % int2d)
+                if (self % nTimeLevels > 1) then
+                    call mpas_pool_add_field(fieldPool, trim(self % int2d_arr(1) % fieldName), self % int2d_arr)
+                else
+                    call mpas_pool_add_field(fieldPool, trim(self % int2d % fieldName), self % int2d)
+                end if
 
             case default
                 if (present(ierr)) ierr = MPAS_VAR_INVALID_NDIMS
@@ -214,79 +266,136 @@ contains
 
             select case (self % ndims)
             case (1)
-                if (.not. associated(self % real1d)) then
-                    allocate(self % real1d(1))
+                if ((.not. associated(self % real1d) .and. self % nTimeLevels == 1) &
+                    .or. (.not. associated(self % real1d_arr) .and. self % nTimeLevels > 1)) then
 
-                    self % real1d(1) % block => block
-                    self % real1d(1) % fieldName = self % name
-                    self % real1d(1) % dimNames(1) = self % dimensions(1)
-                    self % real1d(1) % defaultValue = 0.0
-                    self % real1d(1) % missingValue = 0.0
-                    self % real1d(1) % isDecomposed = is_decomposed_dim(self % dimensions(1))
-                    self % real1d(1) % hasTimeDimension = self % hasTimeDimension
-                    self % real1d(1) % isActive = contains_active_package(self % packages, packagePool)
-                    self % real1d(1) % isVarArray = .false.
-                    self % real1d(1) % isPersistent = .true.
+                    if (self % nTimeLevels > 1) then
+                        allocate(self % real1d_arr(self % nTimeLevels))
+                    else
+                        allocate(self % real1d)
+                    end if
 
-                    allocate(self % real1d(1) % attLists(1))
-                    allocate(self % real1d(1) % attLists(1) % attList)
+                    do i = 1, self % nTimeLevels
+                        if (self % nTimeLevels > 1) then
+                            real1d_ptr => self % real1d_arr(i)
+                        else
+                            real1d_ptr => self % real1d
+                        end if
 
-                    call mpas_add_att(self % real1d(1) % attLists(1) % attList, 'units', self % units)
-                    call mpas_add_att(self % real1d(1) % attLists(1) % attList, 'long_name', self % description)
+                        real1d_ptr % block => block
+                        real1d_ptr % fieldName = self % name
+                        real1d_ptr % dimNames(1) = self % dimensions(1)
+                        real1d_ptr % defaultValue = 0.0_RKIND
+                        real1d_ptr % missingValue = 0.0_RKIND
+                        real1d_ptr % isDecomposed = is_decomposed_dim(self % dimensions(1))
+                        real1d_ptr % hasTimeDimension = self % hasTimeDimension
+                        real1d_ptr % isActive = contains_active_package(self % packages, packagePool)
+                        real1d_ptr % isVarArray = .false.
+                        real1d_ptr % isPersistent = .true.
+
+                        allocate(real1d_ptr % attLists(1))
+                        allocate(real1d_ptr % attLists(1) % attList)
+
+                        call mpas_add_att(real1d_ptr % attLists(1) % attList, 'units', self % units)
+                        call mpas_add_att(real1d_ptr % attLists(1) % attList, 'long_name', self % description)
+                    end do
+
                 end if
 
-                call mpas_pool_add_field(fieldPool, trim(self % real1d(1) % fieldName), self % real1d)
+                if (self % nTimeLevels > 1) then
+                    call mpas_pool_add_field(fieldPool, trim(self % real1d_arr(1) % fieldName), self % real1d_arr)
+                else
+                    call mpas_pool_add_field(fieldPool, trim(self % real1d % fieldName), self % real1d)
+                end if
 
             case (2)
-                if (.not. associated(self % real2d)) then
-                    allocate(self % real2d(1))
+                if ((.not. associated(self % real2d) .and. self % nTimeLevels == 1) &
+                    .or. (.not. associated(self % real2d_arr) .and. self % nTimeLevels > 1)) then
 
-                    self % real2d(1) % block => block
-                    self % real2d(1) % fieldName = self % name
-                    self % real2d(1) % dimNames(1) = self % dimensions(1)
-                    self % real2d(1) % dimNames(2) = self % dimensions(2)
-                    self % real2d(1) % defaultValue = 0.0
-                    self % real2d(1) % missingValue = 0.0
-                    self % real2d(1) % isDecomposed = is_decomposed_dim(self % dimensions(2))
-                    self % real2d(1) % hasTimeDimension = self % hasTimeDimension
-                    self % real2d(1) % isActive = contains_active_package(self % packages, packagePool)
-                    self % real2d(1) % isVarArray = .false.
-                    self % real2d(1) % isPersistent = .true.
+                    if (self % nTimeLevels > 1) then
+                        allocate(self % real2d_arr(self % nTimeLevels))
+                    else
+                        allocate(self % real2d)
+                    end if
 
-                    allocate(self % real2d(1) % attLists(1))
-                    allocate(self % real2d(1) % attLists(1) % attList)
+                    do i = 1, self % nTimeLevels
+                        if (self % nTimeLevels > 1) then
+                            real2d_ptr => self % real2d_arr(i)
+                        else
+                            real2d_ptr => self % real2d
+                        end if
 
-                    call mpas_add_att(self % real2d(1) % attLists(1) % attList, 'units', self % units)
-                    call mpas_add_att(self % real2d(1) % attLists(1) % attList, 'long_name', self % description)
+                        real2d_ptr % block => block
+                        real2d_ptr % fieldName = self % name
+                        real2d_ptr % dimNames(1) = self % dimensions(1)
+                        real2d_ptr % dimNames(2) = self % dimensions(2)
+                        real2d_ptr % defaultValue = 0.0_RKIND
+                        real2d_ptr % missingValue = 0.0_RKIND
+                        real2d_ptr % isDecomposed = is_decomposed_dim(self % dimensions(2))
+                        real2d_ptr % hasTimeDimension = self % hasTimeDimension
+                        real2d_ptr % isActive = contains_active_package(self % packages, packagePool)
+                        real2d_ptr % isVarArray = .false.
+                        real2d_ptr % isPersistent = .true.
+
+                        allocate(real2d_ptr % attLists(1))
+                        allocate(real2d_ptr % attLists(1) % attList)
+
+                        call mpas_add_att(real2d_ptr % attLists(1) % attList, 'units', self % units)
+                        call mpas_add_att(real2d_ptr % attLists(1) % attList, 'long_name', self % description)
+                    end do
+
                 end if
 
-                call mpas_pool_add_field(fieldPool, trim(self % real2d(1) % fieldName), self % real2d)
+                if (self % nTimeLevels > 1) then
+                    call mpas_pool_add_field(fieldPool, trim(self % real2d_arr(1) % fieldName), self % real2d_arr)
+                else
+                    call mpas_pool_add_field(fieldPool, trim(self % real2d % fieldName), self % real2d)
+                end if
 
             case (3)
-                if (.not. associated(self % real3d)) then
-                    allocate(self % real3d(1))
+                if ((.not. associated(self % real3d) .and. self % nTimeLevels == 1) &
+                    .or. (.not. associated(self % real3d_arr) .and. self % nTimeLevels > 1)) then
 
-                    self % real3d(1) % block => block
-                    self % real3d(1) % fieldName = self % name
-                    self % real3d(1) % dimNames(1) = self % dimensions(1)
-                    self % real3d(1) % dimNames(2) = self % dimensions(2)
-                    self % real3d(1) % dimNames(3) = self % dimensions(3)
-                    self % real3d(1) % defaultValue = 0.0
-                    self % real3d(1) % missingValue = 0.0
-                    self % real3d(1) % isDecomposed = is_decomposed_dim(self % dimensions(3))
-                    self % real3d(1) % hasTimeDimension = self % hasTimeDimension
-                    self % real3d(1) % isActive = contains_active_package(self % packages, packagePool)
-                    self % real3d(1) % isVarArray = .false.
-                    self % real3d(1) % isPersistent = .true.
+                    if (self % nTimeLevels > 1) then
+                        allocate(self % real3d_arr(self % nTimeLevels))
+                    else
+                        allocate(self % real3d)
+                    end if
 
-                    allocate(self % real3d(1) % attLists(1))
-                    allocate(self % real3d(1) % attLists(1) % attList)
+                    do i = 1, self % nTimeLevels
+                        if (self % nTimeLevels > 1) then
+                            real3d_ptr => self % real3d_arr(i)
+                        else
+                            real3d_ptr => self % real3d
+                        end if
 
-                    call mpas_add_att(self % real3d(1) % attLists(1) % attList, 'units', self % units)
-                    call mpas_add_att(self % real3d(1) % attLists(1) % attList, 'long_name', self % description)
+                        real3d_ptr % block => block
+                        real3d_ptr % fieldName = self % name
+                        real3d_ptr % dimNames(1) = self % dimensions(1)
+                        real3d_ptr % dimNames(2) = self % dimensions(2)
+                        real3d_ptr % dimNames(3) = self % dimensions(3)
+                        real3d_ptr % defaultValue = 0.0_RKIND
+                        real3d_ptr % missingValue = 0.0_RKIND
+                        real3d_ptr % isDecomposed = is_decomposed_dim(self % dimensions(3))
+                        real3d_ptr % hasTimeDimension = self % hasTimeDimension
+                        real3d_ptr % isActive = contains_active_package(self % packages, packagePool)
+                        real3d_ptr % isVarArray = .false.
+                        real3d_ptr % isPersistent = .true.
+
+                        allocate(real3d_ptr % attLists(1))
+                        allocate(real3d_ptr % attLists(1) % attList)
+
+                        call mpas_add_att(real3d_ptr % attLists(1) % attList, 'units', self % units)
+                        call mpas_add_att(real3d_ptr % attLists(1) % attList, 'long_name', self % description)
+                    end do
+
                 end if
 
-                call mpas_pool_add_field(fieldPool, trim(self % real3d(1) % fieldName), self % real3d)
+                if (self % nTimeLevels > 1) then
+                    call mpas_pool_add_field(fieldPool, trim(self % real3d_arr(1) % fieldName), self % real3d_arr)
+                else
+                    call mpas_pool_add_field(fieldPool, trim(self % real3d % fieldName), self % real3d)
+                end if
 
             case default
                 if (present(ierr)) ierr = MPAS_VAR_INVALID_NDIMS

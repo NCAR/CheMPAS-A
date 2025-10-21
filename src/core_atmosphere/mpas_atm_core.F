@@ -69,6 +69,7 @@ module atm_core
       character (len=StrKIND), pointer :: initial_time1, initial_time2
       type (MPAS_Time_Type) :: startTime
       integer, dimension(:), pointer :: days_in_month
+      real (kind=RKIND), dimension(:), pointer :: tt
 
       real (kind=RKIND), pointer :: nominalMinDc
       real (kind=RKIND), pointer :: config_len_disp
@@ -100,6 +101,7 @@ module atm_core
       call mpas_pool_get_dimension(state, 'maxEdges2', maxEdges2)
       call mpas_pool_get_dimension(state, 'num_scalars', num_scalars)
       call mpas_atm_set_dims(nVertLevels, maxEdges, maxEdges2, num_scalars)
+
 
       !
       ! Set "local" clock to point to the clock contained in the domain type
@@ -241,6 +243,9 @@ days_in_month(12) = 31
             block => block % next
          end do
       end if
+
+call mpas_pool_get_array(state, 'tt', tt, timeLevel=2)
+tt(:) = 3.14159265_RKIND
 
       !
       ! Read a new data stream for Incremental Analysis Update (IAU), if config_IAU_option /= 'off'    : HA (June-15-2016)

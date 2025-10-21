@@ -473,12 +473,13 @@ module atm_core_interface
       type (block_type), pointer :: block
       integer :: ierr
 
+      type (MPAS_var) :: tt
       type (MPAS_var) :: foobar, blaz
       type (MPAS_var) :: o3, no, no2
       type (MPAS_var) :: parentCellID
       type (MPAS_var) :: days_in_month
       type (MPAS_var_array) :: chem
-      type (mpas_pool_type), pointer :: diagPool, meshPool
+      type (mpas_pool_type), pointer :: diagPool, meshPool, statePool
 
       integer, pointer :: cam_pcnst
       integer :: err_level
@@ -511,6 +512,20 @@ module atm_core_interface
 
       nullify(meshPool)
       call mpas_pool_get_subpool(block % structs, 'mesh', meshPool)
+
+      nullify(statePool)
+      call mpas_pool_get_subpool(block % structs, 'state', statePool)
+
+      tt % name = 'tt'
+      tt % ndims = 1
+      tt % units = 'K'
+      tt % description = 'Surface air temperature'
+      allocate(tt % dimensions(1))
+      tt % dimensions(1) = 'nVertices'
+      tt % nTimeLevels = 2
+
+      call tt % add_to_pool(block, block % allFields, block % packages)
+      call tt % add_to_pool(block, statePool, block % packages)
 
       foobar % name = 'foobar'
       foobar % ndims = 2
