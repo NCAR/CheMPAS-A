@@ -475,7 +475,7 @@ module atm_core_interface
 
       type (MPAS_var) :: tt
       type (MPAS_var) :: foobar, blaz
-      type (MPAS_var) :: o3, no, no2
+      type (MPAS_var) :: o3, no, no2, dust
       type (MPAS_var) :: parentCellID
       type (MPAS_var) :: days_in_month
       type (MPAS_var_array) :: chem
@@ -559,7 +559,7 @@ module atm_core_interface
       allocate(o3 % dimensions(2))
       o3 % dimensions(1) = 'nVertLevels'
       o3 % dimensions(2) = 'nCells'
-      call chem % add_constituent(o3, 'micm')
+      ! call chem % add_constituent(o3, 'micm')
 
       no % name = 'no'
       no % vartype = MPAS_VAR_REAL
@@ -580,7 +580,17 @@ module atm_core_interface
       allocate(no2 % dimensions(2))
       no2 % dimensions(1) = 'nVertLevels'
       no2 % dimensions(2) = 'nCells'
-      call chem % add_constituent(no2, 'micm')
+      ! call chem % add_constituent(no2, 'micm')
+
+      dust % name = 'dust'
+      dust % vartype = MPAS_VAR_REAL
+      dust % ndims = 2
+      dust % units = 'kg kg^-1'
+      dust % description = 'dust'
+      allocate(dust % dimensions(2))
+      dust % dimensions(1) = 'nVertLevels'
+      dust % dimensions(2) = 'nCells'
+      ! call chem % add_constituent(dust, 'gocart')
 
       call chem % add_to_pool(block, block % allFields, block % packages)
       call chem % add_to_pool(block, diagPool, block % packages)

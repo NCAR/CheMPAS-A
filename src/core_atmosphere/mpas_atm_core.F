@@ -70,6 +70,8 @@ module atm_core
       type (MPAS_Time_Type) :: startTime
       integer, dimension(:), pointer :: days_in_month
       real (kind=RKIND), dimension(:), pointer :: tt
+      real, dimension(:,:,:), pointer :: chem
+      integer, pointer :: num_chem, chem_start, chem_end, micm_start, micm_end, gocart_start, gocart_end
 
       real (kind=RKIND), pointer :: nominalMinDc
       real (kind=RKIND), pointer :: config_len_disp
@@ -189,6 +191,28 @@ days_in_month(9) = 30
 days_in_month(10) = 31
 days_in_month(11) = 30
 days_in_month(12) = 31
+
+      call mpas_pool_get_subpool(domain % blocklist % structs, 'diag', diag)
+      call mpas_pool_get_array(diag, 'chem', chem)
+      nullify(num_chem)
+      call mpas_pool_get_dimension(diag, 'num_chem', num_chem)
+      call mpas_log_write('MGD num_chem = $i', intArgs=[num_chem])
+      ! nullify(chem_start)
+      ! nullify(chem_end)
+      ! call mpas_pool_get_dimension(diag, 'chem_start', chem_start)
+      ! call mpas_pool_get_dimension(diag, 'chem_end', chem_end)
+      ! call mpas_log_write('MGD chem_start, chem_end = $i $i', intArgs=[chem_start, chem_end])
+      nullify(micm_start)
+      nullify(micm_end)
+      call mpas_pool_get_dimension(diag, 'micm_start', micm_start)
+      call mpas_pool_get_dimension(diag, 'micm_end', micm_end)
+      call mpas_log_write('MGD micm_start, micm_end = $i $i', intArgs=[micm_start, micm_end])
+      nullify(gocart_start)
+      nullify(gocart_end)
+      call mpas_pool_get_dimension(diag, 'gocart_start', gocart_start)
+      call mpas_pool_get_dimension(diag, 'gocart_end', gocart_end)
+      call mpas_log_write('MGD gocart_start, gocart_end = $i $i', intArgs=[gocart_start, gocart_end])
+
 
       !
       ! If config_len_disp was specified as a valid value, use that
