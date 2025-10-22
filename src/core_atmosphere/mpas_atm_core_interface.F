@@ -550,6 +550,7 @@ module atm_core_interface
       call blaz % add_to_pool(block, diagPool, block % packages)
 
       chem % name = 'chem'
+      chem % nTimeLevels = 2
 
       o3 % name = 'o3'
       o3 % vartype = MPAS_VAR_REAL
@@ -559,7 +560,7 @@ module atm_core_interface
       allocate(o3 % dimensions(2))
       o3 % dimensions(1) = 'nVertLevels'
       o3 % dimensions(2) = 'nCells'
-      ! call chem % add_constituent(o3, 'micm')
+      call chem % add_constituent(o3, 'micm')
 
       no % name = 'no'
       no % vartype = MPAS_VAR_REAL
@@ -580,7 +581,7 @@ module atm_core_interface
       allocate(no2 % dimensions(2))
       no2 % dimensions(1) = 'nVertLevels'
       no2 % dimensions(2) = 'nCells'
-      ! call chem % add_constituent(no2, 'micm')
+      call chem % add_constituent(no2, 'micm')
 
       dust % name = 'dust'
       dust % vartype = MPAS_VAR_REAL
@@ -590,10 +591,10 @@ module atm_core_interface
       allocate(dust % dimensions(2))
       dust % dimensions(1) = 'nVertLevels'
       dust % dimensions(2) = 'nCells'
-      ! call chem % add_constituent(dust, 'gocart')
+      call chem % add_constituent(dust, 'gocart')
 
       call chem % add_to_pool(block, block % allFields, block % packages)
-      call chem % add_to_pool(block, diagPool, block % packages)
+      call chem % add_to_pool(block, statePool, block % packages)
 
       parentCellID % name = 'parentCellID'
       parentCellID % ndims = 1

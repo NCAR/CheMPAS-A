@@ -107,6 +107,7 @@ module mpas_runtime_vars
         ! Public members
         character(len=ShortStrKIND) :: name = ''
         character(len=ShortStrKIND) :: packages = ''
+        integer :: nTimeLevels = 1
 
         ! Private members
         integer, private :: ndims = -1
@@ -114,7 +115,8 @@ module mpas_runtime_vars
         character(len=ShortStrKIND), dimension(:), allocatable, private :: dimensions
         type (linked_list), allocatable :: const_list
         logical :: hasTimeDimension = .true.
-        type (field3DReal), dimension(:), pointer, private :: real3d => null()
+        type (field3DReal), pointer, private :: real3d => null()
+        type (field3DReal), dimension(:), pointer, private :: real3d_arr => null()
     contains
         procedure :: add_constituent
         procedure :: add_to_pool => add_to_pool_var_array
@@ -515,6 +517,7 @@ contains
         use mpas_pool_routines, only : mpas_pool_add_field, mpas_pool_add_dimension
         use mpas_derived_types, only : block_type
         use mpas_attlist, only : mpas_add_att
+        use mpas_kind_types, only : RKIND
 
         implicit none
 
@@ -529,7 +532,8 @@ contains
         class (*), pointer :: current, cursor
         type (MPAS_var), pointer :: current_cnst, cursor_cnst
         type (linked_list) :: sorted_list
-        integer :: idx, n, ncnst
+        integer :: idx, n, ncnst, i
+        type (field3DReal), pointer :: real3d_ptr
 
 
         if (present(ierr)) ierr = MPAS_VAR_OK
@@ -557,6 +561,7 @@ contains
             PTR_CAST(cursor, cursor_cnst, MPAS_var)
             write(0,*) 'MGD idx = ', idx, &
                        ' cnst = '//trim(cursor_cnst % name)//' group = '//trim(cursor_cnst % group)
+            call mpas_pool_add_dimension(fieldPool, 'index_'//trim(cursor_cnst % name), idx)
 
             if (trim(cursor_cnst % group) /= trim(current_cnst % group)) then
                 write(0,*) trim(current_cnst % group)//'_end = ', idx - 1
@@ -588,41 +593,58 @@ contains
 
             select case (self % ndims)
             case (3)
-                if (.not. associated(self % real3d)) then
-                    allocate(self % real3d(1))
+                if ((.not. associated(self % real3d) .and. self % nTimeLevels == 1) &
+                    .or. (.not. associated(self % real3d_arr) .and. self % nTimeLevels > 1)) then
+                    if (self % nTimeLevels > 1) then
+                        allocate(self % real3d_arr(self % nTimeLevels))
+                    else
+                        allocate(self % real3d)
+                    end if
 
-                    self % real3d(1) % block => block
-                    self % real3d(1) % fieldName = self % name
-                    self % real3d(1) % dimNames(1) = 'num_'//trim(self % name)
-                    self % real3d(1) % dimNames(2) = self % dimensions(2)
-                    self % real3d(1) % dimNames(3) = self % dimensions(3)
-                    self % real3d(1) % defaultValue = 0.0
-                    self % real3d(1) % missingValue = 0.0
-                    self % real3d(1) % isDecomposed = is_decomposed_dim(self % dimensions(3))
-                    self % real3d(1) % hasTimeDimension = self % hasTimeDimension
-                    self % real3d(1) % isActive = contains_active_package(self % packages, packagePool)
-                    self % real3d(1) % isVarArray = .true.
-                    self % real3d(1) % isPersistent = .true.
+                    do i = 1, self % nTimeLevels
+                        if (self % nTimeLevels > 1) then
+                            real3d_ptr => self % real3d_arr(i)
+                        else
+                            real3d_ptr => self % real3d
+                        end if
 
-                    allocate(self % real3d(1) % attLists(ncnst))
-                    if (ncnst > 0) allocate(self % real3d(1) % attLists(ncnst) % attList)
+                        real3d_ptr % block => block
+                        real3d_ptr % fieldName = self % name
+                        real3d_ptr % dimNames(1) = 'num_'//trim(self % name)
+                        real3d_ptr % dimNames(2) = self % dimensions(2)
+                        real3d_ptr % dimNames(3) = self % dimensions(3)
+                        real3d_ptr % defaultValue = 0.0_RKIND
+                        real3d_ptr % missingValue = 0.0_RKIND
+                        real3d_ptr % isDecomposed = is_decomposed_dim(self % dimensions(3))
+                        real3d_ptr % hasTimeDimension = self % hasTimeDimension
+                        real3d_ptr % isActive = contains_active_package(self % packages, packagePool)
+                        real3d_ptr % isVarArray = .true.
+                        real3d_ptr % isPersistent = .true.
 
-                    allocate(self % real3d(1) % constituentNames(ncnst))
+                        allocate(real3d_ptr % attLists(ncnst))
+                        if (ncnst > 0) allocate(real3d_ptr % attLists(ncnst) % attList)
 
-                    call sorted_list % begin_iteration()
-                    do idx = 1, ncnst
-                        cursor => sorted_list % get_next_item()
-                        nullify(cursor_cnst)
-                        PTR_CAST(cursor, cursor_cnst, MPAS_var)
-                        self % real3d(1) % constituentNames(idx) = trim(cursor_cnst % name)
-                        call mpas_add_att(self % real3d(1) % attLists(idx) % attList, 'units', &
-                                          cursor_cnst % units)
-                        call mpas_add_att(self % real3d(1) % attLists(idx) % attList, 'long_name', &
-                                          cursor_cnst % description)
+                        allocate(real3d_ptr % constituentNames(ncnst))
+
+                        call sorted_list % begin_iteration()
+                        do idx = 1, ncnst
+                            cursor => sorted_list % get_next_item()
+                            nullify(cursor_cnst)
+                            PTR_CAST(cursor, cursor_cnst, MPAS_var)
+                            real3d_ptr % constituentNames(idx) = trim(cursor_cnst % name)
+                            call mpas_add_att(real3d_ptr % attLists(idx) % attList, 'units', &
+                                              cursor_cnst % units)
+                            call mpas_add_att(real3d_ptr % attLists(idx) % attList, 'long_name', &
+                                              cursor_cnst % description)
+                        end do
                     end do
                 end if
 
-                call mpas_pool_add_field(fieldPool, trim(self % real3d(1) % fieldName), self % real3d)
+                if (self % nTimeLevels > 1) then
+                    call mpas_pool_add_field(fieldPool, trim(self % real3d_arr(1) % fieldName), self % real3d_arr)
+                else
+                    call mpas_pool_add_field(fieldPool, trim(self % real3d % fieldName), self % real3d)
+                end if
 
             case default
                 if (present(ierr)) ierr = MPAS_VAR_INVALID_NDIMS

@@ -71,7 +71,7 @@ module atm_core
       integer, dimension(:), pointer :: days_in_month
       real (kind=RKIND), dimension(:), pointer :: tt
       real, dimension(:,:,:), pointer :: chem
-      integer, pointer :: num_chem, chem_start, chem_end, micm_start, micm_end, gocart_start, gocart_end
+      integer, pointer :: num_chem, micm_start, micm_end, gocart_start, gocart_end, index_dust
 
       real (kind=RKIND), pointer :: nominalMinDc
       real (kind=RKIND), pointer :: config_len_disp
@@ -193,25 +193,24 @@ days_in_month(11) = 30
 days_in_month(12) = 31
 
       call mpas_pool_get_subpool(domain % blocklist % structs, 'diag', diag)
-      call mpas_pool_get_array(diag, 'chem', chem)
+      call mpas_pool_get_array(state, 'chem', chem)
       nullify(num_chem)
-      call mpas_pool_get_dimension(diag, 'num_chem', num_chem)
+      call mpas_pool_get_dimension(state, 'num_chem', num_chem)
       call mpas_log_write('MGD num_chem = $i', intArgs=[num_chem])
-      ! nullify(chem_start)
-      ! nullify(chem_end)
-      ! call mpas_pool_get_dimension(diag, 'chem_start', chem_start)
-      ! call mpas_pool_get_dimension(diag, 'chem_end', chem_end)
-      ! call mpas_log_write('MGD chem_start, chem_end = $i $i', intArgs=[chem_start, chem_end])
       nullify(micm_start)
       nullify(micm_end)
-      call mpas_pool_get_dimension(diag, 'micm_start', micm_start)
-      call mpas_pool_get_dimension(diag, 'micm_end', micm_end)
+      call mpas_pool_get_dimension(state, 'micm_start', micm_start)
+      call mpas_pool_get_dimension(state, 'micm_end', micm_end)
       call mpas_log_write('MGD micm_start, micm_end = $i $i', intArgs=[micm_start, micm_end])
       nullify(gocart_start)
       nullify(gocart_end)
-      call mpas_pool_get_dimension(diag, 'gocart_start', gocart_start)
-      call mpas_pool_get_dimension(diag, 'gocart_end', gocart_end)
+      call mpas_pool_get_dimension(state, 'gocart_start', gocart_start)
+      call mpas_pool_get_dimension(state, 'gocart_end', gocart_end)
       call mpas_log_write('MGD gocart_start, gocart_end = $i $i', intArgs=[gocart_start, gocart_end])
+
+      nullify(index_dust)
+      call mpas_pool_get_dimension(state, 'index_dust', index_dust)
+      call mpas_log_write('MGD index_dust = $i', intArgs=[index_dust])
 
 
       !
@@ -267,6 +266,8 @@ days_in_month(12) = 31
             block => block % next
          end do
       end if
+
+chem(index_dust,:,:) = 2.71828_RKIND
 
 call mpas_pool_get_array(state, 'tt', tt, timeLevel=2)
 tt(:) = 3.14159265_RKIND
