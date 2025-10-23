@@ -21,7 +21,7 @@
 
 module mpas_runtime_vars
 
-    use mpas_kind_types, only : ShortStrKIND
+    use mpas_kind_types, only : StrKIND, ShortStrKIND
     use mpas_derived_types, only : mpas_pool_type, &
                                    field1DInteger, &
                                    field2DInteger, &
@@ -84,7 +84,7 @@ module mpas_runtime_vars
         logical :: hasTimeDimension = .true.
         integer :: nTimeLevels = 1
         character(len=ShortStrKIND) :: group = ''  ! Only matters for constituents of an MPAS_var_array
-        character(len=ShortStrKIND) :: packages = ''
+        character(len=StrKIND) :: packages = ''
 
         ! Private members
         type (field1DInteger), pointer, private :: int1d => null()
@@ -106,7 +106,7 @@ module mpas_runtime_vars
     type MPAS_var_array
         ! Public members
         character(len=ShortStrKIND) :: name = ''
-        character(len=ShortStrKIND) :: packages = ''
+        character(len=StrKIND) :: packages = ''
         integer :: nTimeLevels = 1
 
         ! Private members
@@ -849,6 +849,7 @@ contains
                 j = j + 1
                 if (i > len(string)) exit
             end do
+            subStrings(n_strs)(j:max_strlen) = ''
         end do COPY_LOOP
 
     end subroutine mpas_split_string_new
@@ -912,7 +913,7 @@ contains
                     exit
                 end if
             else
-                write(0,*) 'Package does not exist!'
+                write(0,*) 'Package does not exist: '//trim(packages(i))
             end if
         end do
 
