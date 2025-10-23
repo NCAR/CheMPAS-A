@@ -588,6 +588,19 @@ contains
             call mpas_pool_add_dimension(fieldPool, 'num_'//trim(current_cnst % group), n - 1)
         end if
 
+        !
+        ! Add index_* dimensions for inactive constituents
+        !
+        call self % const_list % begin_iteration()
+        cursor => self % const_list % get_next_item()
+        do while (associated(cursor))
+            PTR_CAST(cursor, cursor_cnst, MPAS_var)
+            if (.not. contains_active_package(cursor_cnst % packages, packagePool)) then
+                call mpas_pool_add_dimension(fieldPool, 'index_'//trim(cursor_cnst % name), -1)
+            end if
+            cursor => self % const_list % get_next_item()
+        end do
+
         select case (self % vartype)
         case (MPAS_VAR_REAL)
 

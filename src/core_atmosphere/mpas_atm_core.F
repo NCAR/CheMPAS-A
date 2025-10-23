@@ -71,7 +71,7 @@ module atm_core
       integer, dimension(:), pointer :: days_in_month
       real (kind=RKIND), dimension(:), pointer :: tt
       real, dimension(:,:,:), pointer :: chem
-      integer, pointer :: num_chem, micm_start, micm_end, gocart_start, gocart_end, index_dust
+      integer, pointer :: num_chem, micm_start, micm_end, gocart_start, gocart_end, index_dust, index_no
 
       real (kind=RKIND), pointer :: nominalMinDc
       real (kind=RKIND), pointer :: config_len_disp
@@ -211,6 +211,14 @@ days_in_month(12) = 31
       nullify(index_dust)
       call mpas_pool_get_dimension(state, 'index_dust', index_dust)
       call mpas_log_write('MGD index_dust = $i', intArgs=[index_dust])
+
+      nullify(index_no)
+      call mpas_pool_get_dimension(state, 'index_no', index_no)
+      if (associated(index_no)) then
+         call mpas_log_write('MGD index_no = $i', intArgs=[index_no])
+      else
+         call mpas_log_write('MGD index_no NOT ASSOCIATED')
+      end if
 
 
       !
