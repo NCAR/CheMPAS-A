@@ -473,12 +473,8 @@ module atm_core_interface
       type (block_type), pointer :: block
       integer :: ierr
 
-      type (MPAS_var) :: tt
-      type (MPAS_var) :: foobar, blaz
-      type (MPAS_var) :: o3, no, no2, dust
-      type (MPAS_var) :: parentCellID
-      type (MPAS_var) :: days_in_month
-      type (MPAS_var_array) :: chem
+      type (MPAS_var) :: qv, qc, qr, qi, qs, qg, ni, nr, nc, nifa, nwfa
+      type (MPAS_var_array) :: scalars
       type (mpas_pool_type), pointer :: diagPool, meshPool, statePool
 
       integer, pointer :: cam_pcnst
@@ -516,108 +512,131 @@ module atm_core_interface
       nullify(statePool)
       call mpas_pool_get_subpool(block % structs, 'state', statePool)
 
-      tt % name = 'tt'
-      tt % ndims = 1
-      tt % units = 'K'
-      tt % description = 'Surface air temperature'
-      allocate(tt % dimensions(1))
-      tt % dimensions(1) = 'nVertices'
-      tt % nTimeLevels = 2
+      scalars % name = 'scalars'
+      scalars % nTimeLevels = 2
 
-      call tt % add_to_pool(block, block % allFields, block % packages)
-      call tt % add_to_pool(block, statePool, block % packages)
+      qv % name = 'qv'
+      qv % vartype = MPAS_VAR_REAL
+      qv % ndims = 2
+      qv % units = 'kg kg^-1'
+      qv % description = 'Water vapor mixing ratio'
+      allocate(qv % dimensions(2))
+      qv % dimensions(1) = 'nVertLevels'
+      qv % dimensions(2) = 'nCells'
+      call scalars % add_constituent(qv, 'moist')
 
-      foobar % name = 'foobar'
-      foobar % ndims = 2
-      foobar % units = 'dimensionless'
-      foobar % description = 'runtime foo bar'
-      allocate(foobar % dimensions(2))
-      foobar % dimensions(1) = 'nVertLevels'
-      foobar % dimensions(2) = 'nCells'
+      qc % name = 'qc'
+      qc % vartype = MPAS_VAR_REAL
+      qc % ndims = 2
+      qc % units = 'kg kg^-1'
+      qc % description = 'Cloud water mixing ratio'
+      qc % packages = 'bl_mynn_in;bl_ysu_in;cu_ntiedtke_in;mp_kessler_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
+      allocate(qc % dimensions(2))
+      qc % dimensions(1) = 'nVertLevels'
+      qc % dimensions(2) = 'nCells'
+      call scalars % add_constituent(qc, 'moist')
 
-      call foobar % add_to_pool(block, block % allFields, block % packages)
-      call foobar % add_to_pool(block, diagPool, block % packages)
+      qr % name = 'qr'
+      qr % vartype = MPAS_VAR_REAL
+      qr % ndims = 2
+      qr % units = 'kg kg^-1'
+      qr % description = 'Rain water mixing ratio'
+      qr % packages = 'mp_kessler_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
+      allocate(qr % dimensions(2))
+      qr % dimensions(1) = 'nVertLevels'
+      qr % dimensions(2) = 'nCells'
+      call scalars % add_constituent(qr, 'moist')
 
-      blaz % name = 'blaz'
-      blaz % ndims = 1
-      blaz % units = 'm s^-1'
-      blaz % description = 'blaz at cell centers'
-      allocate(blaz % dimensions(1))
-      blaz % dimensions(1) = 'nCells'
-      blaz % packages = 'runtimevar'
+      qi % name = 'qi'
+      qi % vartype = MPAS_VAR_REAL
+      qi % ndims = 2
+      qi % units = 'kg kg^-1'
+      qi % description = 'Ice mixing ratio'
+      qi % packages = 'bl_mynn_in;bl_ysu_in;cu_ntiedtke_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
+      allocate(qi % dimensions(2))
+      qi % dimensions(1) = 'nVertLevels'
+      qi % dimensions(2) = 'nCells'
+      call scalars % add_constituent(qi, 'moist')
 
-      call blaz % add_to_pool(block, block % allFields, block % packages)
-      call blaz % add_to_pool(block, diagPool, block % packages)
+      qs % name = 'qs'
+      qs % vartype = MPAS_VAR_REAL
+      qs % ndims = 2
+      qs % units = 'kg kg^-1'
+      qs % description = 'Snow mixing ratio'
+      qs % packages = 'bl_mynn_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
+      allocate(qs % dimensions(2))
+      qs % dimensions(1) = 'nVertLevels'
+      qs % dimensions(2) = 'nCells'
+      call scalars % add_constituent(qs, 'moist')
 
-      chem % name = 'chem'
-      chem % nTimeLevels = 2
+      qg % name = 'qg'
+      qg % vartype = MPAS_VAR_REAL
+      qg % ndims = 2
+      qg % units = 'kg kg^-1'
+      qg % description = 'Graupel mixing ratio'
+      qg % packages = 'mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
+      allocate(qg % dimensions(2))
+      qg % dimensions(1) = 'nVertLevels'
+      qg % dimensions(2) = 'nCells'
+      call scalars % add_constituent(qg, 'moist')
 
-      o3 % name = 'o3'
-      o3 % vartype = MPAS_VAR_REAL
-      o3 % ndims = 2
-      o3 % units = 'kg kg^-1'
-      o3 % description = 'ozone'
-      allocate(o3 % dimensions(2))
-      o3 % dimensions(1) = 'nVertLevels'
-      o3 % dimensions(2) = 'nCells'
-      call chem % add_constituent(o3, 'micm')
+      ni % name = 'ni'
+      ni % vartype = MPAS_VAR_REAL
+      ni % ndims = 2
+      ni % units = 'nb kg^-1'
+      ni % description = 'Cloud ice number concentration'
+      ni % packages = 'bl_mynn_in;mp_thompson_in;mp_thompson_aers_in'
+      allocate(ni % dimensions(2))
+      ni % dimensions(1) = 'nVertLevels'
+      ni % dimensions(2) = 'nCells'
+      call scalars % add_constituent(ni, 'number')
 
-      no % name = 'no'
-      no % vartype = MPAS_VAR_REAL
-      no % ndims = 2
-      no % units = 'kg kg^-1'
-      no % description = 'nitric oxide'
-      allocate(no % dimensions(2))
-      no % dimensions(1) = 'nVertLevels'
-      no % dimensions(2) = 'nCells'
-      no % packages = 'runtimevar'
-      call chem % add_constituent(no, 'micm')
+      nr % name = 'nr'
+      nr % vartype = MPAS_VAR_REAL
+      nr % ndims = 2
+      nr % units = 'nb kg^-1'
+      nr % description = 'Rain number concentration'
+      nr % packages = 'mp_thompson_in;mp_thompson_aers_in'
+      allocate(nr % dimensions(2))
+      nr % dimensions(1) = 'nVertLevels'
+      nr % dimensions(2) = 'nCells'
+      call scalars % add_constituent(nr, 'number')
 
-      no2 % name = 'no2'
-      no2 % vartype = MPAS_VAR_REAL
-      no2 % ndims = 2
-      no2 % units = 'kg kg^-1'
-      no2 % description = 'nitric dioxide'
-      allocate(no2 % dimensions(2))
-      no2 % dimensions(1) = 'nVertLevels'
-      no2 % dimensions(2) = 'nCells'
-      call chem % add_constituent(no2, 'micm')
+      nc % name = 'nc'
+      nc % vartype = MPAS_VAR_REAL
+      nc % ndims = 2
+      nc % units = 'nb kg^-1'
+      nc % description = 'Cloud water number concentration'
+      nc % packages = 'mp_thompson_aers_in'
+      allocate(nc % dimensions(2))
+      nc % dimensions(1) = 'nVertLevels'
+      nc % dimensions(2) = 'nCells'
+      call scalars % add_constituent(nc, 'number')
 
-      dust % name = 'dust'
-      dust % vartype = MPAS_VAR_REAL
-      dust % ndims = 2
-      dust % units = 'kg kg^-1'
-      dust % description = 'dust'
-      allocate(dust % dimensions(2))
-      dust % dimensions(1) = 'nVertLevels'
-      dust % dimensions(2) = 'nCells'
-      call chem % add_constituent(dust, 'gocart')
+      nifa % name = 'nifa'
+      nifa % vartype = MPAS_VAR_REAL
+      nifa % ndims = 2
+      nifa % units = 'nb kg^-1'
+      nifa % description = 'Ice-friendly aerosol number concentration'
+      nifa % packages = 'mp_thompson_aers_in'
+      allocate(nifa % dimensions(2))
+      nifa % dimensions(1) = 'nVertLevels'
+      nifa % dimensions(2) = 'nCells'
+      call scalars % add_constituent(nifa, 'number')
 
-      call chem % add_to_pool(block, block % allFields, block % packages)
-      call chem % add_to_pool(block, statePool, block % packages)
+      nwfa % name = 'nwfa'
+      nwfa % vartype = MPAS_VAR_REAL
+      nwfa % ndims = 2
+      nwfa % units = 'nb kg^-1'
+      nwfa % description = 'Water-friendly aerosol number concentration'
+      nwfa % packages = 'mp_thompson_aers_in'
+      allocate(nwfa % dimensions(2))
+      nwfa % dimensions(1) = 'nVertLevels'
+      nwfa % dimensions(2) = 'nCells'
+      call scalars % add_constituent(nwfa, 'number')
 
-      parentCellID % name = 'parentCellID'
-      parentCellID % ndims = 1
-      parentCellID % units = '-'
-      parentCellID % description = 'ID of cell in parent mesh'
-      allocate(parentCellID % dimensions(1))
-      parentCellID % dimensions(1) = 'nCells'
-      parentCellID % hasTimeDimension = .false.
-
-      call parentCellID % add_to_pool(block, block % allFields, block % packages)
-      call parentCellID % add_to_pool(block, meshPool, block % packages)
-
-      days_in_month % name = 'daysInMonth'
-      days_in_month % vartype = MPAS_VAR_INTEGER
-      days_in_month % hasTimeDimension = .false.
-      days_in_month % ndims = 1
-      allocate(days_in_month % dimensions(1))
-      days_in_month % dimensions(1) = 'nMonths'
-      days_in_month % units = '-'
-      days_in_month % description = 'Number of days in the month'
-
-      call days_in_month % add_to_pool(block, block % allFields, block % packages)
-      call days_in_month % add_to_pool(block, meshPool, block % packages)
+      call scalars % add_to_pool(block, block % allFields, block % packages)
+      call scalars % add_to_pool(block, statePool, block % packages)
 
    end function atm_setup_block
 

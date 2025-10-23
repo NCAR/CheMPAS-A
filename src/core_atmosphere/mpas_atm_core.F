@@ -68,10 +68,6 @@ module atm_core
       character (len=StrKIND), pointer :: xtime
       character (len=StrKIND), pointer :: initial_time1, initial_time2
       type (MPAS_Time_Type) :: startTime
-      integer, dimension(:), pointer :: days_in_month
-      real (kind=RKIND), dimension(:), pointer :: tt
-      real, dimension(:,:,:), pointer :: chem
-      integer, pointer :: num_chem, micm_start, micm_end, gocart_start, gocart_end, index_dust, index_no
 
       real (kind=RKIND), pointer :: nominalMinDc
       real (kind=RKIND), pointer :: config_len_disp
@@ -178,48 +174,6 @@ module atm_core
 
       call mpas_log_write('')
 
-call mpas_pool_get_array(mesh, 'daysInMonth', days_in_month)
-days_in_month(1) = 31
-days_in_month(2) = 28
-days_in_month(3) = 31
-days_in_month(4) = 30
-days_in_month(5) = 31
-days_in_month(6) = 30
-days_in_month(7) = 31
-days_in_month(8) = 31
-days_in_month(9) = 30
-days_in_month(10) = 31
-days_in_month(11) = 30
-days_in_month(12) = 31
-
-      call mpas_pool_get_subpool(domain % blocklist % structs, 'diag', diag)
-      call mpas_pool_get_array(state, 'chem', chem)
-      nullify(num_chem)
-      call mpas_pool_get_dimension(state, 'num_chem', num_chem)
-      call mpas_log_write('MGD num_chem = $i', intArgs=[num_chem])
-      nullify(micm_start)
-      nullify(micm_end)
-      call mpas_pool_get_dimension(state, 'micm_start', micm_start)
-      call mpas_pool_get_dimension(state, 'micm_end', micm_end)
-      call mpas_log_write('MGD micm_start, micm_end = $i $i', intArgs=[micm_start, micm_end])
-      nullify(gocart_start)
-      nullify(gocart_end)
-      call mpas_pool_get_dimension(state, 'gocart_start', gocart_start)
-      call mpas_pool_get_dimension(state, 'gocart_end', gocart_end)
-      call mpas_log_write('MGD gocart_start, gocart_end = $i $i', intArgs=[gocart_start, gocart_end])
-
-      nullify(index_dust)
-      call mpas_pool_get_dimension(state, 'index_dust', index_dust)
-      call mpas_log_write('MGD index_dust = $i', intArgs=[index_dust])
-
-      nullify(index_no)
-      call mpas_pool_get_dimension(state, 'index_no', index_no)
-      if (associated(index_no)) then
-         call mpas_log_write('MGD index_no = $i', intArgs=[index_no])
-      else
-         call mpas_log_write('MGD index_no NOT ASSOCIATED')
-      end if
-
 
       !
       ! If config_len_disp was specified as a valid value, use that
@@ -274,11 +228,6 @@ days_in_month(12) = 31
             block => block % next
          end do
       end if
-
-chem(index_dust,:,:) = 2.71828_RKIND
-
-call mpas_pool_get_array(state, 'tt', tt, timeLevel=2)
-tt(:) = 3.14159265_RKIND
 
       !
       ! Read a new data stream for Incremental Analysis Update (IAU), if config_IAU_option /= 'off'    : HA (June-15-2016)

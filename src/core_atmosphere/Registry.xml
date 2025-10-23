@@ -1637,6 +1637,7 @@
                 <!-- constituent at each position in the scalars array is later set by code in    -->
                 <!-- the CAM-MPAS interface layer.                                                -->
 #ifndef MPAS_CAM_DYCORE
+#if 0
                 <var_array name="scalars" type="real" dimensions="nVertLevels nCells Time">
                         <var name="qv" array_group="moist" units="kg kg^{-1}"
                              description="Water vapor mixing ratio"/>
@@ -1681,6 +1682,7 @@
                              description="Water-friendly aerosol number concentration"
                              packages="mp_thompson_aers_in"/>
                 </var_array>
+#endif
 #endif
 
 #ifdef DO_PHYSICS
