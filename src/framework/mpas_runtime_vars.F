@@ -75,7 +75,6 @@ module mpas_runtime_vars
 
     type MPAS_var
         ! Public members
-        integer :: ndims = 2
         integer :: vartype = MPAS_VAR_REAL
         character(len=ShortStrKIND) :: name = ''
         character(len=ShortStrKIND) :: units = '-'
@@ -160,7 +159,7 @@ contains
         integer, intent(out), optional :: ierr
 
         ! Local variables
-        integer :: i
+        integer :: i, ndims
         character(len=:), dimension(:), allocatable :: dimensions
         type (field1DInteger), pointer :: int1d_ptr
         type (field2DInteger), pointer :: int2d_ptr
@@ -170,10 +169,13 @@ contains
 
         if (present(ierr)) ierr = MPAS_VAR_OK
 
+        call mpas_split_string_new(self % dimensions, ' ', dimensions)
+        ndims = size(dimensions)
+
         select case (self % vartype)
         case (MPAS_VAR_INTEGER)
 
-            select case (self % ndims)
+            select case (ndims)
             case (1)
                 if ((.not. associated(self % int1d) .and. self % nTimeLevels == 1) &
                     .or. (.not. associated(self % int1d_arr) .and. self % nTimeLevels > 1)) then
@@ -183,8 +185,6 @@ contains
                     else
                         allocate(self % int1d)
                     end if
-
-                    call mpas_split_string_new(self % dimensions, ' ', dimensions)
 
                     do i = 1, self % nTimeLevels
                         if (self % nTimeLevels > 1) then
@@ -211,8 +211,6 @@ contains
                         call mpas_add_att(int1d_ptr % attLists(1) % attList, 'long_name', self % description)
                     end do
 
-                    deallocate(dimensions)
-
                 end if
 
                 if (self % nTimeLevels > 1) then
@@ -230,8 +228,6 @@ contains
                     else
                         allocate(self % int2d)
                     end if
-
-                    call mpas_split_string_new(self % dimensions, ' ', dimensions)
 
                     do i = 1, self % nTimeLevels
                         if (self % nTimeLevels > 1) then
@@ -259,8 +255,6 @@ contains
                         call mpas_add_att(int2d_ptr % attLists(1) % attList, 'long_name', self % description)
                     end do
 
-                    deallocate(dimensions)
-
                 end if
 
                 if (self % nTimeLevels > 1) then
@@ -275,7 +269,7 @@ contains
 
         case (MPAS_VAR_REAL)
 
-            select case (self % ndims)
+            select case (ndims)
             case (1)
                 if ((.not. associated(self % real1d) .and. self % nTimeLevels == 1) &
                     .or. (.not. associated(self % real1d_arr) .and. self % nTimeLevels > 1)) then
@@ -285,8 +279,6 @@ contains
                     else
                         allocate(self % real1d)
                     end if
-
-                    call mpas_split_string_new(self % dimensions, ' ', dimensions)
 
                     do i = 1, self % nTimeLevels
                         if (self % nTimeLevels > 1) then
@@ -313,8 +305,6 @@ contains
                         call mpas_add_att(real1d_ptr % attLists(1) % attList, 'long_name', self % description)
                     end do
 
-                    deallocate(dimensions)
-
                 end if
 
                 if (self % nTimeLevels > 1) then
@@ -332,8 +322,6 @@ contains
                     else
                         allocate(self % real2d)
                     end if
-
-                    call mpas_split_string_new(self % dimensions, ' ', dimensions)
 
                     do i = 1, self % nTimeLevels
                         if (self % nTimeLevels > 1) then
@@ -361,8 +349,6 @@ contains
                         call mpas_add_att(real2d_ptr % attLists(1) % attList, 'long_name', self % description)
                     end do
 
-                    deallocate(dimensions)
-
                 end if
 
                 if (self % nTimeLevels > 1) then
@@ -380,8 +366,6 @@ contains
                     else
                         allocate(self % real3d)
                     end if
-
-                    call mpas_split_string_new(self % dimensions, ' ', dimensions)
 
                     do i = 1, self % nTimeLevels
                         if (self % nTimeLevels > 1) then
@@ -410,8 +394,6 @@ contains
                         call mpas_add_att(real3d_ptr % attLists(1) % attList, 'long_name', self % description)
                     end do
 
-                    deallocate(dimensions)
-
                 end if
 
                 if (self % nTimeLevels > 1) then
@@ -427,6 +409,8 @@ contains
         case default
             if (present(ierr)) ierr = MPAS_VAR_INVALID_TYPE
         end select
+
+        deallocate(dimensions)
 
     end subroutine add_to_pool_var
 

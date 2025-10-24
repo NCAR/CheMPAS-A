@@ -517,7 +517,6 @@ module atm_core_interface
 
       qv % name = 'qv'
       qv % vartype = MPAS_VAR_REAL
-      qv % ndims = 2
       qv % units = 'kg kg^-1'
       qv % description = 'Water vapor mixing ratio'
       qv % dimensions = 'nVertLevels nCells'
@@ -525,7 +524,6 @@ module atm_core_interface
 
       qc % name = 'qc'
       qc % vartype = MPAS_VAR_REAL
-      qc % ndims = 2
       qc % units = 'kg kg^-1'
       qc % description = 'Cloud water mixing ratio'
       qc % packages = 'bl_mynn_in;bl_ysu_in;cu_ntiedtke_in;mp_kessler_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
@@ -534,7 +532,6 @@ module atm_core_interface
 
       qr % name = 'qr'
       qr % vartype = MPAS_VAR_REAL
-      qr % ndims = 2
       qr % units = 'kg kg^-1'
       qr % description = 'Rain water mixing ratio'
       qr % packages = 'mp_kessler_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
@@ -543,7 +540,6 @@ module atm_core_interface
 
       qi % name = 'qi'
       qi % vartype = MPAS_VAR_REAL
-      qi % ndims = 2
       qi % units = 'kg kg^-1'
       qi % description = 'Ice mixing ratio'
       qi % packages = 'bl_mynn_in;bl_ysu_in;cu_ntiedtke_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
@@ -552,7 +548,6 @@ module atm_core_interface
 
       qs % name = 'qs'
       qs % vartype = MPAS_VAR_REAL
-      qs % ndims = 2
       qs % units = 'kg kg^-1'
       qs % description = 'Snow mixing ratio'
       qs % packages = 'bl_mynn_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
@@ -561,7 +556,6 @@ module atm_core_interface
 
       qg % name = 'qg'
       qg % vartype = MPAS_VAR_REAL
-      qg % ndims = 2
       qg % units = 'kg kg^-1'
       qg % description = 'Graupel mixing ratio'
       qg % packages = 'mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
@@ -570,7 +564,6 @@ module atm_core_interface
 
       ni % name = 'ni'
       ni % vartype = MPAS_VAR_REAL
-      ni % ndims = 2
       ni % units = 'nb kg^-1'
       ni % description = 'Cloud ice number concentration'
       ni % packages = 'bl_mynn_in;mp_thompson_in;mp_thompson_aers_in'
@@ -579,7 +572,6 @@ module atm_core_interface
 
       nr % name = 'nr'
       nr % vartype = MPAS_VAR_REAL
-      nr % ndims = 2
       nr % units = 'nb kg^-1'
       nr % description = 'Rain number concentration'
       nr % packages = 'mp_thompson_in;mp_thompson_aers_in'
@@ -588,7 +580,6 @@ module atm_core_interface
 
       nc % name = 'nc'
       nc % vartype = MPAS_VAR_REAL
-      nc % ndims = 2
       nc % units = 'nb kg^-1'
       nc % description = 'Cloud water number concentration'
       nc % packages = 'mp_thompson_aers_in'
@@ -597,7 +588,6 @@ module atm_core_interface
 
       nifa % name = 'nifa'
       nifa % vartype = MPAS_VAR_REAL
-      nifa % ndims = 2
       nifa % units = 'nb kg^-1'
       nifa % description = 'Ice-friendly aerosol number concentration'
       nifa % packages = 'mp_thompson_aers_in'
@@ -606,7 +596,6 @@ module atm_core_interface
 
       nwfa % name = 'nwfa'
       nwfa % vartype = MPAS_VAR_REAL
-      nwfa % ndims = 2
       nwfa % units = 'nb kg^-1'
       nwfa % description = 'Water-friendly aerosol number concentration'
       nwfa % packages = 'mp_thompson_aers_in'
