@@ -520,9 +520,7 @@ module atm_core_interface
       qv % ndims = 2
       qv % units = 'kg kg^-1'
       qv % description = 'Water vapor mixing ratio'
-      allocate(qv % dimensions(2))
-      qv % dimensions(1) = 'nVertLevels'
-      qv % dimensions(2) = 'nCells'
+      qv % dimensions = 'nVertLevels nCells'
       call scalars % add_constituent(qv, 'moist')
 
       qc % name = 'qc'
@@ -531,9 +529,7 @@ module atm_core_interface
       qc % units = 'kg kg^-1'
       qc % description = 'Cloud water mixing ratio'
       qc % packages = 'bl_mynn_in;bl_ysu_in;cu_ntiedtke_in;mp_kessler_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
-      allocate(qc % dimensions(2))
-      qc % dimensions(1) = 'nVertLevels'
-      qc % dimensions(2) = 'nCells'
+      qc % dimensions = 'nVertLevels nCells'
       call scalars % add_constituent(qc, 'moist')
 
       qr % name = 'qr'
@@ -542,9 +538,7 @@ module atm_core_interface
       qr % units = 'kg kg^-1'
       qr % description = 'Rain water mixing ratio'
       qr % packages = 'mp_kessler_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
-      allocate(qr % dimensions(2))
-      qr % dimensions(1) = 'nVertLevels'
-      qr % dimensions(2) = 'nCells'
+      qr % dimensions = 'nVertLevels nCells'
       call scalars % add_constituent(qr, 'moist')
 
       qi % name = 'qi'
@@ -553,9 +547,7 @@ module atm_core_interface
       qi % units = 'kg kg^-1'
       qi % description = 'Ice mixing ratio'
       qi % packages = 'bl_mynn_in;bl_ysu_in;cu_ntiedtke_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
-      allocate(qi % dimensions(2))
-      qi % dimensions(1) = 'nVertLevels'
-      qi % dimensions(2) = 'nCells'
+      qi % dimensions = 'nVertLevels nCells'
       call scalars % add_constituent(qi, 'moist')
 
       qs % name = 'qs'
@@ -564,9 +556,7 @@ module atm_core_interface
       qs % units = 'kg kg^-1'
       qs % description = 'Snow mixing ratio'
       qs % packages = 'bl_mynn_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
-      allocate(qs % dimensions(2))
-      qs % dimensions(1) = 'nVertLevels'
-      qs % dimensions(2) = 'nCells'
+      qs % dimensions = 'nVertLevels nCells'
       call scalars % add_constituent(qs, 'moist')
 
       qg % name = 'qg'
@@ -575,9 +565,7 @@ module atm_core_interface
       qg % units = 'kg kg^-1'
       qg % description = 'Graupel mixing ratio'
       qg % packages = 'mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
-      allocate(qg % dimensions(2))
-      qg % dimensions(1) = 'nVertLevels'
-      qg % dimensions(2) = 'nCells'
+      qg % dimensions = 'nVertLevels nCells'
       call scalars % add_constituent(qg, 'moist')
 
       ni % name = 'ni'
@@ -586,9 +574,7 @@ module atm_core_interface
       ni % units = 'nb kg^-1'
       ni % description = 'Cloud ice number concentration'
       ni % packages = 'bl_mynn_in;mp_thompson_in;mp_thompson_aers_in'
-      allocate(ni % dimensions(2))
-      ni % dimensions(1) = 'nVertLevels'
-      ni % dimensions(2) = 'nCells'
+      ni % dimensions = 'nVertLevels nCells'
       call scalars % add_constituent(ni, 'number')
 
       nr % name = 'nr'
@@ -597,9 +583,7 @@ module atm_core_interface
       nr % units = 'nb kg^-1'
       nr % description = 'Rain number concentration'
       nr % packages = 'mp_thompson_in;mp_thompson_aers_in'
-      allocate(nr % dimensions(2))
-      nr % dimensions(1) = 'nVertLevels'
-      nr % dimensions(2) = 'nCells'
+      nr % dimensions = 'nVertLevels nCells'
       call scalars % add_constituent(nr, 'number')
 
       nc % name = 'nc'
@@ -608,9 +592,7 @@ module atm_core_interface
       nc % units = 'nb kg^-1'
       nc % description = 'Cloud water number concentration'
       nc % packages = 'mp_thompson_aers_in'
-      allocate(nc % dimensions(2))
-      nc % dimensions(1) = 'nVertLevels'
-      nc % dimensions(2) = 'nCells'
+      nc % dimensions = 'nVertLevels nCells'
       call scalars % add_constituent(nc, 'number')
 
       nifa % name = 'nifa'
@@ -619,9 +601,7 @@ module atm_core_interface
       nifa % units = 'nb kg^-1'
       nifa % description = 'Ice-friendly aerosol number concentration'
       nifa % packages = 'mp_thompson_aers_in'
-      allocate(nifa % dimensions(2))
-      nifa % dimensions(1) = 'nVertLevels'
-      nifa % dimensions(2) = 'nCells'
+      nifa % dimensions = 'nVertLevels nCells'
       call scalars % add_constituent(nifa, 'number')
 
       nwfa % name = 'nwfa'
@@ -630,9 +610,7 @@ module atm_core_interface
       nwfa % units = 'nb kg^-1'
       nwfa % description = 'Water-friendly aerosol number concentration'
       nwfa % packages = 'mp_thompson_aers_in'
-      allocate(nwfa % dimensions(2))
-      nwfa % dimensions(1) = 'nVertLevels'
-      nwfa % dimensions(2) = 'nCells'
+      nwfa % dimensions = 'nVertLevels nCells'
       call scalars % add_constituent(nwfa, 'number')
 
       call scalars % add_to_pool(block, block % allFields, block % packages)

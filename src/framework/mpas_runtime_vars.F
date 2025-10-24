@@ -79,11 +79,11 @@ module mpas_runtime_vars
         integer :: vartype = MPAS_VAR_REAL
         character(len=ShortStrKIND) :: name = ''
         character(len=ShortStrKIND) :: units = '-'
-        character(len=ShortStrKIND) :: description = 'unknown'
-        character(len=ShortStrKIND), dimension(:), allocatable :: dimensions
+        character(len=StrKIND) :: description = 'unknown'
+        character(len=StrKIND) :: dimensions = 'undefined'
         logical :: hasTimeDimension = .true.
         integer :: nTimeLevels = 1
-        character(len=ShortStrKIND) :: group = ''  ! Only matters for constituents of an MPAS_var_array
+        character(len=ShortStrKIND) :: group = ''  ! Only needed for constituents of an MPAS_var_array
         character(len=StrKIND) :: packages = ''
 
         ! Private members
@@ -161,6 +161,7 @@ contains
 
         ! Local variables
         integer :: i
+        character(len=:), dimension(:), allocatable :: dimensions
         type (field1DInteger), pointer :: int1d_ptr
         type (field2DInteger), pointer :: int2d_ptr
         type (field1DReal), pointer :: real1d_ptr
@@ -183,6 +184,8 @@ contains
                         allocate(self % int1d)
                     end if
 
+                    call mpas_split_string_new(self % dimensions, ' ', dimensions)
+
                     do i = 1, self % nTimeLevels
                         if (self % nTimeLevels > 1) then
                             int1d_ptr => self % int1d_arr(i)
@@ -192,10 +195,10 @@ contains
 
                         int1d_ptr % block => block
                         int1d_ptr % fieldName = self % name
-                        int1d_ptr % dimNames(1) = self % dimensions(1)
+                        int1d_ptr % dimNames(1) = dimensions(1)
                         int1d_ptr % defaultValue = 0
                         int1d_ptr % missingValue = 0
-                        int1d_ptr % isDecomposed = is_decomposed_dim(self % dimensions(1))
+                        int1d_ptr % isDecomposed = is_decomposed_dim(dimensions(1))
                         int1d_ptr % hasTimeDimension = self % hasTimeDimension
                         int1d_ptr % isActive = contains_active_package(self % packages, packagePool)
                         int1d_ptr % isVarArray = .false.
@@ -207,6 +210,8 @@ contains
                         call mpas_add_att(int1d_ptr % attLists(1) % attList, 'units', self % units)
                         call mpas_add_att(int1d_ptr % attLists(1) % attList, 'long_name', self % description)
                     end do
+
+                    deallocate(dimensions)
 
                 end if
 
@@ -226,6 +231,8 @@ contains
                         allocate(self % int2d)
                     end if
 
+                    call mpas_split_string_new(self % dimensions, ' ', dimensions)
+
                     do i = 1, self % nTimeLevels
                         if (self % nTimeLevels > 1) then
                             int2d_ptr => self % int2d_arr(i)
@@ -235,11 +242,11 @@ contains
 
                         int2d_ptr % block => block
                         int2d_ptr % fieldName = self % name
-                        int2d_ptr % dimNames(1) = self % dimensions(1)
-                        int2d_ptr % dimNames(2) = self % dimensions(2)
+                        int2d_ptr % dimNames(1) = dimensions(1)
+                        int2d_ptr % dimNames(2) = dimensions(2)
                         int2d_ptr % defaultValue = 0
                         int2d_ptr % missingValue = 0
-                        int2d_ptr % isDecomposed = is_decomposed_dim(self % dimensions(2))
+                        int2d_ptr % isDecomposed = is_decomposed_dim(dimensions(2))
                         int2d_ptr % hasTimeDimension = self % hasTimeDimension
                         int2d_ptr % isActive = contains_active_package(self % packages, packagePool)
                         int2d_ptr % isVarArray = .false.
@@ -251,6 +258,8 @@ contains
                         call mpas_add_att(int2d_ptr % attLists(1) % attList, 'units', self % units)
                         call mpas_add_att(int2d_ptr % attLists(1) % attList, 'long_name', self % description)
                     end do
+
+                    deallocate(dimensions)
 
                 end if
 
@@ -277,6 +286,8 @@ contains
                         allocate(self % real1d)
                     end if
 
+                    call mpas_split_string_new(self % dimensions, ' ', dimensions)
+
                     do i = 1, self % nTimeLevels
                         if (self % nTimeLevels > 1) then
                             real1d_ptr => self % real1d_arr(i)
@@ -286,10 +297,10 @@ contains
 
                         real1d_ptr % block => block
                         real1d_ptr % fieldName = self % name
-                        real1d_ptr % dimNames(1) = self % dimensions(1)
+                        real1d_ptr % dimNames(1) = dimensions(1)
                         real1d_ptr % defaultValue = 0.0_RKIND
                         real1d_ptr % missingValue = 0.0_RKIND
-                        real1d_ptr % isDecomposed = is_decomposed_dim(self % dimensions(1))
+                        real1d_ptr % isDecomposed = is_decomposed_dim(dimensions(1))
                         real1d_ptr % hasTimeDimension = self % hasTimeDimension
                         real1d_ptr % isActive = contains_active_package(self % packages, packagePool)
                         real1d_ptr % isVarArray = .false.
@@ -301,6 +312,8 @@ contains
                         call mpas_add_att(real1d_ptr % attLists(1) % attList, 'units', self % units)
                         call mpas_add_att(real1d_ptr % attLists(1) % attList, 'long_name', self % description)
                     end do
+
+                    deallocate(dimensions)
 
                 end if
 
@@ -320,6 +333,8 @@ contains
                         allocate(self % real2d)
                     end if
 
+                    call mpas_split_string_new(self % dimensions, ' ', dimensions)
+
                     do i = 1, self % nTimeLevels
                         if (self % nTimeLevels > 1) then
                             real2d_ptr => self % real2d_arr(i)
@@ -329,11 +344,11 @@ contains
 
                         real2d_ptr % block => block
                         real2d_ptr % fieldName = self % name
-                        real2d_ptr % dimNames(1) = self % dimensions(1)
-                        real2d_ptr % dimNames(2) = self % dimensions(2)
+                        real2d_ptr % dimNames(1) = dimensions(1)
+                        real2d_ptr % dimNames(2) = dimensions(2)
                         real2d_ptr % defaultValue = 0.0_RKIND
                         real2d_ptr % missingValue = 0.0_RKIND
-                        real2d_ptr % isDecomposed = is_decomposed_dim(self % dimensions(2))
+                        real2d_ptr % isDecomposed = is_decomposed_dim(dimensions(2))
                         real2d_ptr % hasTimeDimension = self % hasTimeDimension
                         real2d_ptr % isActive = contains_active_package(self % packages, packagePool)
                         real2d_ptr % isVarArray = .false.
@@ -345,6 +360,8 @@ contains
                         call mpas_add_att(real2d_ptr % attLists(1) % attList, 'units', self % units)
                         call mpas_add_att(real2d_ptr % attLists(1) % attList, 'long_name', self % description)
                     end do
+
+                    deallocate(dimensions)
 
                 end if
 
@@ -364,6 +381,8 @@ contains
                         allocate(self % real3d)
                     end if
 
+                    call mpas_split_string_new(self % dimensions, ' ', dimensions)
+
                     do i = 1, self % nTimeLevels
                         if (self % nTimeLevels > 1) then
                             real3d_ptr => self % real3d_arr(i)
@@ -373,12 +392,12 @@ contains
 
                         real3d_ptr % block => block
                         real3d_ptr % fieldName = self % name
-                        real3d_ptr % dimNames(1) = self % dimensions(1)
-                        real3d_ptr % dimNames(2) = self % dimensions(2)
-                        real3d_ptr % dimNames(3) = self % dimensions(3)
+                        real3d_ptr % dimNames(1) = dimensions(1)
+                        real3d_ptr % dimNames(2) = dimensions(2)
+                        real3d_ptr % dimNames(3) = dimensions(3)
                         real3d_ptr % defaultValue = 0.0_RKIND
                         real3d_ptr % missingValue = 0.0_RKIND
-                        real3d_ptr % isDecomposed = is_decomposed_dim(self % dimensions(3))
+                        real3d_ptr % isDecomposed = is_decomposed_dim(dimensions(3))
                         real3d_ptr % hasTimeDimension = self % hasTimeDimension
                         real3d_ptr % isActive = contains_active_package(self % packages, packagePool)
                         real3d_ptr % isVarArray = .false.
@@ -390,6 +409,8 @@ contains
                         call mpas_add_att(real3d_ptr % attLists(1) % attList, 'units', self % units)
                         call mpas_add_att(real3d_ptr % attLists(1) % attList, 'long_name', self % description)
                     end do
+
+                    deallocate(dimensions)
 
                 end if
 
@@ -431,7 +452,7 @@ contains
         ! Arguments
         type (MPAS_var), intent(inout) :: self
 
-        if (allocated(self % dimensions)) deallocate(self % dimensions)
+        ! if (allocated(self % dimensions)) deallocate(self % dimensions)
 
     end subroutine destroy_mpas_var
 
@@ -460,15 +481,20 @@ contains
         character(len=*), intent(in) :: group
 
         ! Local variables
-        integer :: i
+        integer :: i, ndims
+        character(len=:), dimension(:), allocatable :: dimensions
+
+        call mpas_split_string_new(constituent % dimensions, ' ', dimensions)
+        ndims = size(dimensions)
 
         if (self % ndims == -1) then
+
             ! write(0,*) 'Adding first constituent '//trim(constituent % name)
-            self % ndims = constituent % ndims + 1
+            self % ndims = ndims + 1
             self % vartype = constituent % vartype
             allocate(self % dimensions(self % ndims))
-            do i = 1, constituent % ndims
-                self % dimensions(i+1) = constituent % dimensions(i)
+            do i = 1, ndims
+                self % dimensions(i+1) = dimensions(i)
             end do
             ! self % dimensions(1) will be set when instantiating in a pool
             allocate(self % const_list)
@@ -477,18 +503,20 @@ contains
             self % hasTimeDimension = constituent % hasTimeDimension
         else
             ! write(0,*) 'Adding constituent '//trim(constituent % name)
-            if ((self % ndims - 1) /= constituent % ndims) then
+            if ((self % ndims - 1) /= ndims) then
                 write(0,*) 'Constituent dimensions incompatible...'
             end if
             if (self % vartype /= constituent % vartype) then
                 write(0,*) 'Constituent type incompatible...'
             end if
-            do i = 1, constituent % ndims
-                if (trim(self % dimensions(i+1)) /= trim(constituent % dimensions(i))) then
+            do i = 1, ndims
+                if (trim(self % dimensions(i+1)) /= trim(dimensions(i))) then
                     write(0,*) 'Constituent dimension incompatible...'
                 end if
             end do
         end if
+
+        deallocate(dimensions)
 
         constituent % group = trim(group)
         call self % const_list % insert(trim(constituent % name), constituent)
