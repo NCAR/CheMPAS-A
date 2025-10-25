@@ -44,9 +44,6 @@ module mpas_runtime_vars
                                   MPAS_VAR_CHAR    = 1003
 
 ! TO DO:
-!        - time dimension
-!        - multiple time levels
-!        - maybe dimensions can be a string?
 !        - defaultValue
 !        - missingValue
 
@@ -98,6 +95,7 @@ module mpas_runtime_vars
         type (field3DReal), dimension(:), pointer, private :: real3d_arr => null()
     contains
         procedure :: add_to_pool => add_to_pool_var
+        procedure :: reset => reset_var
         final :: destroy_mpas_var
     end type MPAS_var
 
@@ -413,6 +411,41 @@ contains
         deallocate(dimensions)
 
     end subroutine add_to_pool_var
+
+
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
+    subroutine reset_var(self)
+
+        implicit none
+
+        ! Arguments
+        class (MPAS_var), intent(inout) :: self
+
+        ! Local variables
+        type (MPAS_var) :: clean
+
+        call destroy_mpas_var(self)
+        select type (var => self)
+        type is (MPAS_var)
+           var = clean
+        end select
+
+    end subroutine reset_var
 
 
     !-----------------------------------------------------------------------
