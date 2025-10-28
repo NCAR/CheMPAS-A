@@ -473,6 +473,7 @@ module atm_core_interface
       type (block_type), pointer :: block
       integer :: ierr
 
+      type (MPAS_var) :: new_var
       type (MPAS_var) :: qv, qc, qr, qi, qs, qg, ni, nr, nc, nifa, nwfa
       type (MPAS_var_array) :: scalars
       type (mpas_pool_type), pointer :: diagPool, meshPool, statePool
@@ -515,6 +516,7 @@ module atm_core_interface
       scalars % name = 'scalars'
       scalars % nTimeLevels = 2
 
+#if 0
       qv % name = 'qv'
       qv % vartype = MPAS_VAR_REAL
       qv % units = 'kg kg^-1'
@@ -604,6 +606,119 @@ module atm_core_interface
 
       call scalars % add_to_pool(block, block % allFields, block % packages)
       call scalars % add_to_pool(block, statePool, block % packages)
+#else
+      new_var % name = 'qv'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'kg kg^-1'
+      new_var % description = 'Water vapor mixing ratio'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars % add_constituent(new_var, 'moist')
+      call new_var % reset()
+
+      new_var % name = 'qc'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'kg kg^-1'
+      new_var % description = 'Cloud water mixing ratio'
+      new_var % packages = 'bl_mynn_in;bl_ysu_in;cu_ntiedtke_in;mp_kessler_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars % add_constituent(new_var, 'moist')
+      call new_var % reset()
+
+      new_var % name = 'qr'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'kg kg^-1'
+      new_var % description = 'Rain water mixing ratio'
+      new_var % packages = 'mp_kessler_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars % add_constituent(new_var, 'moist')
+      call new_var % reset()
+
+      new_var % name = 'qi'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'kg kg^-1'
+      new_var % description = 'Ice mixing ratio'
+      new_var % packages = 'bl_mynn_in;bl_ysu_in;cu_ntiedtke_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars % add_constituent(new_var, 'moist')
+      call new_var % reset()
+
+      new_var % name = 'qs'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'kg kg^-1'
+      new_var % description = 'Snow mixing ratio'
+      new_var % packages = 'bl_mynn_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars % add_constituent(new_var, 'moist')
+      call new_var % reset()
+
+      new_var % name = 'qg'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'kg kg^-1'
+      new_var % description = 'Graupel mixing ratio'
+      new_var % packages = 'mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars % add_constituent(new_var, 'moist')
+      call new_var % reset()
+
+      new_var % name = 'ni'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'nb kg^-1'
+      new_var % description = 'Cloud ice number concentration'
+      new_var % packages = 'bl_mynn_in;mp_thompson_in;mp_thompson_aers_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars % add_constituent(new_var, 'number')
+      call new_var % reset()
+
+      new_var % name = 'nr'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'nb kg^-1'
+      new_var % description = 'Rain number concentration'
+      new_var % packages = 'mp_thompson_in;mp_thompson_aers_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars % add_constituent(new_var, 'number')
+      call new_var % reset()
+
+      new_var % name = 'nc'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'nb kg^-1'
+      new_var % description = 'Cloud water number concentration'
+      new_var % packages = 'mp_thompson_aers_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars % add_constituent(new_var, 'number')
+      call new_var % reset()
+
+      new_var % name = 'nifa'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'nb kg^-1'
+      new_var % description = 'Ice-friendly aerosol number concentration'
+      new_var % packages = 'mp_thompson_aers_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars % add_constituent(new_var, 'number')
+      call new_var % reset()
+
+      new_var % name = 'nwfa'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'nb kg^-1'
+      new_var % description = 'Water-friendly aerosol number concentration'
+      new_var % packages = 'mp_thompson_aers_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars % add_constituent(new_var, 'number')
+      call new_var % reset()
+
+      call scalars % add_to_pool(block, block % allFields, block % packages)
+      call scalars % add_to_pool(block, statePool, block % packages)
+#endif
+
+      new_var % name = 'foo'
+      new_var % vartype = MPAS_VAR_INTEGER
+      new_var % units = 'nb kg^-1'
+      new_var % description = 'Water-friendly aerosol number concentration'
+      new_var % packages = 'mp_thompson_aers_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call new_var % add_to_pool(block, block % allFields, block % packages)
+      call new_var % add_to_pool(block, diagPool, block % packages)
+
+      call new_var % reset()
 
    end function atm_setup_block
 

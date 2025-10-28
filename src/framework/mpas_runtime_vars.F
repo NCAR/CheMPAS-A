@@ -29,6 +29,8 @@ module mpas_runtime_vars
                                    field2DReal, &
                                    field3DReal
 
+    implicit none
+
     private
 
     public :: MPAS_var, &
@@ -494,12 +496,13 @@ contains
 
         ! Arguments
         class (MPAS_var_array), intent(inout) :: self
-        type (MPAS_var), intent(inout) :: constituent
+        type (MPAS_var), intent(in) :: constituent
         character(len=*), intent(in) :: group
 
         ! Local variables
         integer :: i, ndims
         character(len=:), dimension(:), allocatable :: dimensions
+        type (MPAS_var), pointer :: const_copy
 
         call mpas_split_string_new(constituent % dimensions, ' ', dimensions)
         ndims = size(dimensions)
@@ -535,8 +538,11 @@ contains
 
         deallocate(dimensions)
 
-        constituent % group = trim(group)
-        call self % const_list % insert(trim(constituent % name), constituent)
+        allocate(const_copy)
+        const_copy = constituent
+
+        const_copy % group = trim(group)
+        call self % const_list % insert(trim(const_copy % name), const_copy)
 
     end subroutine add_constituent
 
@@ -736,7 +742,24 @@ contains
         ! Arguments
         type (MPAS_var_array), intent(inout) :: self
 
+        ! Local variables
+        class (*), pointer :: cursor
+        type (MPAS_var), pointer :: cursor_cnst
+
         if (allocated(self % dimensions)) deallocate(self % dimensions)
+
+        call self % const_list % begin_iteration()
+        cursor => self % const_list % get_next_item()
+        do while (associated(cursor))
+            nullify(cursor_cnst)
+            PTR_CAST(cursor, cursor_cnst, MPAS_var)
+
+            write(0,*) 'Deallocating '//trim(cursor_cnst % name)
+            deallocate(cursor_cnst)
+
+            cursor => self % const_list % get_next_item()
+        end do
+
         if (allocated(self % const_list)) deallocate(self % const_list)
 
     end subroutine destroy_mpas_var_array
