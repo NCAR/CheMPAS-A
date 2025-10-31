@@ -836,7 +836,7 @@ module atm_core_interface
       new_var % packages = 'mp_thompson_aers_in'
       new_var % dimensions = 'nVertLevels nCells'
       call new_var % add_to_pool(block, block % allFields, block % packages)
-      call new_var % add_to_pool(block, diagPool, block % packages)
+      call new_var % add_to_pool(block, diagPool, block % packages, useNameInCode=.true.)
 
       call new_var % reset()
 

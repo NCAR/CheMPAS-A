@@ -76,7 +76,7 @@ module mpas_runtime_vars
         ! Public members
         integer :: vartype = MPAS_VAR_REAL
         character(len=ShortStrKIND) :: name = ''
-        character(len=ShortStrKIND) :: name_in_code = ''  ! *Currently* only used for constituents...
+        character(len=ShortStrKIND) :: name_in_code = ''
         character(len=ShortStrKIND) :: units = '-'
         character(len=StrKIND) :: description = 'unknown'
         character(len=StrKIND) :: dimensions = 'undefined'
@@ -143,7 +143,7 @@ contains
     !>  instance is deallocated.
     !
     !-----------------------------------------------------------------------
-    subroutine add_to_pool_var(self, block, fieldPool, packagePool, ierr)
+    subroutine add_to_pool_var(self, block, fieldPool, packagePool, useNameInCode, ierr)
 
         use mpas_pool_routines, only : mpas_pool_add_field
         use mpas_derived_types, only : block_type
@@ -157,6 +157,7 @@ contains
         type (block_type), target, intent(in) :: block
         type (mpas_pool_type), target, intent(inout) :: fieldPool
         type (mpas_pool_type), intent(in) :: packagePool
+        logical, intent(in), optional :: useNameInCode
         integer, intent(out), optional :: ierr
 
         ! Local variables
@@ -167,8 +168,19 @@ contains
         type (field1DReal), pointer :: real1d_ptr
         type (field2DReal), pointer :: real2d_ptr
         type (field3DReal), pointer :: real3d_ptr
+        character(len=ShortStrKIND) :: name_in_pool
 
         if (present(ierr)) ierr = MPAS_VAR_OK
+
+        if (len_trim(self % name_in_code) == 0) then
+            self % name_in_code = self % name
+        end if
+
+        if (present(useNameInCode)) then
+            name_in_pool = self % name_in_code
+        else
+            name_in_pool = self % name
+        end if
 
         call mpas_split_string_new(self % dimensions, ' ', dimensions)
         ndims = size(dimensions)
@@ -215,9 +227,9 @@ contains
                 end if
 
                 if (self % nTimeLevels > 1) then
-                    call mpas_pool_add_field(fieldPool, trim(self % int1d_arr(1) % fieldName), self % int1d_arr)
+                    call mpas_pool_add_field(fieldPool, trim(name_in_pool), self % int1d_arr)
                 else
-                    call mpas_pool_add_field(fieldPool, trim(self % int1d % fieldName), self % int1d)
+                    call mpas_pool_add_field(fieldPool, trim(name_in_pool), self % int1d)
                 end if
 
             case (2)
@@ -259,9 +271,9 @@ contains
                 end if
 
                 if (self % nTimeLevels > 1) then
-                    call mpas_pool_add_field(fieldPool, trim(self % int2d_arr(1) % fieldName), self % int2d_arr)
+                    call mpas_pool_add_field(fieldPool, trim(name_in_pool), self % int2d_arr)
                 else
-                    call mpas_pool_add_field(fieldPool, trim(self % int2d % fieldName), self % int2d)
+                    call mpas_pool_add_field(fieldPool, trim(name_in_pool), self % int2d)
                 end if
 
             case default
@@ -309,9 +321,9 @@ contains
                 end if
 
                 if (self % nTimeLevels > 1) then
-                    call mpas_pool_add_field(fieldPool, trim(self % real1d_arr(1) % fieldName), self % real1d_arr)
+                    call mpas_pool_add_field(fieldPool, trim(name_in_pool), self % real1d_arr)
                 else
-                    call mpas_pool_add_field(fieldPool, trim(self % real1d % fieldName), self % real1d)
+                    call mpas_pool_add_field(fieldPool, trim(name_in_pool), self % real1d)
                 end if
 
             case (2)
@@ -353,9 +365,9 @@ contains
                 end if
 
                 if (self % nTimeLevels > 1) then
-                    call mpas_pool_add_field(fieldPool, trim(self % real2d_arr(1) % fieldName), self % real2d_arr)
+                    call mpas_pool_add_field(fieldPool, trim(name_in_pool), self % real2d_arr)
                 else
-                    call mpas_pool_add_field(fieldPool, trim(self % real2d % fieldName), self % real2d)
+                    call mpas_pool_add_field(fieldPool, trim(name_in_pool), self % real2d)
                 end if
 
             case (3)
@@ -398,9 +410,9 @@ contains
                 end if
 
                 if (self % nTimeLevels > 1) then
-                    call mpas_pool_add_field(fieldPool, trim(self % real3d_arr(1) % fieldName), self % real3d_arr)
+                    call mpas_pool_add_field(fieldPool, trim(name_in_pool), self % real3d_arr)
                 else
-                    call mpas_pool_add_field(fieldPool, trim(self % real3d % fieldName), self % real3d)
+                    call mpas_pool_add_field(fieldPool, trim(name_in_pool), self % real3d)
                 end if
 
             case default
