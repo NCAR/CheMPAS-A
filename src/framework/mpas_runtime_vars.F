@@ -76,6 +76,7 @@ module mpas_runtime_vars
         ! Public members
         integer :: vartype = MPAS_VAR_REAL
         character(len=ShortStrKIND) :: name = ''
+        character(len=ShortStrKIND) :: name_in_code = ''  ! *Currently* only used for constituents...
         character(len=ShortStrKIND) :: units = '-'
         character(len=StrKIND) :: description = 'unknown'
         character(len=StrKIND) :: dimensions = 'undefined'
@@ -541,6 +542,10 @@ contains
         allocate(const_copy)
         const_copy = constituent
 
+        if (len_trim(const_copy % name_in_code) == 0) then
+            const_copy % name_in_code = const_copy % name
+        end if
+
         const_copy % group = trim(group)
         call self % const_list % insert(trim(const_copy % name), const_copy)
 
@@ -563,7 +568,7 @@ contains
     !>  instance is deallocated.
     !
     !-----------------------------------------------------------------------
-    subroutine add_to_pool_var_array(self, block, fieldPool, packagePool, ierr)
+    subroutine add_to_pool_var_array(self, block, fieldPool, packagePool, addIndices, ierr)
 
         use mpas_pool_routines, only : mpas_pool_add_field, mpas_pool_add_dimension
         use mpas_derived_types, only : block_type
@@ -577,6 +582,7 @@ contains
         type (block_type), target, intent(in) :: block
         type (mpas_pool_type), target, intent(inout) :: fieldPool
         type (mpas_pool_type), intent(in) :: packagePool
+        logical, intent(in), optional :: addIndices
         integer, intent(out), optional :: ierr
 
         ! Local variables
@@ -585,9 +591,16 @@ contains
         type (linked_list) :: sorted_list
         integer :: idx, n, ncnst, i
         type (field3DReal), pointer :: real3d_ptr
+        logical :: addIndices_local
 
 
         if (present(ierr)) ierr = MPAS_VAR_OK
+
+        if (present(addIndices)) then
+            addIndices_local = addIndices
+        else
+            addIndices_local = .true.
+        end if
 
         call sort_constituents(self % const_list, sorted_list, packagePool)
 
@@ -602,55 +615,59 @@ contains
         n = 1
         ncnst = sorted_list % length()
 
-        if (ncnst > 0) then
-            write(0,*) trim(current_cnst % group)//'_start = ', 1
-            call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_start', 1)
-        end if
+        if (addIndices_local) then
 
-        do idx = 1, ncnst
-            nullify(cursor_cnst)
-            PTR_CAST(cursor, cursor_cnst, MPAS_var)
-            write(0,*) 'MGD idx = ', idx, &
-                       ' cnst = '//trim(cursor_cnst % name)//' group = '//trim(cursor_cnst % group)
-            call mpas_pool_add_dimension(fieldPool, 'index_'//trim(cursor_cnst % name), idx)
+            if (ncnst > 0) then
+                write(0,*) trim(current_cnst % group)//'_start = ', 1
+                call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_start', 1)
+            end if
 
-            if (trim(cursor_cnst % group) /= trim(current_cnst % group)) then
+            do idx = 1, ncnst
+                nullify(cursor_cnst)
+                PTR_CAST(cursor, cursor_cnst, MPAS_var)
+                write(0,*) 'MGD idx = ', idx, &
+                           ' cnst = '//trim(cursor_cnst % name_in_code)//' group = '//trim(cursor_cnst % group)
+                call mpas_pool_add_dimension(fieldPool, 'index_'//trim(cursor_cnst % name_in_code), idx)
+
+                if (trim(cursor_cnst % group) /= trim(current_cnst % group)) then
+                    write(0,*) trim(current_cnst % group)//'_end = ', idx - 1
+                    call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_end', idx - 1)
+                    write(0,*) 'num_'//trim(current_cnst % group)//' = ', n - 1
+                    call mpas_pool_add_dimension(fieldPool, 'num_'//trim(current_cnst % group), n - 1)
+
+                    n = 1
+                    current => cursor
+                    nullify(current_cnst)
+                    PTR_CAST(current, current_cnst, MPAS_var)
+                    write(0,*) trim(current_cnst % group)//'_start = ', idx
+                    call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_start', idx)
+                end if
+
+                n = n + 1
+                cursor => sorted_list % get_next_item()
+            end do
+
+            if (ncnst > 0) then
                 write(0,*) trim(current_cnst % group)//'_end = ', idx - 1
                 call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_end', idx - 1)
                 write(0,*) 'num_'//trim(current_cnst % group)//' = ', n - 1
                 call mpas_pool_add_dimension(fieldPool, 'num_'//trim(current_cnst % group), n - 1)
-
-                n = 1
-                current => cursor
-                nullify(current_cnst)
-                PTR_CAST(current, current_cnst, MPAS_var)
-                write(0,*) trim(current_cnst % group)//'_start = ', idx
-                call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_start', idx)
             end if
 
-            n = n + 1
-            cursor => sorted_list % get_next_item()
-        end do
-
-        if (ncnst > 0) then
-            write(0,*) trim(current_cnst % group)//'_end = ', idx - 1
-            call mpas_pool_add_dimension(fieldPool, trim(current_cnst % group)//'_end', idx - 1)
-            write(0,*) 'num_'//trim(current_cnst % group)//' = ', n - 1
-            call mpas_pool_add_dimension(fieldPool, 'num_'//trim(current_cnst % group), n - 1)
-        end if
-
-        !
-        ! Add index_* dimensions for inactive constituents
-        !
-        call self % const_list % begin_iteration()
-        cursor => self % const_list % get_next_item()
-        do while (associated(cursor))
-            PTR_CAST(cursor, cursor_cnst, MPAS_var)
-            if (.not. contains_active_package(cursor_cnst % packages, packagePool)) then
-                call mpas_pool_add_dimension(fieldPool, 'index_'//trim(cursor_cnst % name), -1)
-            end if
+            !
+            ! Add index_* dimensions for inactive constituents
+            !
+            call self % const_list % begin_iteration()
             cursor => self % const_list % get_next_item()
-        end do
+            do while (associated(cursor))
+                PTR_CAST(cursor, cursor_cnst, MPAS_var)
+                if (.not. contains_active_package(cursor_cnst % packages, packagePool)) then
+                    call mpas_pool_add_dimension(fieldPool, 'index_'//trim(cursor_cnst % name_in_code), -1)
+                end if
+                cursor => self % const_list % get_next_item()
+            end do
+
+        end if
 
         select case (self % vartype)
         case (MPAS_VAR_REAL)
