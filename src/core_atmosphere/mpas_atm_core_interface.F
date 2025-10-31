@@ -475,8 +475,8 @@ module atm_core_interface
 
       type (MPAS_var) :: new_var
       type (MPAS_var) :: qv, qc, qr, qi, qs, qg, ni, nr, nc, nifa, nwfa
-      type (MPAS_var_array) :: scalars
-      type (mpas_pool_type), pointer :: diagPool, meshPool, statePool
+      type (MPAS_var_array) :: scalars, scalars_tend
+      type (mpas_pool_type), pointer :: diagPool, meshPool, statePool, tendPool
 
       integer, pointer :: cam_pcnst
       integer :: err_level
@@ -513,8 +513,14 @@ module atm_core_interface
       nullify(statePool)
       call mpas_pool_get_subpool(block % structs, 'state', statePool)
 
+      nullify(tendPool)
+      call mpas_pool_get_subpool(block % structs, 'tend', tendPool)
+
       scalars % name = 'scalars'
       scalars % nTimeLevels = 2
+
+      scalars_tend % name = 'scalars_tend'
+      scalars_tend % nTimeLevels = 1
 
 #if 0
       qv % name = 'qv'
@@ -604,7 +610,7 @@ module atm_core_interface
       nwfa % dimensions = 'nVertLevels nCells'
       call scalars % add_constituent(nwfa, 'number')
 
-      call scalars % add_to_pool(block, block % allFields, block % packages)
+      call scalars % add_to_pool(block, block % allFields, block % packages, addIndices=.false.)
       call scalars % add_to_pool(block, statePool, block % packages)
 #else
       new_var % name = 'qv'
@@ -705,8 +711,122 @@ module atm_core_interface
       call scalars % add_constituent(new_var, 'number')
       call new_var % reset()
 
-      call scalars % add_to_pool(block, block % allFields, block % packages)
+      call scalars % add_to_pool(block, block % allFields, block % packages, addIndices=.false.)
       call scalars % add_to_pool(block, statePool, block % packages)
+
+!----- tendencies for scalars -----
+
+      new_var % name = 'tend_qv'
+      new_var % name_in_code = 'qv'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'kg m^{-3} s^{-1}'
+      new_var % description = 'Tendency of water vapor mass per unit volume divided by d(zeta)/dz'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars_tend % add_constituent(new_var, 'moist')
+      call new_var % reset()
+
+      new_var % name = 'tend_qc'
+      new_var % name_in_code = 'qc'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'kg m^{-3} s^{-1}'
+      new_var % description = 'Tendency of cloud water mass per unit volume divided by d(zeta)/dz'
+      new_var % packages = 'bl_mynn_in;bl_ysu_in;cu_ntiedtke_in;mp_kessler_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars_tend % add_constituent(new_var, 'moist')
+      call new_var % reset()
+
+      new_var % name = 'tend_qr'
+      new_var % name_in_code = 'qr'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'kg m^{-3} s^{-1}'
+      new_var % description = 'Tendency of rain water mass per unit volume divided by d(zeta)/dz'
+      new_var % packages = 'mp_kessler_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars_tend % add_constituent(new_var, 'moist')
+      call new_var % reset()
+
+      new_var % name = 'tend_qi'
+      new_var % name_in_code = 'qi'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'kg m^{-3} s^{-1}'
+      new_var % description = 'Tendency of ice mass per unit volume divided by d(zeta)/dz'
+      new_var % packages = 'bl_mynn_in;bl_ysu_in;cu_ntiedtke_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars_tend % add_constituent(new_var, 'moist')
+      call new_var % reset()
+
+      new_var % name = 'tend_qs'
+      new_var % name_in_code = 'qs'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'kg m^{-3} s^{-1}'
+      new_var % description = 'Tendency of snow mass per unit volume divided by d(zeta)/dz'
+      new_var % packages = 'bl_mynn_in;mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars_tend % add_constituent(new_var, 'moist')
+      call new_var % reset()
+
+      new_var % name = 'tend_qg'
+      new_var % name_in_code = 'qg'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'kg m^{-3} s^{-1}'
+      new_var % description = 'Tendency of graupel mass per unit volume divided by d(zeta)/dz'
+      new_var % packages = 'mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars_tend % add_constituent(new_var, 'moist')
+      call new_var % reset()
+
+      new_var % name = 'tend_ni'
+      new_var % name_in_code = 'ni'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'nb m^{-3} s^{-1}'
+      new_var % description = 'Tendency of cloud ice number concentration multiplied by dry air density divided by d(zeta)/dz'
+      new_var % packages = 'bl_mynn_in;mp_thompson_in;mp_thompson_aers_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars_tend % add_constituent(new_var, 'number')
+      call new_var % reset()
+
+      new_var % name = 'tend_nr'
+      new_var % name_in_code = 'nr'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'nb m^{-3} s^{-1}'
+      new_var % description = 'Tendency of rain number concentration multiplied by dry air density divided by d(zeta)/dz'
+      new_var % packages = 'mp_thompson_in;mp_thompson_aers_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars_tend % add_constituent(new_var, 'number')
+      call new_var % reset()
+
+      new_var % name = 'tend_nc'
+      new_var % name_in_code = 'nc'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'nb m^{-3} s^{-1}'
+      new_var % description = 'Tendency of cloud water number concentration multiplied by dry air density divided by d(zeta)/dz'
+      new_var % packages = 'mp_thompson_aers_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars_tend % add_constituent(new_var, 'number')
+      call new_var % reset()
+
+      new_var % name = 'tend_nifa'
+      new_var % name_in_code = 'nifa'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'nb m^{-3} s^{-1}'
+      new_var % description = 'Tendency of ice-friendly aerosol number concentration multiplied by dry air density divided by d(zeta)/dz'
+      new_var % packages = 'mp_thompson_aers_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars_tend % add_constituent(new_var, 'number')
+      call new_var % reset()
+
+      new_var % name = 'tend_nwfa'
+      new_var % name_in_code = 'nwfa'
+      new_var % vartype = MPAS_VAR_REAL
+      new_var % units = 'nb m^{-3} s^{-1}'
+      new_var % description = 'Tendency of water-friendly aerosol number concentration multiplied by dry air density divided by d(zeta)/dz'
+      new_var % packages = 'mp_thompson_aers_in'
+      new_var % dimensions = 'nVertLevels nCells'
+      call scalars_tend % add_constituent(new_var, 'number')
+      call new_var % reset()
+
+      call scalars_tend % add_to_pool(block, block % allFields, block % packages, addIndices=.false.)
+      call scalars_tend % add_to_pool(block, tendPool, block % packages)
 #endif
 
       new_var % name = 'foo'
