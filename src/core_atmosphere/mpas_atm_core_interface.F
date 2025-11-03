@@ -611,7 +611,7 @@ module atm_core_interface
       call scalars % add_constituent(nwfa, 'number')
 
       call scalars % add_to_pool(block, block % allFields, block % packages, addIndices=.false.)
-      call scalars % add_to_pool(block, statePool, block % packages)
+      call scalars % add_to_pool(block, statePool, block % packages, useNameInCode=.true.)
 #else
       new_var % name = 'qv'
       new_var % vartype = MPAS_VAR_REAL
@@ -712,7 +712,7 @@ module atm_core_interface
       call new_var % reset()
 
       call scalars % add_to_pool(block, block % allFields, block % packages, addIndices=.false.)
-      call scalars % add_to_pool(block, statePool, block % packages)
+      call scalars % add_to_pool(block, statePool, block % packages, useNameInCode=.true.)
 
 !----- tendencies for scalars -----
 
@@ -826,7 +826,7 @@ module atm_core_interface
       call new_var % reset()
 
       call scalars_tend % add_to_pool(block, block % allFields, block % packages, addIndices=.false.)
-      call scalars_tend % add_to_pool(block, tendPool, block % packages)
+      call scalars_tend % add_to_pool(block, tendPool, block % packages, useNameInCode=.true.)
 #endif
 
       new_var % name = 'foo'
