@@ -82,6 +82,7 @@ module mpas_runtime_vars
         character(len=StrKIND) :: dimensions = 'undefined'
         logical :: hasTimeDimension = .true.
         integer :: nTimeLevels = 1
+        logical :: isPersistent = .true.
         character(len=ShortStrKIND) :: group = ''  ! Only needed for constituents of an MPAS_var_array
         character(len=StrKIND) :: packages = ''
 
@@ -109,6 +110,7 @@ module mpas_runtime_vars
         character(len=ShortStrKIND) :: name_in_code = ''
         character(len=StrKIND) :: packages = ''
         integer :: nTimeLevels = 1
+        logical :: isPersistent = .true.
 
         ! Private members
         integer, private :: ndims = -1
@@ -216,7 +218,7 @@ contains
                         int1d_ptr % hasTimeDimension = self % hasTimeDimension
                         int1d_ptr % isActive = contains_active_package(self % packages, packagePool)
                         int1d_ptr % isVarArray = .false.
-                        int1d_ptr % isPersistent = .true.
+                        int1d_ptr % isPersistent = self % isPersistent
 
                         allocate(int1d_ptr % attLists(1))
                         allocate(int1d_ptr % attLists(1) % attList)
@@ -260,7 +262,7 @@ contains
                         int2d_ptr % hasTimeDimension = self % hasTimeDimension
                         int2d_ptr % isActive = contains_active_package(self % packages, packagePool)
                         int2d_ptr % isVarArray = .false.
-                        int2d_ptr % isPersistent = .true.
+                        int2d_ptr % isPersistent = self % isPersistent
 
                         allocate(int2d_ptr % attLists(1))
                         allocate(int2d_ptr % attLists(1) % attList)
@@ -310,7 +312,7 @@ contains
                         real1d_ptr % hasTimeDimension = self % hasTimeDimension
                         real1d_ptr % isActive = contains_active_package(self % packages, packagePool)
                         real1d_ptr % isVarArray = .false.
-                        real1d_ptr % isPersistent = .true.
+                        real1d_ptr % isPersistent = self % isPersistent
 
                         allocate(real1d_ptr % attLists(1))
                         allocate(real1d_ptr % attLists(1) % attList)
@@ -354,7 +356,7 @@ contains
                         real2d_ptr % hasTimeDimension = self % hasTimeDimension
                         real2d_ptr % isActive = contains_active_package(self % packages, packagePool)
                         real2d_ptr % isVarArray = .false.
-                        real2d_ptr % isPersistent = .true.
+                        real2d_ptr % isPersistent = self % isPersistent
 
                         allocate(real2d_ptr % attLists(1))
                         allocate(real2d_ptr % attLists(1) % attList)
@@ -399,7 +401,7 @@ contains
                         real3d_ptr % hasTimeDimension = self % hasTimeDimension
                         real3d_ptr % isActive = contains_active_package(self % packages, packagePool)
                         real3d_ptr % isVarArray = .false.
-                        real3d_ptr % isPersistent = .true.
+                        real3d_ptr % isPersistent = self % isPersistent
 
                         allocate(real3d_ptr % attLists(1))
                         allocate(real3d_ptr % attLists(1) % attList)
@@ -725,7 +727,7 @@ contains
                         real3d_ptr % hasTimeDimension = self % hasTimeDimension
                         real3d_ptr % isActive = contains_active_package(self % packages, packagePool)
                         real3d_ptr % isVarArray = .true.
-                        real3d_ptr % isPersistent = .true.
+                        real3d_ptr % isPersistent = self % isPersistent
 
                         allocate(real3d_ptr % attLists(ncnst))
                         if (ncnst > 0) allocate(real3d_ptr % attLists(ncnst) % attList)

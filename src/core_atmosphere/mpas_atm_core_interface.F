@@ -831,13 +831,12 @@ module atm_core_interface
 
       new_var % name = 'foo'
       new_var % vartype = MPAS_VAR_INTEGER
-      new_var % units = 'nb kg^-1'
-      new_var % description = 'Water-friendly aerosol number concentration'
-      new_var % packages = 'mp_thompson_aers_in'
       new_var % dimensions = 'nVertLevels nCells'
+      new_var % units = 'nb kg^-1'
+      new_var % description = 'Foo-friendly aerosol number concentration'
+      new_var % isPersistent = .false.
       call new_var % add_to_pool(block, block % allFields, block % packages)
       call new_var % add_to_pool(block, diagPool, block % packages, useNameInCode=.true.)
-
       call new_var % reset()
 
    end function atm_setup_block
