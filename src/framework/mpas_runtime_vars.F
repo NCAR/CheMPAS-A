@@ -40,10 +40,10 @@ module mpas_runtime_vars
                                   MPAS_VAR_INVALID_TYPE  = -1000, &
                                   MPAS_VAR_INVALID_NDIMS = -1001
 
-    integer, parameter, public :: MPAS_VAR_INTEGER = 1000, &
-                                  MPAS_VAR_REAL    = 1001, &
-                                  MPAS_VAR_LOGICAL = 1002, &
-                                  MPAS_VAR_CHAR    = 1003
+    integer, parameter, public :: MPAS_VAR_INTEGER   = 1000, &
+                                  MPAS_VAR_REAL      = 1001, &
+                                  MPAS_VAR_LOGICAL   = 1002, &
+                                  MPAS_VAR_CHARACTER = 1003
 
 ! TO DO:
 !        - defaultValue
