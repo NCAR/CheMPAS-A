@@ -485,6 +485,8 @@ module atm_core_interface
 
       call atm_generate_structs(block, block % structs, block % dimensions, block % packages)
 
+      call atm_generate_pools(block, block % structs, block % packages)
+
       !
       ! When MPAS-A is operating as a dycore in CAM, the scalars/scalars_tend var_arrays are
       ! allocated by the call to atm_allocate_scalars, below. The CAM-MPAS interface layer
@@ -988,5 +990,7 @@ module atm_core_interface
 #include "namelist_call.inc"
 
 #include "namelist_defines.inc"
+
+#include "pools_and_vars.inc"
 
 end module atm_core_interface
