@@ -792,19 +792,21 @@ contains
 
         if (allocated(self % dimensions)) deallocate(self % dimensions)
 
-        call self % const_list % begin_iteration()
-        cursor => self % const_list % get_next_item()
-        do while (associated(cursor))
-            nullify(cursor_cnst)
-            PTR_CAST(cursor, cursor_cnst, MPAS_var)
-
-            write(0,*) 'Deallocating '//trim(cursor_cnst % name)
-            deallocate(cursor_cnst)
-
+        if (allocated(self % const_list)) then
+            call self % const_list % begin_iteration()
             cursor => self % const_list % get_next_item()
-        end do
+            do while (associated(cursor))
+                nullify(cursor_cnst)
+                PTR_CAST(cursor, cursor_cnst, MPAS_var)
 
-        if (allocated(self % const_list)) deallocate(self % const_list)
+                write(0,*) 'Deallocating '//trim(cursor_cnst % name)
+                deallocate(cursor_cnst)
+
+                cursor => self % const_list % get_next_item()
+            end do
+
+            deallocate(self % const_list)
+        end if
 
     end subroutine destroy_mpas_var_array
 
