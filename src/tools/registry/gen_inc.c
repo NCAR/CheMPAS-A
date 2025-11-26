@@ -33,6 +33,7 @@ int generate_pool(FILE *fd, ezxml_t registry, ezxml_t superStruct, int subpool,
                   const char *parentname, const char * corename);
 int generate_var(FILE *fd, ezxml_t registry, ezxml_t superStruct,
                  ezxml_t currentVar);
+int strip_time_dim(const char *dims, char *dims_notime, size_t maxlen);
 
 #define NUM_MODIFIED_ATTRS 2
 #define NUM_IGNORED_ATTRS 9
@@ -2830,7 +2831,8 @@ const char *varname;
 int generate_var(FILE *fd, ezxml_t registry, ezxml_t superStruct, ezxml_t currentVar)/*{{{*/
 {
 	const char *varname, *varname_in_code, *vartype, *vardims, *varunits, *vardesc, *varpersistence, *varpackages;
-	const char tmpstr[1024];
+	char tmpstr[1024];
+	char vardims_notime[1024];
 	const char *vartimelevs;
 	int time_levs;
 	int persistence;
@@ -2864,18 +2866,23 @@ int generate_var(FILE *fd, ezxml_t registry, ezxml_t superStruct, ezxml_t curren
 	if (varname_in_code) {
 		fortprintf(fd, "      newVar %% name_in_code = \'%s\'\n", varname_in_code);
 	}
+	if (strip_time_dim(vardims, vardims_notime, 1024)) {
+		fortprintf(fd, "      newVar %% hasTimeDimension = .true.\n");
+	} else {
+		fortprintf(fd, "      newVar %% hasTimeDimension = .false.\n");
+	}
         if (!strcmp(vartype, "real")) {
 		fortprintf(fd, "      newVar %% vartype = MPAS_VAR_REAL\n");
 	} else if (!strcmp(vartype, "integer")) {
 		fortprintf(fd, "      newVar %% vartype = MPAS_VAR_INTEGER\n");
-	} else if (!strcmp(vartype, "character")) {
+	} else if (!strcmp(vartype, "text")) {
 		fortprintf(fd, "      newVar %% vartype = MPAS_VAR_CHARACTER\n");
 	} else if (!strcmp(vartype, "logical")) {
 		fortprintf(fd, "      newVar %% vartype = MPAS_VAR_LOGICAL\n");
 	} else {
 		return 1;
 	}
-	fortprintf(fd, "      newVar %% dimensions = \'%s\'\n", vardims);
+	fortprintf(fd, "      newVar %% dimensions = \'%s\'\n", vardims_notime);
 	fortprintf(fd, "      newVar %% units = \'%s\'\n", varunits);
 	if (vardesc) {
 		escape_quotes(vardesc, tmpstr, sizeof(tmpstr));
@@ -3092,6 +3099,64 @@ int generate_var(FILE *fd, ezxml_t registry, ezxml_t superStruct, ezxml_t curren
 
 	return 0;
 }/*}}}*/
+
+
+/******************************************************************************
+ *
+ * strip_time_dim
+ *
+ * Returns a string with any trailing "Time" dimension removed
+ *
+ * Inputs:
+ *   ...
+ *
+ * Return value: An integer indicating whether a "Time" dimension was removed.
+ *
+ ******************************************************************************/
+int strip_time_dim(const char *dims, char *dims_notime, size_t maxlen)
+{
+	size_t len, i;
+	const char *time = " Time";
+
+	strncpy(dims_notime, dims, maxlen);
+
+	len = strnlen(dims_notime, maxlen);
+
+	/*
+	 * If the string has fewer than 4 characters, it cannot contain "Time"
+	 * as a substring
+	 */
+	if (len < 4) return 0;
+
+
+	/*
+	 * Are the last 4 characters "Time"?
+	 */
+	for (i = 0; i < 4; i++) {
+		if (time[4 - i] != dims_notime[len - i - 1]) break;
+	}
+	if (i < 4) return 0;
+
+	/*
+	 * If the string has more than 4 characters, ensure there is a space
+	 * before "Time"
+	 */
+	if (len >= 5) {
+		/*
+		 * If >4 characters, ensure there is a space before "Time"
+		 */
+		if (time[4 - i] != dims_notime[len - i - 1]) return 0;
+
+		dims_notime[len - i - 1] = '\0';
+	} else {
+		/*
+		 * Otherwise, the string has exactly 4 characters
+		 */
+		dims_notime[0] = '\0';
+	}
+
+	return 1;
+}
 
 
 /**
