@@ -68,8 +68,6 @@ module atm_core
       character (len=StrKIND), pointer :: xtime
       character (len=StrKIND), pointer :: initial_time1, initial_time2
       type (MPAS_Time_Type) :: startTime
-      type (field2DInteger), pointer :: fooField
-      integer, dimension(:,:), pointer :: foo
 
       real (kind=RKIND), pointer :: nominalMinDc
       real (kind=RKIND), pointer :: config_len_disp
@@ -90,20 +88,6 @@ module atm_core
       if ( ierr /= 0 ) then
          call mpas_log_write('Threading setup failed for core '//trim(domain % core % coreName), messageType=MPAS_LOG_CRIT)
       end if
-
-      call mpas_pool_get_subpool(domain % blocklist % structs, 'diag', diag)
-      nullify(fooField)
-      call mpas_pool_get_field(diag, 'foo', fooField)
-      if (.not. associated(fooField)) then
-          call mpas_log_write('MGD foo is not associated!', messageType=MPAS_LOG_ERR)
-      else
-          call mpas_log_write('MGD Found foo in diag pool!')
-      end if
-      call mpas_allocate_scratch_field(fooField)
-      nullify(foo)
-      call mpas_pool_get_array(diag, 'foo', foo)
-      call mpas_log_write('MGD allocated size of foo is $i', intArgs=[int(size(foo))])
-      call mpas_deallocate_scratch_field(fooField)
 
 
       !
