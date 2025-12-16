@@ -483,9 +483,11 @@ module atm_core_interface
 
       ierr = 0
 
-      call atm_generate_structs(block, block % structs, block % dimensions, block % packages)
+!      call atm_generate_structs(block, block % structs, block % dimensions, block % packages)
 
+      call mpas_log_write('MGD Calling atm_generate_pools')
       call atm_generate_pools(block, block % structs, block % packages)
+      call mpas_log_write('MGD Done with atm_generate_pools')
 
       !
       ! When MPAS-A is operating as a dycore in CAM, the scalars/scalars_tend var_arrays are
@@ -506,6 +508,7 @@ module atm_core_interface
          ierr = atm_allocate_scalars(block, cam_pcnst)
       end if
 
+#if 0
       nullify(diagPool)
       call mpas_pool_get_subpool(block % structs, 'diag', diagPool)
 
@@ -840,6 +843,7 @@ module atm_core_interface
       call new_var % add_to_pool(block, block % allFields, block % packages)
       call new_var % add_to_pool(block, diagPool, block % packages, useNameInCode=.true.)
       call new_var % reset()
+#endif
 
    end function atm_setup_block
 
