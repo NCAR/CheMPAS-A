@@ -230,7 +230,7 @@ contains
                         int0d_ptr % hasTimeDimension = self % hasTimeDimension
                         int0d_ptr % isActive = contains_active_package(self % packages, packagePool)
                         int0d_ptr % isVarArray = .false.
-                        ! int0d_ptr % isPersistent = self % isPersistent
+                        int0d_ptr % scalar = 0
 
                         allocate(int0d_ptr % attLists(1))
                         allocate(int0d_ptr % attLists(1) % attList)
@@ -366,7 +366,7 @@ contains
                         real0d_ptr % hasTimeDimension = self % hasTimeDimension
                         real0d_ptr % isActive = contains_active_package(self % packages, packagePool)
                         real0d_ptr % isVarArray = .false.
-                        ! real0d_ptr % isPersistent = self % isPersistent
+                        real0d_ptr % scalar = 0.0_RKIND
 
                         allocate(real0d_ptr % attLists(1))
                         allocate(real0d_ptr % attLists(1) % attList)
@@ -547,6 +547,7 @@ contains
                         char0d_ptr % hasTimeDimension = self % hasTimeDimension
                         char0d_ptr % isActive = contains_active_package(self % packages, packagePool)
                         char0d_ptr % isVarArray = .false.
+                        char0d_ptr % scalar = ''
 
                         allocate(char0d_ptr % attLists(1))
                         allocate(char0d_ptr % attLists(1) % attList)
