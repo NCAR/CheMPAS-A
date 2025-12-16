@@ -2972,7 +2972,7 @@ int generate_var(FILE *fd, ezxml_t registry, ezxml_t superStruct, ezxml_t curren
 
 	if (!isConstituent) {
 		fortprintf(fd, "      newVar %% nTimeLevels = %i\n", time_levs);
-		fortprintf(fd, "      call newVar %% add_to_pool(block, newSubPool, block %% packages)\n");
+		fortprintf(fd, "      call newVar %% add_to_pool(block, newSubPool, block %% packages, useNameInCode=.true.)\n");
 		fortprintf(fd, "      call newVar %% add_to_pool(block, block %% allFields, block %% packages)\n");
 	} else {
 		fortprintf(fd, "      call newVarArray %% add_constituent(newVar, '%s')\n", group);
