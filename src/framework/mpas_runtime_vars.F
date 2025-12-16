@@ -123,6 +123,7 @@ module mpas_runtime_vars
     contains
         procedure :: add_constituent
         procedure :: add_to_pool => add_to_pool_var_array
+        procedure :: reset => reset_var_array
         final :: destroy_mpas_var_array
     end type MPAS_var_array
 
@@ -763,6 +764,41 @@ contains
         end select
 
     end subroutine add_to_pool_var_array
+
+
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
+    subroutine reset_var_array(self)
+
+        implicit none
+
+        ! Arguments
+        class (MPAS_var_array), intent(inout) :: self
+
+        ! Local variables
+        type (MPAS_var_array) :: clean
+
+        call destroy_mpas_var_array(self)
+        select type (var_arr => self)
+        type is (MPAS_var_array)
+           var_arr = clean
+        end select
+
+    end subroutine reset_var_array
 
 
     !-----------------------------------------------------------------------
