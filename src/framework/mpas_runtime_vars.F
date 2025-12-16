@@ -25,6 +25,7 @@ module mpas_runtime_vars
     use mpas_derived_types, only : mpas_pool_type, &
                                    field1DInteger, &
                                    field2DInteger, &
+                                   field0DReal, &
                                    field1DReal, &
                                    field2DReal, &
                                    field3DReal
@@ -91,6 +92,8 @@ module mpas_runtime_vars
         type (field1DInteger), dimension(:), pointer, private :: int1d_arr => null()
         type (field2DInteger), pointer, private :: int2d => null()
         type (field2DInteger), dimension(:), pointer, private :: int2d_arr => null()
+        type (field0DReal), pointer, private :: real0d => null()
+        type (field0DReal), dimension(:), pointer, private :: real0d_arr => null()
         type (field1DReal), pointer, private :: real1d => null()
         type (field1DReal), dimension(:), pointer, private :: real1d_arr => null()
         type (field2DReal), pointer, private :: real2d => null()
@@ -169,6 +172,7 @@ contains
         character(len=:), dimension(:), allocatable :: dimensions
         type (field1DInteger), pointer :: int1d_ptr
         type (field2DInteger), pointer :: int2d_ptr
+        type (field0DReal), pointer :: real0d_ptr
         type (field1DReal), pointer :: real1d_ptr
         type (field2DReal), pointer :: real2d_ptr
         type (field3DReal), pointer :: real3d_ptr
@@ -287,6 +291,48 @@ contains
         case (MPAS_VAR_REAL)
 
             select case (ndims)
+            case (0)
+                if ((.not. associated(self % real0d) .and. self % nTimeLevels == 1) &
+                    .or. (.not. associated(self % real0d_arr) .and. self % nTimeLevels > 1)) then
+
+                    if (self % nTimeLevels > 1) then
+                        allocate(self % real0d_arr(self % nTimeLevels))
+                    else
+                        allocate(self % real0d)
+                    end if
+
+                    do i = 1, self % nTimeLevels
+                        if (self % nTimeLevels > 1) then
+                            real0d_ptr => self % real0d_arr(i)
+                        else
+                            real0d_ptr => self % real0d
+                        end if
+
+                        real0d_ptr % block => block
+                        real0d_ptr % fieldName = self % name
+                        real0d_ptr % defaultValue = 0.0_RKIND
+                        real0d_ptr % missingValue = 0.0_RKIND
+                        real0d_ptr % isDecomposed = .false.
+                        real0d_ptr % hasTimeDimension = self % hasTimeDimension
+                        real0d_ptr % isActive = contains_active_package(self % packages, packagePool)
+                        real0d_ptr % isVarArray = .false.
+                        ! real0d_ptr % isPersistent = self % isPersistent
+
+                        allocate(real0d_ptr % attLists(1))
+                        allocate(real0d_ptr % attLists(1) % attList)
+
+                        call mpas_add_att(real0d_ptr % attLists(1) % attList, 'units', self % units)
+                        call mpas_add_att(real0d_ptr % attLists(1) % attList, 'long_name', self % description)
+                    end do
+
+                end if
+
+                if (self % nTimeLevels > 1) then
+                    call mpas_pool_add_field(fieldPool, trim(name_in_pool), self % real0d_arr)
+                else
+                    call mpas_pool_add_field(fieldPool, trim(name_in_pool), self % real0d)
+                end if
+
             case (1)
                 if ((.not. associated(self % real1d) .and. self % nTimeLevels == 1) &
                     .or. (.not. associated(self % real1d_arr) .and. self % nTimeLevels > 1)) then
