@@ -10,7 +10,6 @@
   
       nlevs = size(fldarr)       
       allocate(fldarr_ptr(nlevs))
-write(0,*) 'Shifting time levels for '//trim(fldarr(1) % fieldname)
 
       if ( threadNum == 0 ) then
          !
@@ -26,17 +25,14 @@ write(0,*) 'Shifting time levels for '//trim(fldarr(1) % fieldname)
          !
          do while (associated(fldarr_ptr(1) % next))
 
-write(0,*) 'MGD ok, the shift code is actually being executed...'
             !
             ! Shift time levels for this block
             !
             arr_ptr => fldarr_ptr(1) % next % array
             do i=1,nlevs-1
                fldarr_ptr(i) % next % array => fldarr_ptr(i+1) % next % array
-write(0,*) maxval(fldarr_ptr(i) % next % array)
             end do
             fldarr_ptr(nlevs) % next % array => arr_ptr
-write(0,*) maxval(fldarr_ptr(nlevs) % next % array)
 
             ! Advance pointers to next block
             do i=1,nlevs

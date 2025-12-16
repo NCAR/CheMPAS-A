@@ -100,7 +100,6 @@ module atm_core
       call mpas_pool_get_dimension(state, 'num_scalars', num_scalars)
       call mpas_atm_set_dims(nVertLevels, maxEdges, maxEdges2, num_scalars)
 
-
       !
       ! Set "local" clock to point to the clock contained in the domain type
       !
@@ -173,7 +172,6 @@ module atm_core
       call mpas_pool_get_config(domain % blocklist % configs, 'config_len_disp', config_len_disp)
 
       call mpas_log_write('')
-
 
       !
       ! If config_len_disp was specified as a valid value, use that

@@ -2691,7 +2691,6 @@ module mpas_pool_routines
 
       type (mpas_pool_member_type), pointer :: newmem
       integer :: threadNum
-write(0,*) 'MGD adding 1d_reals '//trim(key)
 
       threadNum = mpas_threading_get_thread_num()
 
@@ -2705,7 +2704,6 @@ write(0,*) 'MGD adding 1d_reals '//trim(key)
          newmem % data % contentsType = MPAS_POOL_REAL
          newmem % data % contentsDims = 1
          newmem % data % contentsTimeLevs = size(fields)
-write(0,*) 'MGD time levels = ', newmem % data % contentsTimeLevs
          if (newmem % data % contentsTimeLevs == 1) then
             newmem % data % r1 => fields(1)
          else

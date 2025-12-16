@@ -422,8 +422,6 @@
                 <package name="ugwp_orog_stream" description="Input stream (and variables) for UGWP orography"/>
                 <package name="ugwp_ngw_stream"  description="Input stream (and variables) for UGWP NGW lookup table"/>
                 <package name="ugwp_diags_stream" description="Output stream (and variables) for UGWP output diagnostics"/>
-                <package name="runtimevar" description="Whether to use runtime variables"
-                         active_when="config_runtime_vars"/>
         </packages>
 
 
