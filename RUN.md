@@ -46,7 +46,7 @@ timestamp=$(date +%Y%m%d_%H%M%S)
 [ -f log.atmosphere.0000.out ] && mv log.atmosphere.0000.out log.atmosphere.0000.${timestamp}.out
 
 # Run with 8 MPI ranks (recommended for 10-core machine)
-mpiexec -n 8 ~/EarthSystem/MPAS-Model-ACOM-dev/atmosphere_model
+mpiexec -n 8 ~/EarthSystem/CheMPAS/atmosphere_model
 ```
 
 ### MPI Rank Selection
@@ -105,7 +105,7 @@ for f in output.nc log.atmosphere.*.out; do
 done
 
 # Run
-mpiexec -n 8 ~/EarthSystem/MPAS-Model-ACOM-dev/atmosphere_model 2>&1 | tee run.out
+mpiexec -n 8 ~/EarthSystem/CheMPAS/atmosphere_model 2>&1 | tee run.out
 ```
 
 ## Advection Studies

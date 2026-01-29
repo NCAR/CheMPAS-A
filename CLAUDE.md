@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-MPAS-Model-ACOM-dev is a development branch of the Model for Prediction Across Scales (MPAS) focused on integrating MUSICA/MICM atmospheric chemistry. This branch (`musica_micm_state`) enables coupled atmospheric-chemistry modeling on MPAS's unstructured mesh.
+CheMPAS (Chemistry for MPAS) is a standalone project derived from [NCAR/MPAS-Model-ACOM-dev](https://github.com/NCAR/MPAS-Model-ACOM-dev), itself a fork of [MPAS-Dev/MPAS-Model](https://github.com/MPAS-Dev/MPAS-Model). It extends the Model for Prediction Across Scales (MPAS) with integrated MUSICA/MICM atmospheric chemistry, enabling coupled atmospheric-chemistry modeling on MPAS's unstructured mesh. CheMPAS is an independent project and is not intended to sync with the upstream repositories.
 
 ## Key Documentation
 
@@ -13,6 +13,7 @@ MPAS-Model-ACOM-dev is a development branch of the Model for Prediction Across S
 - `COMPONENTS.md` - Detailed component descriptions
 - `MUSICA_INTEGRATION.md` - MUSICA/MICM coupling details
 - `MUSICA_API.md` - MUSICA Fortran API reference
+- `AGENTS.md` - Agent-driven development manifesto and workflow
 - `TODO.md` - Development task list
 
 ## Build Configuration (macOS with LLVM)
@@ -81,6 +82,10 @@ Skills are defined in `.claude/commands/` and can be invoked with `/skillname`:
 | Plot Chemistry | `/plot-chemistry` | Generate and open chemistry visualization plots |
 | MUSICA Dev | `/musica-dev` | Work on MUSICA/MICM chemistry integration |
 
+## Development Manifesto
+
+CheMPAS is an agent-driven development project. See `AGENTS.md` for the full manifesto, agent roles, workflow, and human review gates.
+
 ## Notes for AI Assistants
 
 1. **Fortran Standards**: This is a Fortran 2008 codebase using MPI for parallelism
@@ -141,7 +146,7 @@ Packages: numpy, matplotlib, netcdf4
 
 **plot_chemistry.py usage:**
 ```bash
-cd ~/MPAS/supercell
+cd ~/CheMPAS/supercell
 ~/miniconda3/envs/mpas/bin/python plot_chemistry.py -o output.png
 ~/miniconda3/envs/mpas/bin/python plot_chemistry.py --time-series  # Spatial evolution
 ~/miniconda3/envs/mpas/bin/python plot_chemistry.py --diff          # Difference from t=0
@@ -155,6 +160,6 @@ python init_tracer_sine.py -i supercell_init.nc -t qAB --waves-x 2 --amplitude 0
 
 ## Test Run Directory
 
-The supercell test case is located at `~/MPAS/supercell/`. See `RUN.md` for execution instructions.
+The supercell test case is located at `~/CheMPAS/supercell/`. See `RUN.md` for execution instructions.
 
 **Important:** The `streams.atmosphere` file must use `io_type="netcdf"` to avoid PnetCDF compatibility issues on macOS/LLVM builds.

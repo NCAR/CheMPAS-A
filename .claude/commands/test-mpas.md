@@ -46,7 +46,7 @@ done
 Run with 8 MPI ranks (optimal for 10-core Mac, avoids oversubscription):
 
 ```bash
-mpiexec -n 8 ~/EarthSystem/MPAS-Model-ACOM-dev/atmosphere_model 2>&1 | tee run.out
+mpiexec -n 8 ~/EarthSystem/CheMPAS/atmosphere_model 2>&1 | tee run.out
 ```
 
 **Note:** If user requests different rank count, verify the corresponding partition file exists.

@@ -44,7 +44,7 @@ MPAS is a modular, unstructured mesh framework for Earth system modeling. It sup
 ## Directory Structure
 
 ```
-MPAS-Model-ACOM-dev/
+CheMPAS/
 ├── CMakeLists.txt          # Main CMake build configuration
 ├── Makefile                # Legacy Makefile build system
 ├── cmake/                  # CMake modules and functions
