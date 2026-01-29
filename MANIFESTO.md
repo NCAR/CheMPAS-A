@@ -27,12 +27,15 @@ The core insight: **if agents are generating the code, agents should be reviewin
 | Role | Agent | Responsibility |
 |------|-------|----------------|
 | Development | Claude Opus 4.5 (Max) | Feature implementation, bug fixes, refactoring, test writing |
-| Review & Planning | Codex 5.2 (Extra High) | Merge reviews, architectural planning, cross-cutting analysis |
+| Review | GPT-5.2 Codex (Extra High) | Merge reviews, planning review |
+| Deep Research | Gemini 3 Pro (Deep Think) | Codebase-wide analysis, scientific review, architecture planning |
 | CI Verification | TBD | Build validation, test execution, result reporting |
 
-### Why Different Models
+### Why Three Models from Three Vendors
 
-The development and review agents are deliberately different models from different vendors. A single model reviewing its own output has correlated blind spots — it will be confident about the same things it got wrong. Cross-vendor review provides genuine independence of perspective.
+The development, review, and research agents are deliberately different models from different vendors (Anthropic, OpenAI, Google DeepMind). A single model reviewing its own output has correlated blind spots — it will be confident about the same things it got wrong. Three-vendor independence ensures no single architectural bias, training artifact, or failure mode can pass through unchallenged.
+
+Each model is assigned to the role that matches its strengths: Claude's debugging accuracy and SWE-bench performance for development, GPT-5.2's methodical code review at xhigh reasoning for PR review, and Gemini 3 Pro's 1M+ token context and graduate-level science reasoning (GPQA Diamond 93.8%) for deep research and scientific validation. See [BENCHMARKS.md](BENCHMARKS.md) for the full comparison.
 
 ### What Humans Do
 
@@ -42,6 +45,8 @@ Agents handle velocity. Humans handle judgment. Specifically, human review is re
 - **Architectural decisions**: New modules, major refactors, dependency changes, build system modifications.
 - **Registry changes**: The MPAS Registry.xml is the metadata backbone of the model. Bad edits break the build through code generation in non-obvious ways.
 - **External interfaces**: MUSICA-Fortran coupling, MPI communication patterns, I/O format changes.
+
+The deep research agent adds a layer that neither the development nor review agent can provide: full-codebase comprehension in a single context. Before major changes, it can ingest the entire source tree alongside scientific literature to identify coupling risks, unit inconsistencies, and deviations from published methods. Its role is to inform, not to write or approve code.
 
 Everything else — style, correctness of straightforward logic, test coverage, documentation, build fixes — agents can review faster and more consistently than humans.
 
