@@ -15,6 +15,7 @@ CheMPAS (Chemistry for MPAS) is a standalone project derived from [NCAR/MPAS-Mod
 - `MUSICA_API.md` - MUSICA Fortran API reference
 - `MANIFESTO.md` - Project motivation and agent-driven development philosophy
 - `AGENTS.md` - Agent roles, workflow, and operational details
+- `BENCHMARKS.md` - Agent model benchmark comparison
 - `TODO.md` - Development task list
 
 ## Build Configuration (macOS with LLVM)
