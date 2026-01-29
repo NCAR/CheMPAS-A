@@ -1,19 +1,5 @@
 # CheMPAS Manifesto
 
-## The Problem
-
-Large-scale earth system models like MPAS are developed under institutional governance structures where human PR review is the primary quality gate. This worked when contributions came at human pace. It no longer does.
-
-The [MPAS-Dev/MPAS-Model](https://github.com/MPAS-Dev/MPAS-Model) repository currently has 75 open pull requests, with the oldest dating back to August 2017. Approximately 40 PRs older than a year remain unmerged. The pattern is consistent with batch merges around release cycles rather than continuous integration — PRs queue up, wait months, and get flushed during release pushes.
-
-This is not a criticism of the MPAS-Dev team. The bottleneck is structural: a small number of qualified reviewers, each with their own research and development responsibilities, gatekeeping a large and complex Fortran/MPI codebase with multiple cores (atmosphere, ocean, sea ice, land ice) and institutional stakeholders (NCAR, LANL).
-
-## The Catalyst
-
-Frontier coding agents have made this bottleneck dramatically worse. An agent can now produce well-formed, compilable, tested PRs at a rate that no human review team can absorb. The throughput mismatch between code generation and code review has gone from inconvenient to untenable.
-
-The upstream repos face an impossible choice: either refuse agent-generated contributions (losing velocity) or drown in a review backlog that grows faster than it can be processed.
-
 ## The CheMPAS Response
 
 CheMPAS was created as a clean fork from [NCAR/MPAS-Model-ACOM-dev](https://github.com/NCAR/MPAS-Model-ACOM-dev) (itself a fork of [MPAS-Dev/MPAS-Model](https://github.com/MPAS-Dev/MPAS-Model)) with no intent to sync back. This deliberate divergence allows CheMPAS to adopt an agent-driven development model that would be incompatible with the upstream governance structure.
