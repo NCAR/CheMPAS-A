@@ -1,60 +1,80 @@
-MPAS-v8.3.1
-====
+CheMPAS
+=======
 
-The Model for Prediction Across Scales (MPAS) is a collaborative project for
-developing atmosphere, ocean, and other earth-system simulation components for
-use in climate, regional climate, and weather studies. The primary development
-partners are the climate modeling group at Los Alamos National Laboratory
-(COSIM) and the National Center for Atmospheric Research. Both primary
-partners are responsible for the MPAS framework, operators, and tools common to
-the applications; LANL has primary responsibility for the ocean model, and NCAR
-has primary responsibility for the atmospheric model.
+CheMPAS (Chemistry for MPAS) is a coupled atmospheric-chemistry model built on
+the [MPAS](https://mpas-dev.github.io/) framework. It integrates
+[MUSICA/MICM](https://github.com/NCAR/musica) atmospheric chemistry into
+MPAS-Atmosphere, enabling chemical transport modeling on MPAS's unstructured
+Voronoi meshes.
 
-The MPAS framework facilitates the rapid development and prototyping of models
-by providing infrastructure typically required by model developers, including
-high-level data types, communication routines, and I/O routines. By using MPAS,
-developers can leverage pre-existing code and focus more on development of
-their model.
+CheMPAS is derived from
+[NCAR/MPAS-Model-ACOM-dev](https://github.com/NCAR/MPAS-Model-ACOM-dev)
+(a fork of [MPAS-Dev/MPAS-Model](https://github.com/MPAS-Dev/MPAS-Model)).
+It is an independent project and does not sync with the upstream repositories.
 
-BUILDING
-========
+## Agent-Driven Development
 
-This README is provided as a brief introduction to the MPAS framework. It does
-not provide details about each specific model, nor does it provide building
-instructions.
+CheMPAS uses an agent-driven development model. AI agents handle code
+development, review, and CI, with human oversight reserved for scientific
+correctness, architectural decisions, and physical validation. See
+[MANIFESTO.md](MANIFESTO.md) for the full rationale and
+[AGENTS.md](AGENTS.md) for operational details.
 
-For information about building and running each core, please refer to each
-core's user's guide, which can be found at the following web sites:
+## Building
 
-[MPAS-Atmosphere](http://mpas-dev.github.io/atmosphere/atmosphere_download.html)
+CheMPAS builds with LLVM compilers (flang/clang) on macOS:
 
-[MPAS-Albany Land Ice](http://mpas-dev.github.io/land_ice/download.html)
+```bash
+export PKG_CONFIG_PATH="$HOME/software/lib/pkgconfig:$PKG_CONFIG_PATH"
 
-[MPAS-Ocean](http://mpas-dev.github.io/ocean/releases.html)
+make -j8 llvm \
+  CORE=atmosphere \
+  PIO=$HOME/software \
+  NETCDF=/opt/homebrew \
+  PNETCDF=$HOME/software \
+  PRECISION=double \
+  MUSICA=true
+```
 
-[MPAS-Seaice](http://mpas-dev.github.io/sea_ice/releases.html)
+See [BUILD.md](BUILD.md) for full build documentation and
+[RUN.md](RUN.md) for test case execution.
 
+## Code Layout
 
-Code Layout
-----------
+```
+CheMPAS/
+├── src/
+│   ├── driver              -- Main driver (standalone mode)
+│   ├── external            -- External dependencies
+│   ├── framework           -- MPAS framework (data types, comms, I/O)
+│   ├── operators           -- Mesh operators
+│   ├── tools/
+│   │   ├── registry        -- Registry.xml parser
+│   │   └── input_gen       -- Stream and namelist generators
+│   ├── core_atmosphere/
+│   │   ├── dynamics        -- Dynamical core
+│   │   ├── physics         -- Physics parameterizations
+│   │   └── chemistry/
+│   │       └── musica      -- MUSICA/MICM coupling
+│   └── core_init_atmosphere
+├── scripts/                -- Visualization and analysis tools
+├── testing_and_setup/      -- Test case configuration
+└── default_inputs/         -- Default stream and namelist files
+```
 
-Within the MPAS repository, code is laid out as follows. Sub-directories are
-only described below the src directory.
+## Documentation
 
-	MPAS-Model
-	├── src
-	│   ├── driver -- Main driver for MPAS in stand-alone mode (Shared)
-	│   ├── external -- External software for MPAS (Shared)
-	│   ├── framework -- MPAS Framework (Includes DDT Descriptions, and shared routines. Shared)
-	│   ├── operators -- MPAS Opeartors (Includes Operators for MPAS meshes. Shared)
-	│   ├── tools -- Empty directory for include files that Registry generates (Shared)
-	│   │   ├── registry -- Code for building Registry.xml parser (Shared)
-	│   │   └── input_gen -- Code for generating streams and namelist files (Shared)
-	│   └── core_* -- Individual model cores.
-	│       └── inc -- Empty directory for include files that Registry generates
-	├── testing_and_setup -- Tools for setting up configurations and test cases (Shared)
-	└── default_inputs -- Copies of default stream and namelists files (Shared)
+| Document | Description |
+|----------|-------------|
+| [MANIFESTO.md](MANIFESTO.md) | Project motivation and development philosophy |
+| [AGENTS.md](AGENTS.md) | Agent roles, workflow, and review gates |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture |
+| [BUILD.md](BUILD.md) | Build instructions |
+| [RUN.md](RUN.md) | Running test cases |
+| [MUSICA_INTEGRATION.md](MUSICA_INTEGRATION.md) | MUSICA/MICM coupling details |
+| [MUSICA_API.md](MUSICA_API.md) | MUSICA Fortran API reference |
+| [VISUALIZE.md](VISUALIZE.md) | Chemistry visualization tools |
 
-Model cores are typically developed independently. For information about
-building and running a particular core, please refer to that core's user's
-guide.
+## License
+
+See [LICENSE](LICENSE).
