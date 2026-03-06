@@ -15,7 +15,7 @@
 
 ## Active Plans
 
-- [Photolysis and Tropospheric Chemistry](docs/plans/2026-03-06-tuvx-photolysis-integration.md) — LNOx-O3 mechanism for supercell domain, then TUV-x integration (Phase 0 next)
+- [Photolysis and Tropospheric Chemistry](docs/plans/2026-03-06-tuvx-photolysis-integration.md) — LNOx-O3 mechanism for supercell domain, then TUV-x integration (Phase 0 in progress; verification/corrections pending)
 
 ## Historical Plans
 

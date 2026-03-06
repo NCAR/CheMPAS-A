@@ -5,11 +5,12 @@
 - `Historical Context:` Adapted from ancestor project plans — the TUV-x
   photolysis plan (`MPAS-Model-ACOM-dev/PLAN_TUVx.md`) and the DAVINCI
   lightning-NOx/O3 mechanism (`DAVINCI-MPAS/PLAN.md` Phase 6, `SCIENCE.md`).
-- `Current State:` Phase 0 largely complete (2026-03-06). LNOx-O3 mechanism
-  running end-to-end: lightning source injects NO, Arrhenius titration produces
-  NO2, O3 depletion visible in updraft core. Photolysis rates default to 0
-  (disabled) until TUV-x integration. Remaining: Leighton/Ox verification cases,
-  realistic source rate tuning.
+- `Current State:` Phase 0 partially complete (2026-03-06). LNOx-O3 mechanism
+  runs end-to-end for storm titration behavior (NO injection, NO2 production,
+  O3 depletion in updraft core), but key verification and correctness items are
+  still open: sink reactions are not yet in the mechanism config, photolysis
+  rates default to 0 (blocking Leighton/Ox equilibrium checks), source unit
+  conversion needs correction, and docs/runbook updates are pending.
 - `Use This As:` Primary reference for post-ABBA chemistry development.
 
 ## Locked Decisions (2026-03-06)
@@ -60,9 +61,8 @@ We love this direction for five reasons:
    interesting.
 
 3. **Runtime tracer discovery handles the species registration.** Create an
-   `lnox_o3.json` MICM config, point `config_micm_file` at it, and `qNO`,
-   `qNO2`, `qO3` appear automatically. (Source/sink coupling details still
-   require focused chemistry-coupler implementation work.)
+   `lnox_o3.yaml` MICM config, point `config_micm_file` at it, and `qNO`,
+   `qNO2`, `qO3` appear automatically.
 
 4. **DC3 validation targets exist.** The Deep Convective Clouds and Chemistry
    campaign (Barth et al., 2015) provides real observational data for exactly
@@ -119,8 +119,10 @@ NOx sink are disabled.
 2. **Chemistry in MICM** — The NO/NO2/O3 reactions (Arrhenius titration +
    photolysis) are defined in the MICM config. MICM handles the ODE solve.
 
-3. **Sink in MICM config** — NOx loss through mechanism-defined first-order
-   sink terms with configurable timescale `tau`.
+3. **Sink in MICM config (pending)** — NOx loss through mechanism-defined
+   first-order sink terms with configurable timescale `tau`. This is part of
+   the target architecture, but sink reactions are not yet present in the
+   current `lnox_o3.yaml`.
 
 4. **Namelist control** — Five parameters in `&musica`: `config_lnox_source_rate`,
    `config_lnox_w_threshold`, `config_lnox_w_ref`, `config_lnox_z_min`,
@@ -142,14 +144,24 @@ NOx sink are disabled.
 - [x] `scripts/plot_lnox_o3.py` + `scripts/style.py` — visualization suite
 - [x] `mpas_musica.F` — default photolysis rate parameters to 0 (was 1.0)
 - [x] Arrhenius A parameter corrected from cm³/molecule/s to m³/mol/s
+- [ ] `micm_configs/lnox_o3.yaml` — add explicit NOx sink reactions/parameters
+  to match planned `tau` sink pathway
 - [x] **Case B (storm chemistry):** 15-min supercell run with lightning source
    produces visible O3 titration in updraft core. NO peaks ~3500 ppbv (at
    artificially high 50 ppbv/s source rate), NO2 produced via Arrhenius, O3
    depleted to near zero where NO is injected.
 - [ ] **Case A (equilibrium diagnostic):** Leighton ratio and Ox conservation
-   verification with controlled NOx pulse (requires nonzero j_NO2)
+  verification with controlled NOx pulse (currently blocked while photolysis
+  rates remain 0 by default)
 - [ ] Tune source rate to physically realistic value (~0.5 ppbv/s) and re-run
 - [ ] Add/verify ppbv diagnostic conversions for unit-consistent verification
+- [ ] Correct lightning source conversion from `ppbv/s` to `kg/kg/s` (include
+  molar-mass ratio and air-number-density scaling, not direct mixing-ratio
+  assignment)
+- [ ] Add guard/validation for `config_lnox_w_ref <= 0` to prevent divide-by-zero
+  in source scaling
+- [ ] Update runbook/docs (`RUN.md`, `TEST_RUNS.md`) with LNOx-O3 setup,
+  commands, and pass/fail evidence
 
 ### Verification Criteria (from DAVINCI Phase 6)
 
@@ -171,6 +183,27 @@ NOx sink are disabled.
 - 30-minute supercell run (Case B) produces physically plausible O3 titration.
 - Tracer fields remain non-negative.
 - Lightning source activates only in updraft cores within altitude range.
+
+## Review Findings Incorporated (2026-03-06)
+
+1. **Sink-path gap:** Plan and ODE include NOx sink, but current mechanism
+   config does not yet implement sink reactions. Keep sink architecture in MICM
+   and add missing mechanism terms.
+2. **Photolysis-zero blocker:** `j` defaults to 0 globally; Case A Leighton and
+   Ox conservation checks cannot pass until nonzero controlled `j_NO2` is
+   available for the diagnostic case.
+3. **Architecture consistency fix:** Source path is operator-split pre-MICM;
+   sink path is MICM-configured. Plan wording now reflects this split
+   consistently.
+4. **Source-unit correctness:** Current source path needs explicit conversion
+   review/fix (`ppbv/s` to `kg/kg/s`) before quantitative interpretation.
+5. **`state_ref` caveat:** With operator-split source active each chemistry
+   step, advection-vs-chemistry attribution using `state_ref` must account for
+   source contamination (or disable source for pure transport diagnostics).
+6. **Numerical safety:** Add `w_ref > 0` validation to prevent singular source
+   scaling.
+7. **Documentation drift:** User-facing run/test docs must be updated to match
+   LNOx-O3 workflow and verification outputs.
 
 ## Phase 1: Solar Geometry and Day/Night Physics
 
@@ -199,8 +232,8 @@ ready for full Chapman extension.
 1. **Vertical grid from MPAS** — TUV-x height edges from `zgrid(:, iCell)`.
 2. **Profiles from MPAS state** — No static atmosphere data files.
 3. **Domain-top limitation** — 20 km top only samples troposphere/UTLS.
-4. **Source/sink terms through MICM solver path** — Lightning-NOx source and
-   NOx sink both represented through MICM mechanism/rate-parameter pathways.
+4. **Source/sink representation split** — Lightning-NOx source is operator-split
+   pre-MICM; NOx sink remains mechanism-defined within MICM.
 5. **Keep `state_ref`** — Useful for diagnosing advection effects on chemistry.
 
 ## Reference Material
@@ -227,6 +260,7 @@ The DAVINCI project (`~/EarthSystem/DAVINCI-MPAS/`) contains:
 ## Dependencies
 
 - MUSICA-Fortran with MICM support (already linked)
-- MICM LNOx-O3 mechanism config (`micm_configs/lnox_o3.yaml`, done)
+- MICM LNOx-O3 mechanism config (`micm_configs/lnox_o3.yaml`, base config done;
+  sink extension pending)
 - TUV-x support in MUSICA-Fortran (Phase 2+)
 - Python `netCDF4` for verification scripts
