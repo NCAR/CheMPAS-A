@@ -42,8 +42,8 @@
 The ABBA mechanism validated the MPAS-MICM coupling infrastructure and the
 Phase 2 runtime tracer allocation. The LNOx-O3 mechanism (Phase 0) replaced
 ABBA with scientifically meaningful tropospheric photochemistry. Now we need
-to replace the prescribed constant j_NO2 with physically realistic,
-spatially varying photolysis rates.
+to replace the prescribed constant j_NO2 with time- and profile-dependent
+photolysis rates.
 
 **Approach:** Rather than following the ancestor plan's Chapman-first path, we
 keep the working LNOx-O3 mechanism and add TUV-x to compute j_NO2 as a
@@ -53,8 +53,8 @@ us:
 1. Diurnal cycle — photolysis shuts off at night, NO2 accumulates
 2. Altitude dependence — j_NO2 increases with height (less atmospheric
    absorption)
-3. Physical realism for DC3 validation — correct illumination geometry for
-   the May 29 Kingfisher storm (late afternoon → evening transition)
+3. Clear-sky illumination realism for DC3 validation — correct late-afternoon
+   to evening geometry for the May 29 Kingfisher storm
 
 ## Phase 0: LNOx-O3 with Fixed Rates — COMPLETE
 
@@ -140,13 +140,15 @@ drift) using `scripts/verify_ox_conservation.py`.
 ## Phase 1: Solar Geometry and Day/Night Photolysis
 
 **Goal:** Compute per-cell solar zenith angle (SZA) from MPAS model time and
-namelist-specified coordinates. Replace the constant j_NO2 with a
-SZA-dependent scaling: `j_NO2 = j_max * max(0, cos(SZA))`. Validate day/night
-behavior.
+geographic coordinates. Prefer the existing MPAS radiation `coszr` diagnostic
+when it is available; otherwise compute the same solar geometry in chemistry.
+Replace the constant j_NO2 with a SZA-dependent scaling:
+`j_NO2 = j_max * max(0, cos(SZA))`. Validate day/night behavior.
 
 **Rationale:** SZA computation is a prerequisite for TUV-x (Phase 2), which
 requires SZA as input. Testing with a simple cosine scaling first validates
-the solar geometry plumbing before adding TUV-x radiative transfer complexity.
+the solar-geometry plumbing before adding TUV-x radiative transfer complexity,
+and keeps chemistry aligned with MPAS radiation geometry.
 
 ### Test Case Configuration
 
@@ -158,12 +160,14 @@ as its reference case:
 | Latitude | 35.86°N | Kingfisher, OK |
 | Longitude | 97.93°W | |
 | Start time | 2012-05-29 21:00 UTC | ~4 PM CDT, convection initiation |
-| Duration | 30 min (Case B) | SZA changes ~3° over this window |
+| Duration | 30 min (Case B) | SZA changes ~6° over this window |
 | j_NO2 max | ~0.01 s⁻¹ | Daytime peak (surface, clear sky) |
 
-At 21:00 UTC on May 29 at Kingfisher, the SZA ≈ 45° (late afternoon). Over a
-30-minute run, SZA increases by ~3°. Over a 3-hour run, SZA would reach ~90°
-(sunset around 01:30 UTC / 8:30 PM CDT).
+At 21:00 UTC on May 29 at Kingfisher, the SZA ≈ 35.7° and
+`cos_sza ≈ 0.812` (late afternoon). Over a 30-minute run, SZA increases by
+about 6°. Sunset (`SZA = 90°`) occurs near 01:36 UTC on May 30
+(~8:36 PM CDT), so any sunset gate test should run at least 5 hours from the
+21:00 UTC start time.
 
 ### New Namelist Parameters
 
@@ -178,7 +182,11 @@ These are used for idealized cases where `latCell`/`lonCell` may not represent
 real geographic coordinates. For real-data cases, per-cell lat/lon from the
 mesh should be used instead.
 
-### New Source Files
+### New Source Files / Fallback Helper
+
+Prefer reusing MPAS radiation's `coszr` diagnostic when chemistry can access
+it. If `coszr` is unavailable in the chemistry call path (for example,
+idealized cases with radiation disabled), add:
 
 **`src/core_atmosphere/chemistry/mpas_solar_geometry.F`**
 
@@ -186,9 +194,9 @@ New module computing SZA from calendar time and geographic position:
 
 ```fortran
 module mpas_solar_geometry
-    ! Compute solar zenith angle from model time + geographic coordinates.
+    ! Fallback solar geometry helper for chemistry-only use.
     ! Algorithm: Spencer (1971) solar declination + hour angle.
-    ! Consistent with MPAS physics coszr computation.
+    ! Must match the formula already used by MPAS radiation.
 contains
     subroutine solar_geometry_init(latitude, longitude)
     subroutine solar_zenith_angle(year, month, day, hour, minute, second, &
@@ -210,9 +218,9 @@ The Spencer (1971) algorithm computes:
 | File | Change |
 |------|--------|
 | `Registry.xml` | Add `config_chemistry_latitude`, `config_chemistry_longitude` |
-| `mpas_atm_chemistry.F` | Read lat/lon from namelist, call solar geometry each step, pass cos_sza to musica |
+| `mpas_atm_chemistry.F` | Prefer `coszr` from MPAS diagnostics when available; otherwise call fallback solar geometry each step; pass cos_sza to musica |
 | `mpas_musica.F` | Modify `assign_rate_parameters` → per-cell j_NO2 = j_max * max(0, cos_sza); update rate params each step (not just init) |
-| `chemistry/Makefile` | Add `mpas_solar_geometry.o` to build |
+| `chemistry/Makefile` | Add `mpas_solar_geometry.o` only if the fallback helper is kept |
 | `test_cases/supercell/namelist.atmosphere` | Add lat/lon, change start time to `2012-05-29_21:00:00` |
 
 ### Key Architecture Change
@@ -221,11 +229,79 @@ Currently `assign_rate_parameters` is called once at init. In Phase 1, rate
 parameters must be updated **every chemistry timestep** because j_NO2 varies
 with SZA. This means:
 
+- Prefer `coszr` from MPAS radiation diagnostics when it exists; only fall
+  back to chemistry-side solar geometry when that diagnostic is unavailable
 - Factor out rate parameter update from init into a per-step routine
 - The per-step routine takes cos_sza and sets `PHOTO.no2_photolysis` =
   `config_lnox_j_no2 * max(0, cos_sza)` for each cell
 - For uniform-SZA (idealized, single lat/lon), all cells get the same value
 - Infrastructure supports per-cell SZA for future real-data cases
+
+### Implementation Checklist
+
+- [ ] In `mpas_atm_core.F`, thread `diag_physics` and the current model time
+  into the chemistry call path so Phase 1 can reuse `coszr` when radiation has
+  already computed it and can still fall back to chemistry-side solar
+  geometry when needed.
+- [ ] In `mpas_atm_chemistry.F`, add a small helper that returns `cos_sza` from
+  `diag_physics%coszr` when available, otherwise falls back to
+  `mpas_solar_geometry.F` using cached idealized-case coordinates.
+- [ ] In `chemistry_init`, cache `config_chemistry_latitude` and
+  `config_chemistry_longitude` for the fallback path used by idealized or
+  radiation-disabled runs.
+- [ ] In `mpas_musica.F`, split one-time rate setup from per-step photolysis
+  updates so the chemistry driver can refresh `PHOTO.no2_photolysis` every
+  timestep without rescanning and resetting unrelated rates.
+- [ ] Cache the MICM rate-parameter index for `PHOTO.no2_photolysis` at init so
+  the per-step update becomes a direct array fill rather than a name lookup.
+- [ ] Keep Phase 1 on a scalar `j_NO2` update path even if the helper is named
+  generically enough to support later per-cell or per-level updates.
+- [ ] Update the supercell test namelist start time and fallback lat/lon values.
+- [ ] Extend `check_tuvx_phase.py` with the analytical SZA check and the
+  `night-jzero` gate that matches the corrected Kingfisher timing.
+
+### High-Level Fortran Design
+
+The least disruptive Phase 1 path is:
+
+1. Extend the chemistry driver call so `diag_physics` is available.
+2. Resolve one `cos_sza` value for the idealized case.
+3. Convert that into a scalar `j_NO2`.
+4. Push the scalar photolysis rate into MICM before `musica_step`.
+
+```fortran
+! mpas_atm_core.F
+call mpas_pool_get_subpool(block_chem % structs, 'diag_physics', diag_physics_chem)
+call chemistry_step(dt, current_time, mesh_chem, state_chem, diag_chem,      &
+                    diag_physics_chem, block_chem % dimensions, time_lev_chem)
+```
+
+```fortran
+! mpas_atm_chemistry.F
+call chemistry_get_cos_sza(diag_physics, current_time, cos_sza, &
+                           error_code, error_message)
+if (error_code /= 0) return
+
+call musica_set_photolysis_scalar(config_lnox_j_no2, cos_sza, &
+                                  error_code, error_message)
+if (error_code /= 0) return
+```
+
+```fortran
+! mpas_musica.F
+subroutine musica_set_photolysis_scalar(j_no2_max, cos_sza, error_code, error_message)
+    real(kind=RKIND), intent(in) :: j_no2_max, cos_sza
+    real(kind=RKIND) :: j_no2_val
+
+    j_no2_val = j_no2_max * max(0.0_RKIND, cos_sza)
+    call fill_rate_parameter(state, photo_no2_rp_index, j_no2_val, &
+                             error_code, error_message)
+end subroutine
+```
+
+This keeps the Phase 1 code change narrow: `mpas_atm_core.F` gains one more
+subpool argument, `mpas_atm_chemistry.F` gets a solar-geometry helper, and
+`mpas_musica.F` gets a dedicated photolysis-update entry point.
 
 ### Verification (Phase 1 Gate)
 
@@ -238,11 +314,11 @@ with SZA. This means:
 
 ### Exit Criteria
 
-- Build passes with new solar geometry module.
+- Build passes with solar-geometry plumbing (`coszr` reuse and/or fallback helper).
 - SZA computation matches expected value for Kingfisher, OK at 21:00 UTC May 29
-  (SZA ≈ 45°, cos_sza ≈ 0.707).
+  (SZA ≈ 35.7°, cos_sza ≈ 0.812).
 - 30-min Case B run produces physically plausible results with SZA-scaled j_NO2.
-- Extended run (3+ hours) shows j_NO2 → 0 at sunset (~01:30 UTC).
+- Extended run (5+ hours) shows j_NO2 → 0 at sunset (~01:36 UTC).
 - `night-jzero` gate check passes.
 
 ---
@@ -250,13 +326,14 @@ with SZA. This means:
 ## Phase 2: TUV-x Coupled Photolysis
 
 **Goal:** Replace the simple `j_max * cos(SZA)` scaling with TUV-x radiative
-transfer, giving physically accurate j_NO2 as a function of altitude, SZA,
+transfer, giving clear-sky, in-domain j_NO2 as a function of altitude, SZA,
 and atmospheric profiles (temperature, pressure, O3 column).
 
 **Rationale:** The cos(SZA) scaling from Phase 1 gives correct day/night
 behavior but not the altitude dependence or atmospheric absorption effects
-that make photolysis physically realistic. TUV-x computes the full actinic
-flux → cross-section × quantum-yield integration.
+captured by radiative transfer. TUV-x computes the full actinic flux →
+cross-section × quantum-yield integration. This phase is explicitly a
+clear-sky coupling milestone, not the final storm-radiation treatment.
 
 ### TUV-x Availability
 
@@ -281,11 +358,14 @@ temp_updater   => tuvx_core%get_updater(temp_profile)
 
 ! Each timestep, per column
 call height_updater%set_edges(zgrid_km)       ! MPAS zgrid [m] → [km]
-call air_updater%set_midpoint_values(air_density)  ! [molecule/cm³]
+call air_updater%set_midpoint_values(air_number_density)  ! [molecule/cm³]
 call temp_updater%set_midpoint_values(temperature) ! [K]
 call tuvx_core%run(sza, earth_sun_distance, j_values)
 ! j_values contains j_NO2(level) [s⁻¹]
 ```
+
+where `air_number_density = (rho_air / M_AIR) * N_A * 1.0e-6`, converting
+MPAS `rho_air` [kg/m³] to molecules/cm³.
 
 ### New Source Files
 
@@ -321,6 +401,7 @@ Minimal TUV-x configuration for NO2 photolysis only:
 - Wavelength grid: standard or fast_tuv grid
 - Radiative transfer: delta-Eddington (2-stream)
 - Surface albedo: 0.1 (grassland, configurable)
+- Clouds/aerosols: deferred in Phase 2 (clear-sky only)
 
 ### Modified Files
 
@@ -337,9 +418,11 @@ Minimal TUV-x configuration for NO2 photolysis only:
    over nCells, calling TUV-x for each column with that cell's atmospheric
    profile. SZA is uniform (idealized case) but profiles vary by cell.
 
-2. **Profile sources.** Height edges from `zgrid`, air density and temperature
-   from the same fields already extracted in `chemistry_from_MPAS`. O3 profile
-   from the model's own `qO3` field (self-consistent).
+2. **Profile sources.** Height edges from `zgrid`, air number density derived
+   from `rho_air`, and temperature from the same fields already extracted in
+   `chemistry_from_MPAS`. Convert `rho_air` [kg/m³] to molecules/cm³ before
+   passing it to TUV-x. O3 profile comes from the model's own `qO3` field
+   (self-consistent).
 
 3. **Rate parameter update.** The j_NO2 array (nVertLevels × nCells) replaces
    the scalar `config_lnox_j_no2`. Rate parameters updated every step via the
@@ -349,6 +432,113 @@ Minimal TUV-x configuration for NO2 photolysis only:
    behavior (cos_sza scaling with `config_lnox_j_no2`). This preserves the
    simpler mode for quick testing.
 
+5. **Validation scope.** Phase 2 remains clear-sky and in-domain. It does not
+   yet include cloud optics, aerosol optics, or an atmosphere above the MPAS
+   model top, so absolute magnitude checks are sanity checks rather than hard
+   pass/fail literature matches.
+
+### Implementation Checklist
+
+- [ ] Add `config_tuvx_config_file` to `Registry.xml` and read it in
+  `chemistry_init`.
+- [ ] Add `mpas_tuvx.F` plus the required makefile objects/modules.
+- [ ] Initialize TUV-x once during `chemistry_init` when
+  `config_tuvx_config_file` is non-empty; otherwise leave the TUV-x pointer
+  unassociated and use the Phase 1 fallback branch.
+- [ ] Refactor `chemistry_from_MPAS` so the environment-building loop
+  (`rho_air`, `temperature`, `pressure`) is reusable by both MICM coupling and
+  TUV-x, rather than recomputing those fields twice.
+- [ ] Add a chemistry-side workspace for `j_no2(:,:)` with dimensions
+  `(nVertLevels, nCells)` for the current block.
+- [ ] Derive `air_number_density` from `rho_air` using the documented
+  `kg/m³ -> molecules/cm³` conversion before each TUV-x column solve.
+- [ ] Extract the model `qO3` profile for each column and convert it to the
+  units required by the chosen TUV-x O3 updater.
+- [ ] In `mpas_musica.F`, add a per-field photolysis update routine that writes
+  the full `j_no2(level, cell)` field into the `PHOTO.no2_photolysis`
+  rate-parameter slice.
+- [ ] Keep the fallback behavior in the same driver path so Phase 1 and Phase 2
+  both use the same `musica_set_photolysis_*` routines.
+- [ ] Extend the phase-gate scripts with `fallback-compare`,
+  `transition-smooth`, and decomposition checks before treating Phase 2 as done.
+
+### High-Level Fortran Design
+
+Phase 2 is easiest to keep coherent if the chemistry driver owns the column
+work arrays and chooses between two photolysis providers:
+
+1. Phase 1 scalar fallback: `j = j_max * max(0, cos_sza)`
+2. Phase 2 TUV-x provider: `j = TUV-x(z, rho, T, O3, SZA)`
+
+That keeps MICM blind to where the photolysis field came from.
+
+```fortran
+! mpas_atm_chemistry.F
+call chemistry_build_environment(mesh, state, diag, time_lev, &
+                                 rho_air, temperature, pressure, zgrid, qo3, &
+                                 error_code, error_message)
+if (error_code /= 0) return
+
+call chemistry_get_cos_sza(diag_physics, current_time, cos_sza, &
+                           error_code, error_message)
+if (error_code /= 0) return
+
+if (tuvx_is_enabled()) then
+    do iCell = 1, nCells
+        call tuvx_compute_photolysis(cos_sza, zgrid(:, iCell), rho_air(:, iCell), &
+                                     temperature(:, iCell), qo3(:, iCell),        &
+                                     j_no2(:, iCell), error_code, error_message)
+        if (error_code /= 0) return
+    end do
+    call musica_set_photolysis_field(j_no2, nCells, nVertLevels, &
+                                     error_code, error_message)
+else
+    call musica_set_photolysis_scalar(config_lnox_j_no2, cos_sza, &
+                                      error_code, error_message)
+end if
+
+call MICM_from_chemistry(scalars, rho_air, temperature, pressure, &
+                         nCells, nVertLevels, error_code, error_message)
+call musica_step(time_step, error_code, error_message)
+```
+
+```fortran
+! mpas_tuvx.F
+subroutine tuvx_compute_photolysis(cos_sza, z_edges_m, rho_air, temperature, qo3, &
+                                   j_no2_column, error_code, error_message)
+    real(kind=RKIND), intent(in)  :: cos_sza
+    real(kind=RKIND), intent(in)  :: z_edges_m(:)
+    real(kind=RKIND), intent(in)  :: rho_air(:), temperature(:), qo3(:)
+    real(kind=RKIND), intent(out) :: j_no2_column(:)
+
+    call update_height_profile(z_edges_m * 1.0e-3_RKIND)
+    call update_air_profile(kgm3_to_moleccm3(rho_air))
+    call update_temperature_profile(temperature)
+    call update_o3_profile(qo3)
+    call run_tuvx(acos(max(0.0_RKIND, cos_sza)), j_no2_column)
+end subroutine
+```
+
+```fortran
+! mpas_musica.F
+subroutine musica_set_photolysis_field(j_no2, nCells, nVertLevels, error_code, error_message)
+    real(kind=RKIND), intent(in) :: j_no2(nVertLevels, nCells)
+    integer, intent(in)          :: nCells, nVertLevels
+
+    call fill_rate_parameter_field(state, photo_no2_rp_index, j_no2, &
+                                   nCells, nVertLevels, error_code, error_message)
+end subroutine
+```
+
+The key refactor is to turn "set rate parameters" into a stable API with two
+front doors:
+
+- `musica_set_photolysis_scalar(...)` for Phase 1 and fallback mode
+- `musica_set_photolysis_field(...)` for TUV-x mode
+
+That prevents the chemistry driver from knowing MICM's stride details, and it
+keeps the Phase 2 fallback path cheap to maintain.
+
 ### Verification (Phase 2 Gate)
 
 | Check | Criterion | Script |
@@ -357,18 +547,21 @@ Minimal TUV-x configuration for NO2 photolysis only:
 | Night j-zero | j_NO2 = 0 when SZA >= 90° | `check_tuvx_phase.py night-jzero` |
 | Transition smooth | Dawn/dusk j_NO2 varies smoothly | `check_tuvx_phase.py transition-smooth` |
 | Altitude profile | j_NO2 increases with height | Log inspection / diagnostic output |
-| Magnitude | j_NO2 ≈ 0.005–0.01 s⁻¹ at surface, higher aloft | Literature comparison |
+| Magnitude sanity | Surface j_NO2 is in the expected clear-sky order of magnitude; document bias from 20 km top and omitted cloud/aerosol optics | Literature sanity check / offline reference |
 | Ox conservation | Domain-integrated Ox conserved (source/sink off) | `verify_ox_conservation.py` |
 | Decomp compare | Identical results across MPI decompositions | `check_tuvx_phase.py decomp-compare` |
+| Fallback compare | Empty `config_tuvx_config_file` reproduces Phase 1 behavior within roundoff | `check_tuvx_phase.py fallback-compare` |
 
 ### Exit Criteria
 
 - Build passes with TUV-x module linked.
 - j_NO2 profile shows expected altitude dependence.
-- j_NO2 magnitude consistent with literature (~0.008 s⁻¹ surface, clear sky).
-- 30-min Case B produces physically plausible storm chemistry with TUV-x j_NO2.
+- Surface j_NO2 remains in the expected clear-sky order of magnitude, with
+  documented caveats from the 20 km top and omitted cloud/aerosol optics.
+- 30-min Case B remains stable with TUV-x-provided j_NO2.
 - All Phase 1 gate checks still pass.
-- `transition-smooth` passes for extended (3+ hour) runs spanning sunset.
+- `fallback-compare` passes when `config_tuvx_config_file` is empty.
+- `transition-smooth` passes for extended (5+ hour) runs spanning sunset.
 
 ---
 
@@ -378,7 +571,7 @@ Adapted from ancestor project (`MPAS-Model-ACOM-dev/scripts/`):
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/check_tuvx_phase.py` | Suite of physics-based checks (nonnegative, night-jzero, transition-smooth, Ox-budget, decomp-compare) |
+| `scripts/check_tuvx_phase.py` | Suite of physics-based checks (nonnegative, night-jzero, transition-smooth, decomp-compare, fallback-compare) |
 | `scripts/run_tuvx_phase_gate.sh` | Phase orchestrator — runs correct combination of checks per phase |
 
 These scripts operate on MPAS NetCDF output and exit non-zero on failure.
@@ -391,7 +584,7 @@ species (qO, qO2, qO3).
 |-------|--------|
 | Phase 0 | `nonnegative`, `verify_ox_conservation.py` |
 | Phase 1 | Phase 0 + `night-jzero` |
-| Phase 2 | Phase 1 + `transition-smooth`, `decomp-compare` |
+| Phase 2 | Phase 1 + `transition-smooth`, `decomp-compare`, `fallback-compare` |
 
 ---
 
@@ -409,10 +602,13 @@ species (qO, qO2, qO3).
 
 1. **Vertical grid from MPAS** — TUV-x height edges from `zgrid(:, iCell)`.
 2. **Profiles from MPAS state** — No static atmosphere data files.
-3. **Domain-top limitation** — 20 km top only samples troposphere/UTLS.
+3. **Domain-top limitation** — 20 km top omits part of the overhead ozone
+   column, so Phase 2 magnitude checks are sanity checks rather than strict
+   literature targets.
 4. **Source/sink representation split** — Lightning-NOx source is operator-split
    pre-MICM; NOx sink remains mechanism-defined within MICM.
-5. **Keep `state_ref`** — Useful for diagnosing advection effects on chemistry.
+5. **Cloud/aerosol optics deferred** — Phase 2 is clear-sky only until cloud
+   and aerosol optical inputs are coupled into TUV-x.
 
 ## Reference Material
 
