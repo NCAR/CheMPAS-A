@@ -19,6 +19,15 @@ CheMPAS (Chemistry for MPAS) is a standalone project derived from [NCAR/MPAS-Mod
 - `TEST_RUNS.md` - Test run documentation
 - `TODO.md` - Development task list
 
+## Sister Project Reference
+
+- `~/EarthSystem/DAVINCI-MPAS/` - Sister project with prior lightning-NOx/O3
+  implementation work.
+- Start with:
+  - `PLAN.md` (Phase 6 LNOx-O3 details)
+  - `SCIENCE.md` (physics assumptions and validation framing)
+  - `DC3.md` (observational context and targets)
+
 ## Build Configuration (macOS with LLVM)
 
 This project is configured to build with LLVM compilers (flang/clang) via Homebrew:
