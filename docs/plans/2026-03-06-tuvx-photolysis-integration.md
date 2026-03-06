@@ -319,6 +319,8 @@ subpool argument, `mpas_atm_chemistry.F` gets a solar-geometry helper, and
   cos_sza = -0.9198).
 - [x] All tracers non-negative throughout run.
 - [ ] Extended run (5+ hours) shows j_NO2 → 0 at sunset (deferred).
+- [ ] Add j_NO2 as diagnostic field in output.nc (deferred to Phase 2 when
+  it becomes per-cell; currently uniform and logged to stdout).
 
 ---
 
