@@ -32,6 +32,11 @@ module mpas_atm_chemistry
     ! Lightning NOx source (no-op if qNO not in mechanism)
     public :: chemistry_lightning_nox_init
 
+    ! Solar geometry config values (cached at init, used per-step)
+    real(kind=RKIND), save :: chem_lat = 0.0_RKIND
+    real(kind=RKIND), save :: chem_lon = 0.0_RKIND
+    real(kind=RKIND), save :: chem_j_no2_max = 0.0_RKIND
+
     contains
 
     !------------------------------------------------------------------------
@@ -69,6 +74,7 @@ module mpas_atm_chemistry
         type (mpas_pool_type), pointer  :: statePool
         real(kind=RKIND), pointer       :: j_no2_ptr, nox_tau_ptr
         real(kind=RKIND)                :: j_no2_val, nox_tau_val
+        real(kind=RKIND), pointer       :: lat_ptr, lon_ptr
 #endif
 
         call mpas_log_write('Initializing chemistry packages...')
@@ -95,6 +101,15 @@ module mpas_atm_chemistry
         if (associated(j_no2_ptr)) j_no2_val = j_no2_ptr
         call mpas_pool_get_config(configs, 'config_lnox_nox_tau', nox_tau_ptr)
         if (associated(nox_tau_ptr)) nox_tau_val = nox_tau_ptr
+
+        ! Cache solar geometry config values for per-step SZA computation
+        chem_j_no2_max = j_no2_val
+        nullify(lat_ptr)
+        nullify(lon_ptr)
+        call mpas_pool_get_config(configs, 'config_chemistry_latitude', lat_ptr)
+        if (associated(lat_ptr)) chem_lat = lat_ptr
+        call mpas_pool_get_config(configs, 'config_chemistry_longitude', lon_ptr)
+        if (associated(lon_ptr)) chem_lon = lon_ptr
 
         ! Initialize MICM (species already injected into scalars by atm_setup_block)
         call musica_init(filepath_ptr, nCells * nVertLevels, &
@@ -135,19 +150,22 @@ module mpas_atm_chemistry
     !>  based on the current simulation time and conditions.
     !>  Now includes bidirectional coupling: MPAS -> MICM -> MPAS
     !------------------------------------------------------------------------
-    subroutine chemistry_step(dt, mesh, state, diag, dimensions, time_lev)
+    subroutine chemistry_step(dt, currTime, mesh, state, diag, dimensions, time_lev)
 
 #ifdef MPAS_USE_MUSICA
         use iso_fortran_env, only: real64
         use mpas_musica, only: musica_step, musica_step_ref, log_column_comparison, &
-                               copy_state_to_ref
+                               copy_state_to_ref, musica_set_photolysis
         use mpas_lightning_nox, only: lightning_nox_inject
+        use mpas_solar_geometry, only: solar_cos_sza
 #endif
         use mpas_log, only : mpas_log_write
         use mpas_derived_types, only: mpas_pool_type, MPAS_LOG_CRIT
         use mpas_pool_routines, only: mpas_pool_get_dimension, mpas_pool_get_array
+        use mpas_timekeeping, only: mpas_get_time, MPAS_Time_type
 
         real (kind=RKIND), intent(in) :: dt
+        type (MPAS_Time_type), intent(in) :: currTime
         type (mpas_pool_type), intent(in) :: mesh
         type (mpas_pool_type), intent(inout) :: state
         type (mpas_pool_type), intent(in) :: diag
@@ -163,6 +181,10 @@ module mpas_atm_chemistry
         integer                       :: probe_cell
         logical, save                 :: first_call = .true.
 
+        ! Solar geometry variables
+        integer :: DoY, hour, minute, second
+        real(kind=RKIND) :: hour_utc, cos_sza
+
         ! Lightning NOx injection arrays
         real(kind=RKIND), dimension(:,:,:), pointer :: scalars
         real(kind=RKIND), dimension(:,:), pointer :: w, zgrid
@@ -177,6 +199,18 @@ module mpas_atm_chemistry
 
         ! Probe cell near center of domain for advection diagnostics
         probe_cell = nCells / 2
+
+        ! Compute SZA and update photolysis rate
+        call mpas_get_time(currTime, DoY=DoY, H=hour, M=minute, S=second)
+        hour_utc = real(hour, RKIND) + real(minute, RKIND) / 60.0_RKIND &
+                 + real(second, RKIND) / 3600.0_RKIND
+        cos_sza = solar_cos_sza(DoY, hour_utc, chem_lat, chem_lon)
+
+        call musica_set_photolysis(chem_j_no2_max, cos_sza, error_code, error_message)
+        if (error_code /= 0) then
+            call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
+            return
+        end if
 
         call mpas_log_write('Stepping chemistry packages...')
 

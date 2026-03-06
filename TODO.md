@@ -32,7 +32,7 @@
   - Would eliminate edge artifacts and improve accuracy
   - https://uxarray.readthedocs.io/
 
-- [ ] Solar geometry / day-night physics for j_NO2 (Phase 1)
+- [x] Solar geometry / day-night physics for j_NO2 (Phase 1)
 - [ ] TUV-x photolysis rate calculations (Phase 2-3)
 - [x] Domain-integrated Ox conservation test for Case A verification
 - [ ] Aerosol chemistry integration

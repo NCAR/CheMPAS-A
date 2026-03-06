@@ -1,6 +1,6 @@
 &nhyd_model
     config_dt = 3.0
-    config_start_time = '0000-01-01_00:00:00'
+    config_start_time = '0000-01-01_18:00:00'
     config_run_duration = '00:30:00'
     config_split_dynamics_transport = false
     config_number_of_sub_steps = 6
@@ -62,6 +62,8 @@
     config_lnox_z_max = 12000.0
     config_lnox_j_no2 = 0.01
     config_lnox_nox_tau = 0.0
+    config_chemistry_latitude = 35.86
+    config_chemistry_longitude = -97.93
 /
 
 &physics

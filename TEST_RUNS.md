@@ -172,6 +172,32 @@ python init_tracer_sine.py -t qAB --waves-x 2 --amplitude 0.4 --offset 0.6
 
 ---
 
+### 2026-03-06: Phase 1 — Solar geometry / SZA-dependent j_NO2
+
+**Duration:** 30 minutes
+**Chemistry:** LNOx-O3 with SZA-scaled photolysis: j_NO2 = j_max * max(0, cos_sza)
+**Solar geometry:** Spencer (1971) algorithm in `mpas_solar_geometry.F`
+**Location:** Kingfisher, OK (35.86°N, 97.93°W)
+**Start time:** 0000-01-01 18:00 UTC (daytime at Kingfisher)
+**j_NO2 max:** 0.01 s⁻¹
+
+**Key observations:**
+- cos_sza = 0.508 at 18:00 UTC (matches analytical prediction exactly)
+- cos_sza evolves to 0.516 by 18:30 UTC (sun rising slightly)
+- j_NO2 = 0.00508 → 0.00516 s⁻¹ (= j_max × cos_sza)
+- Night test (midnight UTC): cos_sza = -0.9198, j_NO2 = 0 (correct)
+- NO peak: 285.5 ppbv, NO2 peak: 32.6 ppbv, O3 background: 50.0 ppbv
+- All tracers non-negative
+
+**Verification passed:**
+- [x] SZA matches analytical value for time/location
+- [x] j_NO2 = 0 when sun below horizon
+- [x] j_NO2 = j_max × cos_sza when sun above horizon
+- [x] Non-negativity for all species
+- [x] Physically plausible tracer concentrations
+
+---
+
 ## Notes
 
 1. **PnetCDF compatibility:** Use `io_type="netcdf"` in streams.atmosphere on macOS/LLVM builds
