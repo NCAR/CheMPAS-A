@@ -609,6 +609,7 @@ llvm:   # BUILDTARGET LLVM flang, clang, and clang++ compilers
 	"DEBUG = $(DEBUG)" \
 	"USE_PAPI = $(USE_PAPI)" \
 	"OPENMP = $(OPENMP)" \
+	"MUSICA = $(MUSICA)" \
 	"CPPFLAGS = $(MODEL_FORMULATION) -D_MPI -DNOMPIMOD" )
 
 nag:   # BUILDTARGET NAG Fortran compiler and GNU C/C++ compilers
