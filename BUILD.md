@@ -204,7 +204,7 @@ The build will report `MPAS was linked with the MUSICA-Fortran library version X
 
 2. **`-fdefault-real-8` affects `kind=` specifiers.** Under the LLVM flags, `real(kind=4)` becomes 8-byte. Use `RKIND` (from `mpas_kind_types`) for MPAS log calls (`realArgs`) and any real literals that interface with the framework. Do not use `kind=4`.
 
-3. **Registry.xml chemistry tracers are guarded.** Chemistry tracer entries (qAB, qA, qB and their tendencies) are wrapped in `#ifdef MPAS_USE_MUSICA` / `#endif`. Non-MUSICA builds have no chemistry tracers. The `MUSICA=true` build flag defines `MPAS_USE_MUSICA` via the preprocessor.
+3. **Chemistry tracers are runtime-injected (not registry-defined).** The atmosphere registry no longer hardcodes chemistry tracers (`qAB/qA/qB`). With MUSICA enabled, `atm_extend_scalars_for_chemistry()` discovers MICM species at startup and extends `scalars`/`scalars_tend` metadata dynamically.
 
 4. **MICM API returns scalars.** `micm%get_species_property_double(name, property, error)` returns a scalar `real(real64)`, not an array. Assigning to an allocatable array causes undefined behavior.
 
