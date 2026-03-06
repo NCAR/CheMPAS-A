@@ -226,8 +226,8 @@ module mpas_musica
         integer, intent(out)                        :: error_code
         character(len=:), allocatable, intent(out)   :: error_message
 
-        type(micm_t), pointer  :: tmp_micm
-        type(state_t), pointer :: tmp_state
+        type(micm_t), pointer  :: tmp_micm => null()
+        type(state_t), pointer :: tmp_state => null()
         type(error_t)          :: error
         integer                :: i
 
@@ -243,10 +243,10 @@ module mpas_musica
         call mpas_log_write('[MUSICA] Querying MICM config for species list...')
 
         tmp_micm => micm_t(trim(config_path), RosenbrockStandardOrder, error)
-        if (has_error_occurred(error, error_message, error_code)) return
+        if (has_error_occurred(error, error_message, error_code)) goto 100
 
         tmp_state => tmp_micm%get_state(1, error)
-        if (has_error_occurred(error, error_message, error_code)) return
+        if (has_error_occurred(error, error_message, error_code)) goto 100
 
         num_species = tmp_state%species_ordering%size()
         allocate(species_names(num_species))
@@ -256,8 +256,9 @@ module mpas_musica
             call mpas_log_write('[MUSICA] Discovered chemistry tracer: ' // trim(species_names(i)))
         end do
 
-        deallocate(tmp_state)
-        deallocate(tmp_micm)
+100     continue
+        if (associated(tmp_state)) deallocate(tmp_state)
+        if (associated(tmp_micm)) deallocate(tmp_micm)
 
     end subroutine musica_query_species
 

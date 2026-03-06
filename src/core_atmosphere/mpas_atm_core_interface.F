@@ -681,6 +681,7 @@ module atm_core_interface
       integer :: old_count, new_count, t, i, j
       integer :: err_level
       integer, pointer :: dimPtr
+      logical, pointer :: block_config_apply_lbcs
 
       ierr = 0
 
@@ -713,6 +714,20 @@ module atm_core_interface
       if (num_chem_species == 0) then
          call mpas_log_write('[Chemistry] MICM config has no species; no tracers to add')
          return
+      end if
+
+      ! Guard: runtime chemistry tracers are incompatible with limited-area boundaries
+      ! because lbc_scalars is statically sized from Registry metadata
+      block_config_apply_lbcs => null()
+      call mpas_pool_get_config(block % domain % configs, 'config_apply_lbcs', block_config_apply_lbcs)
+      if (associated(block_config_apply_lbcs)) then
+         if (block_config_apply_lbcs) then
+            call mpas_log_write('Runtime chemistry tracers are incompatible with config_apply_lbcs=true. ' // &
+                                'lbc_scalars is statically sized and cannot accommodate dynamic tracers.', &
+                                messageType=MPAS_LOG_CRIT)
+            ierr = 1
+            return
+         end if
       end if
 
       call mpas_log_write('[Chemistry] Extending scalars with $i chemistry tracers', &
@@ -798,8 +813,8 @@ module atm_core_interface
          call mpas_pool_add_dimension(tendPool, 'num_scalars_tend', new_count)
       end if
 
-      ! scalars_tend has 1 time level
-      call extend_field_metadata(fieldPtr, old_count, new_count, num_chem_species, chem_names)
+      ! scalars_tend has 1 time level — use tend_ prefix for constituent names
+      call extend_field_metadata(fieldPtr, old_count, new_count, num_chem_species, chem_names, 'tend_')
 
       ! Add index dimensions for tend pool too
       do i = 1, num_chem_species
@@ -812,11 +827,12 @@ module atm_core_interface
 
       contains
 
-      subroutine extend_field_metadata(fld, old_n, new_n, n_chem, names)
+      subroutine extend_field_metadata(fld, old_n, new_n, n_chem, names, prefix)
 
          type (field3dReal), pointer, intent(inout) :: fld
          integer, intent(in) :: old_n, new_n, n_chem
          character(len=64), intent(in) :: names(:)
+         character(len=*), intent(in), optional :: prefix
 
          character(len=StrKIND), dimension(:), pointer :: onames, nnames
          type (att_lists_type), dimension(:), pointer :: oatts, natts
@@ -827,7 +843,11 @@ module atm_core_interface
          allocate(nnames(new_n))
          nnames(1:old_n) = onames(1:old_n)
          do ii = 1, n_chem
-            nnames(old_n + ii) = trim(names(ii))
+            if (present(prefix)) then
+               nnames(old_n + ii) = trim(prefix) // trim(names(ii))
+            else
+               nnames(old_n + ii) = trim(names(ii))
+            end if
          end do
          fld % constituentNames => nnames
          deallocate(onames)

@@ -56,19 +56,22 @@ cmake -DMPAS_USE_MUSICA=ON -DMUSICA_ROOT=/path/to/musica ..
 | `chemistry_finalize()` | Clean up resources |
 | `chemistry_from_MPAS()` | Extract MPAS state for chemistry |
 | `chemistry_to_MPAS()` | Update MPAS state from chemistry |
-| `chemistry_seed_abba()` | Initialize ABBA test tracers |
+| `chemistry_seed_chem()` | Seed MPAS chemistry tracers from MICM initial state |
+| `chemistry_query_species()` | Query MICM config for runtime chemistry species |
 
 ### MUSICA Interface (`mpas_musica`)
 
 | Routine | Purpose |
 |---------|---------|
 | `musica_init()` | Initialize MICM solver and state |
+| `musica_query_species()` | Lightweight species discovery for runtime tracer allocation |
 | `musica_step()` | Solve chemistry (coupled state) |
 | `musica_step_ref()` | Solve chemistry (reference state) |
 | `musica_finalize()` | Clean up MICM resources |
 | `MICM_from_chemistry()` | Copy MPAS tracers to MICM |
 | `MICM_to_chemistry()` | Copy MICM results to MPAS |
-| `micm_to_mpas_abba()` | Seed MPAS with MICM initial state |
+| `resolve_mpas_indices()` | Resolve `index_q*` dimensions for all chemistry species |
+| `micm_to_mpas_chem()` | Seed MPAS with MICM initial state (generic species loop) |
 | `log_column_comparison()` | Diagnostic logging |
 | `copy_state_to_ref()` | Sync reference state |
 
@@ -103,27 +106,18 @@ where:
   M_species = molar mass [kg/mol]
 ```
 
-## ABBA Test Chemistry
+## Mechanism Configuration
 
-The current implementation uses a simple "ABBA" test chemistry mechanism:
+The coupling is mechanism-agnostic. Chemistry species are read from the MICM
+configuration at runtime, and MPAS tracer names follow the convention:
 
-**Species:**
-- AB (parent molecule)
-- A (product)
-- B (product)
+`MICM species X -> MPAS tracer qX`
 
-**Molar Masses:**
-```fortran
-real(kind=8), parameter :: M_AB  = 0.058_8   ! kg/mol
-real(kind=8), parameter :: M_A   = 0.029_8   ! kg/mol
-real(kind=8), parameter :: M_B   = 0.029_8   ! kg/mol
-real(kind=8), parameter :: M_AIR = 0.0289644_8  ! kg/mol
-```
+Regression testing currently uses the ABBA mechanism (`AB`, `A`, `B`), which
+maps to tracers `qAB`, `qA`, and `qB`.
 
-**MPAS Tracer Names:**
-- `qAB` - AB mixing ratio
-- `qA` - A mixing ratio
-- `qB` - B mixing ratio
+Molar masses are read per-species from MICM properties (`__molar mass`) via
+`micm%get_species_property_double(...)` during `musica_init`.
 
 ## Grid Cell Mapping
 
@@ -156,17 +150,18 @@ The integration maintains two MICM states:
 
 Comparing these states reveals advection contributions to tracer evolution.
 
-## Consistency Checking
+## Runtime Tracer Resolution
 
-At initialization, the code verifies that MICM species match MPAS registry tracers:
+Chemistry tracers are not statically defined in `Registry.xml`. During
+`atm_setup_block`, MPAS queries MICM species and extends `scalars` and
+`scalars_tend` metadata dynamically.
 
-```fortran
-! Expected: MICM species "AB" → MPAS tracer "qAB"
-! Expected: MICM species "A"  → MPAS tracer "qA"
-! Expected: MICM species "B"  → MPAS tracer "qB"
-```
+During `chemistry_init`, `resolve_mpas_indices()` then resolves each
+`index_q*` dimension from the state pool. Missing/invalid indices are treated
+as initialization errors.
 
-Mismatches generate warnings in the log.
+Runtime chemistry tracers are currently guarded against `config_apply_lbcs=true`
+because `lbc_scalars` remains statically sized from registry metadata.
 
 ## Configuration
 
@@ -243,7 +238,6 @@ Planned enhancements:
 - Full atmospheric chemistry mechanisms (e.g., tropospheric ozone)
 - TUV-x photolysis rate calculations
 - Aerosol chemistry
-- Species-specific molar mass lookup from MICM
 - Parallel processing optimization
 
 ## Related Documentation

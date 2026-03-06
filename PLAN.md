@@ -1,8 +1,9 @@
 # Plan: Generalize Chemistry Coupling — Remove Hardcoded ABBA
 
-## Status: Phase 1 Complete — Merged to Main
+## Status: Phases 1 and 2 Complete — Merged to Main
 
-Phase 1 implemented on `develop` and merged to `main`.
+This file is a historical implementation record. Phase 1 and Phase 2 are both
+implemented on `develop` and merged to `main`.
 
 Key commits:
 - `2dee808` — Core refactoring: dynamic species table, generic coupling loops
@@ -22,7 +23,7 @@ Phase 1 generalized the coupling layer to loop over species dynamically using MI
 | `src/core_atmosphere/chemistry/musica/mpas_musica.F` | Dynamic `species_entry_t` table, generic coupling loops |
 | `src/core_atmosphere/chemistry/mpas_atm_chemistry.F` | Removed per-species index args, renamed `chemistry_seed_chem`, fixed gradient check |
 | `src/core_atmosphere/mpas_atm_core.F` | Updated call sites: `chemistry_seed_chem`, `chem_seed_after_stream` |
-| `src/core_atmosphere/Registry.xml` | Wrapped qAB/qA/qB in `#ifdef MPAS_USE_MUSICA` |
+| `src/core_atmosphere/Registry.xml` | Phase 1 interim wrapped qAB/qA/qB; Phase 2 removed chemistry tracers entirely |
 | `BUILD.md` | MUSICA build pitfalls documentation |
 | `CLAUDE.md` | Testing notes (8 MPI ranks requirement) |
 | `~/Data/MPAS/supercell/abba.yaml` | Added `__molar mass`, corrected scaling factors to 2.0e-3 / 1.0e-3 |
@@ -80,9 +81,10 @@ Removed per-species index declarations and pool lookups. Simplified call signatu
 
 All call sites updated: `chemistry_seed_abba` → `chemistry_seed_chem`, `abba_seed_after_stream` → `chem_seed_after_stream`.
 
-### Step 11: Wrap Registry.xml tracers — DONE
+### Step 11 (Phase 1 interim): Wrap Registry.xml tracers — SUPERSEDED
 
-Used `#ifdef MPAS_USE_MUSICA` / `#endif` around qAB/qA/qB entries in both `scalars` and `scalars_tend` var_arrays. Non-MUSICA builds have no chemistry tracers.
+This was an intermediate Phase 1 step. In Phase 2, chemistry tracers were
+removed from `Registry.xml` and are now injected at runtime.
 
 ## Bugs Found and Fixed
 
@@ -182,8 +184,17 @@ At `atm_setup_block` time, field arrays are **not yet allocated** — only metad
 - Chemistry tracers (qA, qAB, qB): **bitwise identical** to Phase 1 reference
 - Met fields unaffected
 
+### Codex 5.3 Review — All Issues Fixed
+
+Codex reviewed commits `195452e`–`46c180d` and found three issues, all resolved:
+
+1. **High: LBC incompatibility** — Runtime tracers extend `num_scalars` beyond `lbc_scalars` bounds. Fixed with `MPAS_LOG_CRIT` guard when `config_apply_lbcs=true`.
+2. **Medium: `scalars_tend` naming** — Constituent names used `q*` instead of `tend_q*`. Fixed by adding `tend_` prefix in `extend_field_metadata`.
+3. **Low: Memory leak on error** — `musica_query_species` leaked `tmp_micm`/`tmp_state` on error paths. Fixed with `goto`-based cleanup and null-initialized pointers.
+
 ### Future Work (Post Phase 2)
 
+- **LBC support for dynamic tracers** — Extend `lbc_scalars` metadata at runtime (currently guarded with hard-fail)
 - **`__do advect` filtering** — Support non-advected species
 - **Fallback molar mass table** — For configs lacking `__molar mass`
 - **Generic visualization** — `plot_chemistry.py` discovers species dynamically
