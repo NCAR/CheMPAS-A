@@ -400,6 +400,34 @@
                      units="-"
                      description="MICM configuration file name"
                      possible_values="Any valid filename"/>
+                <nml_option name="config_lnox_source_rate" type="real" default_value="0.0"
+                     units="ppbv s^{-1}"
+                     description="Lightning NOx source rate when w - w_threshold = w_ref (0 = disabled)"
+                     possible_values="Any non-negative real"/>
+                <nml_option name="config_lnox_w_threshold" type="real" default_value="5.0"
+                     units="m s^{-1}"
+                     description="Minimum vertical velocity for lightning NOx injection"
+                     possible_values="Any positive real"/>
+                <nml_option name="config_lnox_w_ref" type="real" default_value="10.0"
+                     units="m s^{-1}"
+                     description="Excess vertical velocity used in S = rate * max(0, w - w_threshold) / w_ref"
+                     possible_values="Any positive real"/>
+                <nml_option name="config_lnox_z_min" type="real" default_value="5000.0"
+                     units="m"
+                     description="Minimum altitude for lightning NOx injection"
+                     possible_values="Any non-negative real"/>
+                <nml_option name="config_lnox_z_max" type="real" default_value="12000.0"
+                     units="m"
+                     description="Maximum altitude for lightning NOx injection"
+                     possible_values="Any non-negative real"/>
+                <nml_option name="config_lnox_j_no2" type="real" default_value="0.0"
+                     units="s^{-1}"
+                     description="Prescribed NO2 photolysis rate (0 = disabled, ~0.01 for daytime)"
+                     possible_values="Any non-negative real"/>
+                <nml_option name="config_lnox_nox_tau" type="real" default_value="0.0"
+                     units="s"
+                     description="NOx sink timescale in seconds (0 = no sink). Rate = 1/tau."
+                     possible_values="Any non-negative real"/>
         </nml_record>
 #endif
 

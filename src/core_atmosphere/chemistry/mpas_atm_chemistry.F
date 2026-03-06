@@ -29,6 +29,9 @@ module mpas_atm_chemistry
     public :: chemistry_from_MPAS, chemistry_to_MPAS
     public :: chemistry_query_species
 
+    ! Lightning NOx source (no-op if qNO not in mechanism)
+    public :: chemistry_lightning_nox_init
+
     contains
 
     !------------------------------------------------------------------------
@@ -64,6 +67,8 @@ module mpas_atm_chemistry
         integer, pointer                :: nCells_ptr
         integer, pointer                :: nVertLevels_ptr
         type (mpas_pool_type), pointer  :: statePool
+        real(kind=RKIND), pointer       :: j_no2_ptr, nox_tau_ptr
+        real(kind=RKIND)                :: j_no2_val, nox_tau_val
 #endif
 
         call mpas_log_write('Initializing chemistry packages...')
@@ -81,8 +86,19 @@ module mpas_atm_chemistry
 
         call mpas_pool_get_config(configs, 'config_micm_file', filepath_ptr)
 
+        ! Read prescribed photolysis and sink parameters
+        j_no2_val = 0.0_RKIND
+        nox_tau_val = 0.0_RKIND
+        nullify(j_no2_ptr)
+        nullify(nox_tau_ptr)
+        call mpas_pool_get_config(configs, 'config_lnox_j_no2', j_no2_ptr)
+        if (associated(j_no2_ptr)) j_no2_val = j_no2_ptr
+        call mpas_pool_get_config(configs, 'config_lnox_nox_tau', nox_tau_ptr)
+        if (associated(nox_tau_ptr)) nox_tau_val = nox_tau_ptr
+
         ! Initialize MICM (species already injected into scalars by atm_setup_block)
-        call musica_init(filepath_ptr, nCells * nVertLevels, error_code, error_message)
+        call musica_init(filepath_ptr, nCells * nVertLevels, &
+                         j_no2_val, nox_tau_val, error_code, error_message)
 
         if (error_code /= 0) then
             call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
@@ -100,6 +116,9 @@ module mpas_atm_chemistry
 
         ! Seed MPAS tracers from MICM initial state (both time levels)
         call chemistry_seed_chem(dimensions, structs)
+
+        ! Initialize lightning NOx source (no-op if qNO not in mechanism)
+        call chemistry_lightning_nox_init(configs, statePool)
 #endif
 
     end subroutine chemistry_init
@@ -122,10 +141,11 @@ module mpas_atm_chemistry
         use iso_fortran_env, only: real64
         use mpas_musica, only: musica_step, musica_step_ref, log_column_comparison, &
                                copy_state_to_ref
+        use mpas_lightning_nox, only: lightning_nox_inject
 #endif
         use mpas_log, only : mpas_log_write
         use mpas_derived_types, only: mpas_pool_type, MPAS_LOG_CRIT
-        use mpas_pool_routines, only: mpas_pool_get_dimension
+        use mpas_pool_routines, only: mpas_pool_get_dimension, mpas_pool_get_array
 
         real (kind=RKIND), intent(in) :: dt
         type (mpas_pool_type), intent(in) :: mesh
@@ -143,6 +163,10 @@ module mpas_atm_chemistry
         integer                       :: probe_cell
         logical, save                 :: first_call = .true.
 
+        ! Lightning NOx injection arrays
+        real(kind=RKIND), dimension(:,:,:), pointer :: scalars
+        real(kind=RKIND), dimension(:,:), pointer :: w, zgrid
+
         time_step = dt
 
         ! Get dimensions
@@ -155,6 +179,14 @@ module mpas_atm_chemistry
         probe_cell = nCells / 2
 
         call mpas_log_write('Stepping chemistry packages...')
+
+        ! Step 0: Inject lightning NOx source (pre-MICM, operator split)
+        call mpas_pool_get_array(state, 'scalars', scalars, time_lev)
+        call mpas_pool_get_array(state, 'w', w, time_lev)
+        call mpas_pool_get_array(mesh, 'zgrid', zgrid)
+        if (associated(scalars) .and. associated(w) .and. associated(zgrid)) then
+            call lightning_nox_inject(dt, scalars, w, zgrid, nVertLevels, nCells, time_lev)
+        end if
 
         ! Step 1: Copy MPAS state to MICM (MPAS -> MICM)
         call chemistry_from_MPAS(mesh, state, diag, dimensions, time_lev, &
@@ -553,5 +585,23 @@ module mpas_atm_chemistry
 #endif
 
     end subroutine chemistry_query_species
+
+
+    !------------------------------------------------------------------------
+    !  subroutine chemistry_lightning_nox_init
+    !
+    !> \brief Initialize lightning NOx source from namelist + tracer pool
+    !------------------------------------------------------------------------
+    subroutine chemistry_lightning_nox_init(configs, statePool)
+
+        use mpas_lightning_nox, only: lightning_nox_init
+        use mpas_derived_types, only: mpas_pool_type
+
+        type(mpas_pool_type), intent(in) :: configs
+        type(mpas_pool_type), intent(in) :: statePool
+
+        call lightning_nox_init(configs, statePool)
+
+    end subroutine chemistry_lightning_nox_init
 
 end module mpas_atm_chemistry

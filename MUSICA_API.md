@@ -663,6 +663,26 @@ end do
 
 ## Unit Conversions
 
+MICM uses **mol/m³** for concentrations internally. All reaction rate parameters must be in compatible units.
+
+### Reaction Rate Parameter Units
+
+**Arrhenius reactions** (`k = A * (T/D)^B * exp(C/T) + E`):
+- MICM computes `k` internally from the provided parameters
+- Since concentrations are in mol/m³, `A` for bimolecular reactions must be in **m³/mol/s**
+- Standard atmospheric chemistry uses cm³/molecule/s — you must convert:
+
+```
+A_micm [m³/mol/s] = A_atm [cm³/molecule/s] × Nₐ × 10⁻⁶
+                   = A_atm × 6.022×10²³ × 10⁻⁶
+```
+
+| Reaction | A (cm³/molecule/s) | A (m³/mol/s) |
+|----------|-------------------|--------------|
+| NO + O3 → NO2 | 1.8×10⁻¹² | 1.084×10⁶ |
+
+**Photolysis reactions**: Rate parameter (j-value) is set externally via `state%rate_parameters` in **s⁻¹**. Until TUV-x is integrated, these default to 0 (photolysis disabled).
+
 ### MPAS to MICM
 
 ```fortran

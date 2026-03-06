@@ -29,16 +29,14 @@ Read `namelist.atmosphere` to find the decomposition prefix and determine availa
 
 **Important:** Check that `streams.atmosphere` has `io_type="netcdf"` on input and output streams. PnetCDF has compatibility issues on macOS/LLVM builds. If missing, add `io_type="netcdf"` to avoid "Could not open input file" or "PIO error -36" errors.
 
-### 2. Archive Previous Output
+### 2. Remove Previous Output (REQUIRED)
 
-Before running, archive any existing output with a timestamp:
+**You MUST remove old `output.nc` before running.** MPAS uses `clobber_mode = never_modify` by default, so if `output.nc` already exists the model will silently skip all output writes. The run will appear to succeed but produce no new data.
+
+Only save output as a named reference file if the user explicitly asks (e.g., regression test baselines). Otherwise just delete it.
 
 ```bash
-timestamp=$(date +%Y%m%d_%H%M%S)
-[ -f output.nc ] && mv output.nc output.${timestamp}.nc
-for f in log.atmosphere.*.out; do
-    [ -f "$f" ] && mv "$f" "${f%.out}.${timestamp}.out"
-done
+rm -f output.nc log.atmosphere.*.out
 ```
 
 ### 3. Run the Model

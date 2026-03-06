@@ -13,6 +13,7 @@ dummy:
 	echo "****** compiling chemistry ******"
 
 OBJS = \
+	mpas_lightning_nox.o \
 	mpas_atm_chemistry.o
 
 ifeq ($(MUSICA),true)
@@ -27,6 +28,8 @@ core_chemistry: $(if $(filter true,$(MUSICA)),core_mpas_musica)
 ifeq ($(MUSICA),true)
 	($(MAKE) -C ./musica mpas_musica_lib)
 endif
+
+mpas_atm_chemistry.o: mpas_lightning_nox.o
 
 chem_interface: $(OBJS)
 

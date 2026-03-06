@@ -13,6 +13,10 @@ src/operators/*.f90
 # All mod files
 *.mod
 
+# Python cache and bytecode
+__pycache__/
+*.pyc
+
 # All libraries
 *.a
 
@@ -59,5 +63,8 @@ stream_list.*
 # Intermediate files that may be produced by Intel compilers
 *.i
 *.i90
+
+# macOS debug symbol bundles
+*.dSYM/
 
 src/core_*/inc

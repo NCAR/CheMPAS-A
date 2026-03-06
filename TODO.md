@@ -22,7 +22,8 @@
   - Would eliminate edge artifacts and improve accuracy
   - https://uxarray.readthedocs.io/
 
-- [ ] Full atmospheric chemistry mechanisms (tropospheric ozone, etc.)
-- [ ] TUV-x photolysis rate calculations
+- [ ] Solar geometry / day-night physics for j_NO2 (Phase 1)
+- [ ] TUV-x photolysis rate calculations (Phase 2-3)
+- [ ] Transport-disabled Ox conservation test for Case A verification
 - [ ] Aerosol chemistry integration
 - [ ] Parallel processing optimization for MICM solver

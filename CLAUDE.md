@@ -19,6 +19,15 @@ CheMPAS (Chemistry for MPAS) is a standalone project derived from [NCAR/MPAS-Mod
 - `TEST_RUNS.md` - Test run documentation
 - `TODO.md` - Development task list
 
+## Sister Project Reference
+
+- `~/EarthSystem/DAVINCI-MPAS/` - Sister project with prior lightning-NOx/O3
+  implementation work.
+- Start with:
+  - `PLAN.md` (Phase 6 LNOx-O3 details)
+  - `SCIENCE.md` (physics assumptions and validation framing)
+  - `DC3.md` (observational context and targets)
+
 ## Build Configuration (macOS with LLVM)
 
 This project is configured to build with LLVM compilers (flang/clang) via Homebrew:
@@ -88,6 +97,17 @@ Skills are defined in `.claude/commands/` and can be invoked with `/skillname`:
 ## Development Manifesto
 
 CheMPAS is an agent-driven development project. See `AGENTS.md` for the full manifesto, agent roles, workflow, and human review gates.
+
+## Multi-Agent Workflow
+
+CheMPAS uses three agents from three vendors (see `AGENTS.md`). Codex 5.3 reviews Claude's work and may push doc edits or review findings directly to the repo.
+
+**Convention for cross-agent communication:**
+- Codex writes review findings to `CODEX_REVIEW.md` and pushes to `develop`
+- When the user says "check the review", pull and read `CODEX_REVIEW.md`
+- Implement fixes, then remove `CODEX_REVIEW.md` (it's a transient artifact, not a permanent doc)
+- Codex may also edit `.md` documentation files directly — always `git pull` before committing if Codex has been active
+- Before merging to main, ensure no concurrent Codex edits are in flight
 
 ## Notes for AI Assistants
 
