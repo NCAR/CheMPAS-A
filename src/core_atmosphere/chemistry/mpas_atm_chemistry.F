@@ -25,7 +25,7 @@ module mpas_atm_chemistry
 
     private
 
-    public :: chemistry_init, chemistry_step, chemistry_finalize, chemistry_seed_abba
+    public :: chemistry_init, chemistry_step, chemistry_finalize, chemistry_seed_chem
     public :: chemistry_from_MPAS, chemistry_to_MPAS
 
     contains
@@ -43,7 +43,7 @@ module mpas_atm_chemistry
     subroutine chemistry_init(configs, dimensions, structs)
 
 #ifdef MPAS_USE_MUSICA
-        use mpas_musica, only: musica_init
+        use mpas_musica, only: musica_init, resolve_mpas_indices
 #endif
         use mpas_log, only : mpas_log_write
         use mpas_derived_types, only: mpas_pool_type, MPAS_LOG_CRIT, field3dReal
@@ -107,9 +107,16 @@ module mpas_atm_chemistry
             call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
         end if
 
-        ! Perform ABBA seeding once immediately after MICM init. This may need to be
-        ! re-applied after the first input stream read; see chemistry_seed_abba.
-        call chemistry_seed_abba(dimensions, structs)
+        ! Resolve MPAS tracer indices for all chemistry species
+        if (associated(statePool)) then
+            call resolve_mpas_indices(statePool, error_code, error_message)
+            if (error_code /= 0) then
+                call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
+            end if
+        end if
+
+        ! Seed MPAS tracers from MICM initial state (both time levels)
+        call chemistry_seed_chem(dimensions, structs)
 #endif
 
     end subroutine chemistry_init
@@ -272,7 +279,7 @@ module mpas_atm_chemistry
         real (kind=RKIND), dimension(:,:), pointer :: rho_zz, theta_m
         real (kind=RKIND), dimension(:,:), pointer :: zz, exner
         real (kind=RKIND), dimension(:,:), pointer :: pressure_p, pressure_b
-        integer, pointer :: index_qv, index_qAB, index_qA, index_qB
+        integer, pointer :: index_qv
 
         ! Local work arrays
         real (kind=RKIND), allocatable :: rho_air(:,:)
@@ -295,11 +302,8 @@ module mpas_atm_chemistry
         call mpas_pool_get_array(diag, 'pressure_p', pressure_p)
         call mpas_pool_get_array(diag, 'pressure_base', pressure_b)
 
-        ! Get tracer indices
+        ! Get water vapor index (needed for thermodynamic calculations)
         call mpas_pool_get_dimension(state, 'index_qv', index_qv)
-        call mpas_pool_get_dimension(state, 'index_qAB', index_qAB)
-        call mpas_pool_get_dimension(state, 'index_qA', index_qA)
-        call mpas_pool_get_dimension(state, 'index_qB', index_qB)
 
         ! Validate pointers
         if (.not. associated(scalars) .or. .not. associated(rho_zz) .or. &
@@ -307,13 +311,6 @@ module mpas_atm_chemistry
             .not. associated(exner)) then
             error_code = 1
             error_message = '[Chemistry] Required MPAS arrays not available in chemistry_from_MPAS.'
-            return
-        end if
-
-        if (.not. associated(index_qAB) .or. .not. associated(index_qA) .or. &
-            .not. associated(index_qB)) then
-            error_code = 1
-            error_message = '[Chemistry] ABBA tracer indices not available in chemistry_from_MPAS.'
             return
         end if
 
@@ -343,10 +340,9 @@ module mpas_atm_chemistry
             end do
         end do
 
-        ! Call MICM-specific coupling routine
+        ! Call MICM-specific coupling routine (uses chem_species table internally)
         call MICM_from_chemistry(scalars, rho_air, temperature, pressure, &
                                   nCells, nVertLevels, &
-                                  index_qAB, index_qA, index_qB, &
                                   error_code, error_message)
 
         deallocate(rho_air)
@@ -394,7 +390,7 @@ module mpas_atm_chemistry
         ! MPAS state arrays
         real (kind=RKIND), dimension(:,:,:), pointer :: scalars
         real (kind=RKIND), dimension(:,:), pointer :: rho_zz, zz
-        integer, pointer :: index_qv, index_qAB, index_qA, index_qB
+        integer, pointer :: index_qv
 
         ! Local work arrays
         real (kind=RKIND), allocatable :: rho_air(:,:)
@@ -409,11 +405,8 @@ module mpas_atm_chemistry
         call mpas_pool_get_array(state, 'rho_zz', rho_zz, time_lev)
         call mpas_pool_get_array(mesh, 'zz', zz)
 
-        ! Get tracer indices
+        ! Get water vapor index
         call mpas_pool_get_dimension(state, 'index_qv', index_qv)
-        call mpas_pool_get_dimension(state, 'index_qAB', index_qAB)
-        call mpas_pool_get_dimension(state, 'index_qA', index_qA)
-        call mpas_pool_get_dimension(state, 'index_qB', index_qB)
 
         ! Validate pointers
         if (.not. associated(scalars) .or. .not. associated(rho_zz) .or. &
@@ -423,28 +416,19 @@ module mpas_atm_chemistry
             return
         end if
 
-        if (.not. associated(index_qAB) .or. .not. associated(index_qA) .or. &
-            .not. associated(index_qB)) then
-            error_code = 1
-            error_message = '[Chemistry] ABBA tracer indices not available in chemistry_to_MPAS.'
-            return
-        end if
-
         ! Allocate work arrays
         allocate(rho_air(nVertLevels, nCells))
 
         ! Calculate air density for unit conversion
         do iCell = 1, nCells
             do k = 1, nVertLevels
-                ! Moist air density [kg/m³]: rho = zz * rho_zz * (1 + qv)
                 rho_air(k, iCell) = zz(k, iCell) * rho_zz(k, iCell) * &
                                     (1.0_RKIND + scalars(index_qv, k, iCell))
             end do
         end do
 
-        ! Call MICM-specific coupling routine
+        ! Call MICM-specific coupling routine (uses chem_species table internally)
         call MICM_to_chemistry(scalars, rho_air, nCells, nVertLevels, &
-                                index_qAB, index_qA, index_qB, &
                                 error_code, error_message)
 
         deallocate(rho_air)
@@ -457,14 +441,14 @@ module mpas_atm_chemistry
 
 
     !------------------------------------------------------------------------
-    !  routine chemistry_seed_abba
+    !  routine chemistry_seed_chem
     !
-    !> \brief One-time (or repeated) MICM -> MPAS ABBA seed
+    !> \brief One-time (or repeated) MICM -> MPAS chemistry tracer seed
     !------------------------------------------------------------------------
-    subroutine chemistry_seed_abba(dimensions, structs)
+    subroutine chemistry_seed_chem(dimensions, structs)
 
 #ifdef MPAS_USE_MUSICA
-        use mpas_musica, only: micm_to_mpas_abba
+        use mpas_musica, only: micm_to_mpas_chem, n_chem_species, chem_species
 #endif
         use mpas_log, only : mpas_log_write
         use mpas_derived_types, only: mpas_pool_type, MPAS_LOG_CRIT, field3dReal
@@ -483,13 +467,15 @@ module mpas_atm_chemistry
         type (field3dReal), pointer     :: scalarsField
         real (kind=RKIND), dimension(:,:,:), pointer :: scalars_time1
         real (kind=RKIND), dimension(:,:,:), pointer :: scalars_time2
-        integer, pointer                :: index_qAB_ptr
-        integer, pointer                :: index_qA_ptr
-        integer, pointer                :: index_qB_ptr
-        integer                         :: error_code
+        integer                         :: error_code, i_sp, mpas_idx
         character(len=:), allocatable   :: error_message
 
-        call mpas_log_write('[MUSICA] Seeding ABBA tracers from MICM into MPAS scalars (both time levels).')
+        call mpas_log_write('[MUSICA] Seeding chemistry tracers from MICM into MPAS scalars (both time levels).')
+
+        if (n_chem_species == 0) then
+            call mpas_log_write('[MUSICA] No chemistry species to seed.')
+            return
+        end if
 
         call mpas_pool_get_dimension(dimensions, 'nVertLevels', nVertLevels_ptr)
         nVertLevels = nVertLevels_ptr
@@ -505,56 +491,50 @@ module mpas_atm_chemistry
         nullify(scalarsField)
         nullify(scalars_time1)
         nullify(scalars_time2)
-        nullify(index_qAB_ptr)
-        nullify(index_qA_ptr)
-        nullify(index_qB_ptr)
 
         call mpas_pool_get_subpool(structs, 'state', statePool)
         if (associated(statePool)) then
             call mpas_pool_get_field(statePool, 'scalars', scalarsField, 1)
             call mpas_pool_get_array(statePool, 'scalars', scalars_time1, 1)
             call mpas_pool_get_array(statePool, 'scalars', scalars_time2, 2)
-            call mpas_pool_get_dimension(statePool, 'index_qAB', index_qAB_ptr)
-            call mpas_pool_get_dimension(statePool, 'index_qA', index_qA_ptr)
-            call mpas_pool_get_dimension(statePool, 'index_qB', index_qB_ptr)
         end if
 
-        if (.not. associated(index_qAB_ptr)) call mpas_pool_get_dimension(dimensions, 'index_qAB', index_qAB_ptr)
-        if (.not. associated(index_qA_ptr))  call mpas_pool_get_dimension(dimensions, 'index_qA', index_qA_ptr)
-        if (.not. associated(index_qB_ptr))  call mpas_pool_get_dimension(dimensions, 'index_qB', index_qB_ptr)
-
-        if (.not. associated(index_qAB_ptr) .or. .not. associated(index_qA_ptr) .or. .not. associated(index_qB_ptr)) then
-            call mpas_log_write('[MUSICA] Skipping MICM->MPAS ABBA seed: tracer indices not available.')
-            return
-        else if (.not. associated(scalars_time1)) then
-            call mpas_log_write('[MUSICA] Skipping MICM->MPAS ABBA seed: scalars time level 1 not available.')
+        if (.not. associated(scalars_time1)) then
+            call mpas_log_write('[MUSICA] Skipping MICM->MPAS seed: scalars time level 1 not available.')
             return
         else if (.not. associated(scalars_time2)) then
-            call mpas_log_write('[MUSICA] Skipping MICM->MPAS ABBA seed: scalars time level 2 not available.')
+            call mpas_log_write('[MUSICA] Skipping MICM->MPAS seed: scalars time level 2 not available.')
             return
         end if
 
-        ! Skip seeding if tracers already have spatial gradients (initialized from file)
-        if (maxval(scalars_time1(index_qAB_ptr,:,:)) - minval(scalars_time1(index_qAB_ptr,:,:)) > 1.0e-10_RKIND) then
+        ! Check if any chemistry tracer has MPAS index not yet resolved
+        do i_sp = 1, n_chem_species
+            if (chem_species(i_sp)%mpas_index < 1) then
+                call mpas_log_write('[MUSICA] Skipping MICM->MPAS seed: MPAS indices not resolved.')
+                return
+            end if
+        end do
+
+        ! Skip seeding if first chemistry tracer already has spatial gradients (initialized from file)
+        mpas_idx = chem_species(1)%mpas_index
+        if (maxval(scalars_time1(mpas_idx,:,:)) - minval(scalars_time1(mpas_idx,:,:)) > 1.0e-10_RKIND) then
             call mpas_log_write('[MUSICA] Tracers already initialized with gradients, skipping MICM seed.')
             return
         end if
 
         error_code = 0
-        call micm_to_mpas_abba(scalars_time1, nCells, nVertLevels, &
-                index_qAB_ptr, index_qA_ptr, index_qB_ptr, error_code, error_message)
+        call micm_to_mpas_chem(scalars_time1, nCells, nVertLevels, error_code, error_message)
         if (error_code /= 0) then
             call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
         end if
 
         error_code = 0
-        call micm_to_mpas_abba(scalars_time2, nCells, nVertLevels, &
-                index_qAB_ptr, index_qA_ptr, index_qB_ptr, error_code, error_message)
+        call micm_to_mpas_chem(scalars_time2, nCells, nVertLevels, error_code, error_message)
         if (error_code /= 0) then
             call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
         end if
 #endif
 
-    end subroutine chemistry_seed_abba
+    end subroutine chemistry_seed_chem
 
 end module mpas_atm_chemistry

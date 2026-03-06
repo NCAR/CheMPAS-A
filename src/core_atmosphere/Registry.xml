@@ -1663,6 +1663,7 @@
                              description="Graupel mixing ratio"
                              packages="mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in"/>
 
+#ifdef MPAS_USE_MUSICA
                         <var name="qAB" array_group="passive" units="kg kg^{-1}"
                              description="Molecular AB mixing ratio"/>
 
@@ -1671,6 +1672,7 @@
 
                         <var name="qB" array_group="passive" units="kg kg^{-1}"
                              description="Atomic B mixing ratio"/>
+#endif
 
                         <var name="ni" array_group="number" units="nb kg^{-1}"
                              description="Cloud ice number concentration"
@@ -2023,6 +2025,7 @@
                              description="Tendency of graupel mass per unit volume divided by d(zeta)/dz"
                              packages="mp_thompson_in;mp_thompson_aers_in;mp_wsm6_in"/>
 
+#ifdef MPAS_USE_MUSICA
                         <var name="tend_qAB" name_in_code="qAB" array_group="passive" units="kg m^{-3} s^{-1}"
                              description="Tendency of molecular AB mass per unit volume divided by d(zeta)/dz"/>
 
@@ -2031,6 +2034,7 @@
 
                         <var name="tend_qB" name_in_code="qB" array_group="passive" units="kg m^{-3} s^{-1}"
                              description="Tendency of atomic B mass per unit volume divided by d(zeta)/dz"/>
+#endif
 
                         <var name="tend_ni" name_in_code="ni" array_group="number" units="nb m^{-3} s^{-1}"
                              description="Tendency of cloud ice number concentration multiplied by dry air density divided by d(zeta)/dz"

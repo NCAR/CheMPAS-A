@@ -36,7 +36,7 @@ module atm_core
       use mpas_string_utils, only : mpas_string_replace
       use mpas_atm_halos, only: atm_build_halo_groups, exchange_halo_group
 #ifdef DO_CHEMISTRY
-      use mpas_atm_chemistry, only: chemistry_init, chemistry_seed_abba
+      use mpas_atm_chemistry, only: chemistry_init, chemistry_seed_chem
 #endif
 
       implicit none
@@ -50,7 +50,7 @@ module atm_core
 
       logical, pointer :: config_do_restart
 
-      logical :: abba_seed_after_stream
+      logical :: chem_seed_after_stream
 
       type (mpas_pool_type), pointer :: state
       type (mpas_pool_type), pointer :: mesh
@@ -71,7 +71,7 @@ module atm_core
 
 
       ierr = 0
-      abba_seed_after_stream = .false.
+      chem_seed_after_stream = .false.
 
 
       !
@@ -612,7 +612,7 @@ module atm_core
       use mpas_timer, only : mpas_timer_start, mpas_timer_stop
       use mpas_atm_boundaries, only : mpas_atm_update_bdy_tend
 #ifdef DO_CHEMISTRY
-      use mpas_atm_chemistry, only : chemistry_seed_abba
+      use mpas_atm_chemistry, only : chemistry_seed_chem
 #endif
       use mpas_atm_diagnostics_manager, only : mpas_atm_diag_update, mpas_atm_diag_compute, mpas_atm_diag_reset
    
@@ -624,7 +624,7 @@ module atm_core
       real (kind=RKIND) :: dt
       logical, pointer :: config_do_restart
       logical, pointer :: config_apply_lbcs
-      logical :: abba_seed_after_stream
+      logical :: chem_seed_after_stream
       type (block_type), pointer :: block_ptr
 
       type (MPAS_Time_Type) :: currTime
@@ -645,7 +645,7 @@ module atm_core
       real (kind=R8KIND) :: output_start_time, output_stop_time
       
       ierr = 0
-      abba_seed_after_stream = .false.
+      chem_seed_after_stream = .false.
 
       clock => domain % clock
       mpas_log_info => domain % logInfo
@@ -804,11 +804,11 @@ module atm_core
 
          call mpas_timer_start("time integration")
          call mpas_dmpar_get_time(integ_start_time)
-         if (.not. abba_seed_after_stream) then
+         if (.not. chem_seed_after_stream) then
 #ifdef DO_CHEMISTRY
-            call chemistry_seed_abba(domain % blocklist % dimensions, domain % blocklist % structs)
+            call chemistry_seed_chem(domain % blocklist % dimensions, domain % blocklist % structs)
 #endif
-            abba_seed_after_stream = .true.
+            chem_seed_after_stream = .true.
          end if
 
          call atm_do_timestep(domain, dt, itimestep)

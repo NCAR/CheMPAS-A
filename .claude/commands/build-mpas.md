@@ -4,20 +4,21 @@ Build MPAS-Atmosphere with LLVM compilers on macOS.
 
 ## Instructions
 
-1. Set up the environment:
+1. Set up the environment (use absolute paths — `$HOME` doesn't expand reliably inside make):
    ```bash
-   export PKG_CONFIG_PATH="$HOME/software/lib/pkgconfig:$PKG_CONFIG_PATH"
+   export PKG_CONFIG_PATH="/Users/fillmore/software/lib/pkgconfig:$PKG_CONFIG_PATH"
    ```
 
 2. Check if a clean build is needed by looking for stale `.mod` files or build option mismatches.
 
 3. Build the requested core (default: atmosphere):
    ```bash
+   PKG_CONFIG_PATH="/Users/fillmore/software/lib/pkgconfig:$PKG_CONFIG_PATH" \
    make -j8 llvm \
      CORE=atmosphere \
-     PIO=$HOME/software \
+     PIO=/Users/fillmore/software \
      NETCDF=/opt/homebrew \
-     PNETCDF=$HOME/software \
+     PNETCDF=/Users/fillmore/software \
      PRECISION=double
    ```
 

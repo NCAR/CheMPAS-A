@@ -25,19 +25,25 @@ module mpas_musica
 
     private
 
-    public :: musica_init, musica_step, musica_step_ref, musica_finalize, micm_to_mpas_abba
+    public :: musica_init, musica_step, musica_step_ref, musica_finalize, micm_to_mpas_chem
     public :: MICM_from_chemistry, MICM_to_chemistry
     public :: log_column_comparison, copy_state_to_ref
+    public :: resolve_mpas_indices, n_chem_species, chem_species
 
     type(micm_t),  pointer :: micm  => null ( )  ! Pointer to the MICM ODE solver instance
     type(state_t), pointer :: state => null ( )  ! Pointer to the state of the MICM solver (coupled to MPAS)
     type(state_t), pointer :: state_ref => null ( )  ! Reference state (uncoupled, chemistry only)
 
-    ! Molar masses for unit conversion [kg/mol]
-    ! TEMPORARY: ABBA-specific values; future: read from MICM species properties
-    real(kind=8), parameter :: M_AB  = 0.058_8   ! kg/mol (placeholder for AB molecule)
-    real(kind=8), parameter :: M_A   = 0.029_8   ! kg/mol (placeholder for A atom)
-    real(kind=8), parameter :: M_B   = 0.029_8   ! kg/mol (placeholder for B atom)
+    type :: species_entry_t
+        character(len=64) :: micm_name    ! e.g. 'AB'
+        character(len=64) :: mpas_name    ! e.g. 'qAB'
+        integer           :: micm_index   ! position in MICM species_ordering
+        integer           :: mpas_index   ! position in MPAS scalars (1st dim)
+        real(kind=8)      :: molar_mass   ! kg/mol from MICM config
+    end type
+
+    integer :: n_chem_species = 0
+    type(species_entry_t), allocatable :: chem_species(:)
     real(kind=8), parameter :: M_AIR = 0.0289644_8  ! kg/mol (dry air molar mass)
 
     contains
@@ -61,6 +67,7 @@ module mpas_musica
             registry_tracer_names)
 
         use iso_fortran_env, only: real64
+        use mpas_kind_types, only: RKIND
 
         use musica_micm, only : RosenbrockStandardOrder
         use musica_util, only : error_t, string_t
@@ -73,20 +80,19 @@ module mpas_musica
         character(len=:), allocatable, intent(out) :: error_message
         character(len=*), dimension(:), intent(in), optional :: registry_tracer_names
 
-        ! TEMPORARY: ABBA specific initial concentrations
-        real(real64), allocatable :: init_ab(:)
-        real(real64), allocatable :: init_a(:)
-        real(real64), allocatable :: init_b(:)
-
         character(len=*), parameter :: INITIAL_CONCENTRATION_PROPERTY = "__initial concentration"
+        character(len=*), parameter :: MOLAR_MASS_PROPERTY = "__molar mass"
+
+        real(real64), allocatable :: init_conc(:)
+        real(real64) :: molar_mass_val
 
         type(error_t)  :: error
         type(string_t) :: micm_version
-        ! TEMPORARY: Hard-coded options for the MICM solver
         integer :: solver_type = RosenbrockStandardOrder
-        integer :: i_species
+        integer :: i_species, spec_idx
         integer :: check_error_code
         character(len=:), allocatable :: check_error_message
+        character(len=:), allocatable :: sp_name
 
         micm_version = get_micm_version()
 
@@ -117,38 +123,96 @@ module mpas_musica
             return
         end if
 
-        ! TEMPORARY: ABBA specific initialization
         call assign_rate_parameters(state, number_of_grid_cells)
         call assign_rate_parameters(state_ref, number_of_grid_cells)
 
-        allocate(init_ab(number_of_grid_cells))
-        allocate(init_a(number_of_grid_cells))
-        allocate(init_b(number_of_grid_cells))
+        ! Build species table from MICM config
+        n_chem_species = state%species_ordering%size()
+        if (allocated(chem_species)) deallocate(chem_species)
+        allocate(chem_species(n_chem_species))
+        allocate(init_conc(number_of_grid_cells))
 
-        init_ab = micm%get_species_property_double('AB', INITIAL_CONCENTRATION_PROPERTY, error)
-        if (has_error_occurred(error, error_message, error_code)) return
-        init_a = micm%get_species_property_double('A', INITIAL_CONCENTRATION_PROPERTY, error)
-        if (has_error_occurred(error, error_message, error_code)) return
-        init_b = micm%get_species_property_double('B', INITIAL_CONCENTRATION_PROPERTY, error)
-        if (has_error_occurred(error, error_message, error_code)) return
+        do i_species = 1, n_chem_species
+            sp_name = trim(state%species_ordering%name(i_species))
+            chem_species(i_species)%micm_name = sp_name
+            chem_species(i_species)%mpas_name = 'q' // sp_name
+            chem_species(i_species)%mpas_index = 0  ! resolved later by resolve_mpas_indices
 
-        ! Initialize coupled state
-        call set_species_profile(state, 'AB', init_ab, error)
-        if (has_error_occurred(error, error_message, error_code)) return
-        call set_species_profile(state, 'A', init_a, error)
-        if (has_error_occurred(error, error_message, error_code)) return
-        call set_species_profile(state, 'B', init_b, error)
-        if (has_error_occurred(error, error_message, error_code)) return
+            ! Get the MICM stride-based index (may differ from iteration order)
+            spec_idx = state%species_ordering%index(sp_name, error)
+            if (has_error_occurred(error, error_message, error_code)) return
+            chem_species(i_species)%micm_index = spec_idx
 
-        ! Initialize reference state (same initial conditions)
-        call set_species_profile(state_ref, 'AB', init_ab, error)
-        if (has_error_occurred(error, error_message, error_code)) return
-        call set_species_profile(state_ref, 'A', init_a, error)
-        if (has_error_occurred(error, error_message, error_code)) return
-        call set_species_profile(state_ref, 'B', init_b, error)
-        if (has_error_occurred(error, error_message, error_code)) return
+            ! Read molar mass from MICM species properties
+            molar_mass_val = micm%get_species_property_double(sp_name, MOLAR_MASS_PROPERTY, error)
+            if (has_error_occurred(error, error_message, error_code)) return
+            chem_species(i_species)%molar_mass = molar_mass_val
+
+            call mpas_log_write('[MUSICA] Species ' // trim(sp_name) // &
+                ' molar_mass=$r kg/mol', realArgs=[real(chem_species(i_species)%molar_mass, kind=RKIND)])
+
+            ! Read initial concentration and seed both states
+            init_conc = micm%get_species_property_double(sp_name, INITIAL_CONCENTRATION_PROPERTY, error)
+            if (has_error_occurred(error, error_message, error_code)) return
+
+            call set_species_profile(state, sp_name, init_conc, error)
+            if (has_error_occurred(error, error_message, error_code)) return
+            call set_species_profile(state_ref, sp_name, init_conc, error)
+            if (has_error_occurred(error, error_message, error_code)) return
+        end do
+
+        deallocate(init_conc)
 
     end subroutine musica_init
+
+    !------------------------------------------------------------------------
+    !  subroutine resolve_mpas_indices
+    !
+    !> \brief Resolves MPAS scalar indices for all chemistry species
+    !> \details
+    !>  Loops over chem_species and looks up each species' MPAS tracer index
+    !>  from the state pool dimension 'index_<mpas_name>'.
+    !------------------------------------------------------------------------
+    subroutine resolve_mpas_indices(statePool, error_code, error_message)
+
+        use mpas_derived_types, only: mpas_pool_type
+        use mpas_pool_routines, only: mpas_pool_get_dimension
+        use mpas_log, only: mpas_log_write
+
+        type(mpas_pool_type), intent(in) :: statePool
+        integer, intent(out) :: error_code
+        character(len=:), allocatable, intent(out) :: error_message
+
+        integer :: i_sp
+        integer, pointer :: idx_ptr
+
+        error_code = 0
+        error_message = ''
+
+        do i_sp = 1, n_chem_species
+            nullify(idx_ptr)
+            call mpas_pool_get_dimension(statePool, 'index_' // trim(chem_species(i_sp)%mpas_name), idx_ptr)
+
+            if (.not. associated(idx_ptr)) then
+                error_code = 1
+                error_message = '[MUSICA] No MPAS tracer index for ' // trim(chem_species(i_sp)%mpas_name)
+                call mpas_log_write(error_message)
+                return
+            end if
+
+            if (idx_ptr < 1) then
+                error_code = 1
+                error_message = '[MUSICA] Invalid MPAS tracer index for ' // trim(chem_species(i_sp)%mpas_name)
+                call mpas_log_write(error_message)
+                return
+            end if
+
+            chem_species(i_sp)%mpas_index = idx_ptr
+            call mpas_log_write('[MUSICA] Resolved ' // trim(chem_species(i_sp)%micm_name) // &
+                ' -> MPAS index $i', intArgs=[chem_species(i_sp)%mpas_index])
+        end do
+
+    end subroutine resolve_mpas_indices
 
     !------------------------------------------------------------------------
     !  subroutine musica_step
@@ -245,12 +309,14 @@ module mpas_musica
     end subroutine musica_finalize
 
     !------------------------------------------------------------------------
-    !  subroutine micm_to_mpas_abba
+    !  subroutine micm_to_mpas_chem
     !
-    !> \brief One-time copy of ABBA MICM initial state into MPAS tracers
+    !> \brief One-time copy of MICM initial state into MPAS tracers
+    !> \details
+    !>  Loops over chem_species to seed all chemistry tracers generically.
     !------------------------------------------------------------------------
-    subroutine micm_to_mpas_abba(scalars, nCells, nVertLevels, &
-            index_qAB, index_qA, index_qB, error_code, error_message)
+    subroutine micm_to_mpas_chem(scalars, nCells, nVertLevels, &
+            error_code, error_message)
 
         use mpas_kind_types, only : RKIND
         use musica_util, only : error_t
@@ -259,23 +325,17 @@ module mpas_musica
         real (kind=RKIND), dimension(:,:,:), intent(inout) :: scalars
         integer, intent(in) :: nCells
         integer, intent(in) :: nVertLevels
-        integer, intent(in) :: index_qAB
-        integer, intent(in) :: index_qA
-        integer, intent(in) :: index_qB
 
         integer,                       intent(out) :: error_code
         character(len=:), allocatable, intent(out) :: error_message
 
-        type(error_t) :: err
-
-        integer :: spec_ab, spec_a, spec_b
         integer :: cell_stride, var_stride
-        integer :: k, iCell
+        integer :: i_sp, k, iCell
         integer :: micm_levels, target_cells, target_levels
-        integer :: offset_ab, offset_a, offset_b
-        real (kind=RKIND) :: conc_ab, conc_a, conc_b
+        integer :: offset
+        real (kind=RKIND) :: conc_val
         logical :: logged_first
-        real (kind=RKIND) :: qAB_min, qAB_max
+        real (kind=RKIND) :: q_min, q_max
 
         error_code = 0
         error_message = ''
@@ -288,29 +348,18 @@ module mpas_musica
             return
         end if
 
-        call mpas_log_write('[MUSICA] Seeding MPAS tracers from MICM ABBA initial state.')
+        call mpas_log_write('[MUSICA] Seeding MPAS tracers from MICM initial state.')
 
-        spec_ab = state%species_ordering%index('AB', err)
-        if (has_error_occurred(err, error_message, error_code)) return
-        spec_a = state%species_ordering%index('A', err)
-        if (has_error_occurred(err, error_message, error_code)) return
-        spec_b = state%species_ordering%index('B', err)
-        if (has_error_occurred(err, error_message, error_code)) return
-
-        if (index_qAB < 1 .or. index_qA < 1 .or. index_qB < 1) then
-            error_code = 1
-            error_message = '[MUSICA] ABBA tracer indices are not valid; skipping MICM -> MPAS seed.'
-            call mpas_log_write(error_message)
-            return
-        end if
-
-        if (index_qAB > size(scalars, 1) .or. index_qA > size(scalars, 1) .or. &
-                index_qB > size(scalars, 1)) then
-            error_code = 1
-            error_message = '[MUSICA] ABBA tracer indices exceed MPAS scalars dimension.'
-            call mpas_log_write(error_message)
-            return
-        end if
+        ! Validate all MPAS indices
+        do i_sp = 1, n_chem_species
+            if (chem_species(i_sp)%mpas_index < 1 .or. &
+                chem_species(i_sp)%mpas_index > size(scalars, 1)) then
+                error_code = 1
+                error_message = '[MUSICA] Tracer index not valid for ' // trim(chem_species(i_sp)%mpas_name)
+                call mpas_log_write(error_message)
+                return
+            end if
+        end do
 
         if (nVertLevels > 0) then
             target_levels = min(nVertLevels, size(scalars, 2))
@@ -322,7 +371,7 @@ module mpas_musica
         else
             target_cells = size(scalars, 3)
         end if
-        micm_levels   = min(state%number_of_grid_cells, target_levels)
+        micm_levels = min(state%number_of_grid_cells, target_levels)
 
         if (target_cells <= 0 .or. micm_levels <= 0) then
             error_code = 1
@@ -331,58 +380,44 @@ module mpas_musica
             return
         end if
 
-        call mpas_log_write('[MUSICA] MICM->MPAS ABBA seed: micm_cells=$i target_levels=$i target_cells=$i', &
+        call mpas_log_write('[MUSICA] MICM->MPAS seed: micm_cells=$i target_levels=$i target_cells=$i', &
                 intArgs=[state%number_of_grid_cells, micm_levels, target_cells])
 
         cell_stride = state%species_strides%grid_cell
         var_stride  = state%species_strides%variable
 
-        do k = 1, micm_levels
-            offset_ab = 1 + (k - 1) * cell_stride + (spec_ab - 1) * var_stride
-            offset_a  = 1 + (k - 1) * cell_stride + (spec_a  - 1) * var_stride
-            offset_b  = 1 + (k - 1) * cell_stride + (spec_b  - 1) * var_stride
+        do i_sp = 1, n_chem_species
+            do k = 1, micm_levels
+                offset = 1 + (k - 1) * cell_stride + (chem_species(i_sp)%micm_index - 1) * var_stride
+                conc_val = state%concentrations(offset)
 
-            conc_ab = state%concentrations(offset_ab)
-            conc_a  = state%concentrations(offset_a)
-            conc_b  = state%concentrations(offset_b)
-
-            do iCell = 1, target_cells
-                scalars(index_qAB, k, iCell) = conc_ab
-                scalars(index_qA,  k, iCell) = conc_a
-                scalars(index_qB,  k, iCell) = conc_b
-                if (.not. logged_first) then
-                    call mpas_log_write('[MUSICA] Seeded ABBA cell=1 level=1 -> qAB=$r qA=$r qB=$r', &
-                            realArgs=[conc_ab, conc_a, conc_b])
-                    logged_first = .true.
-                end if
+                do iCell = 1, target_cells
+                    scalars(chem_species(i_sp)%mpas_index, k, iCell) = conc_val
+                end do
             end do
+
+            q_min = minval(scalars(chem_species(i_sp)%mpas_index, 1:micm_levels, 1:target_cells))
+            q_max = maxval(scalars(chem_species(i_sp)%mpas_index, 1:micm_levels, 1:target_cells))
+            call mpas_log_write('[MUSICA] Seeded ' // trim(chem_species(i_sp)%mpas_name) // &
+                ' min=$r max=$r', realArgs=[q_min, q_max])
         end do
 
-        qAB_min = minval(scalars(index_qAB, 1:target_levels, 1:target_cells))
-        qAB_max = maxval(scalars(index_qAB, 1:target_levels, 1:target_cells))
-        call mpas_log_write('[MUSICA] ABBA seed summary: qAB min=$r max=$r', realArgs=[qAB_min, qAB_max])
-
-    end subroutine micm_to_mpas_abba
+    end subroutine micm_to_mpas_chem
 
     !------------------------------------------------------------------------
     !  subroutine MICM_from_chemistry
     !
     !> \brief Copies MPAS chemistry state to MICM state with unit conversion
-    !> \author CheMPAS-A Developers
-    !> \date   January 2026
     !> \details
-    !>  This subroutine copies MPAS scalar tracers (mixing ratios in kg/kg)
+    !>  Loops over chem_species to convert MPAS mixing ratios (kg/kg)
     !>  to MICM concentrations (mol/m³) and sets environmental conditions.
-    !>  Unit conversion: C = q × rho_air / M_species
     !------------------------------------------------------------------------
     subroutine MICM_from_chemistry(scalars, rho_air, temperature, pressure, &
             nCells, nVertLevels, &
-            index_qAB, index_qA, index_qB, &
             error_code, error_message)
 
         use iso_fortran_env, only: real64
         use mpas_kind_types, only: RKIND
-        use musica_util, only: error_t
         use mpas_log, only: mpas_log_write
 
         real(kind=RKIND), dimension(:,:,:), intent(in) :: scalars      ! (tracer, level, cell)
@@ -391,19 +426,12 @@ module mpas_musica
         real(kind=RKIND), dimension(:,:), intent(in) :: pressure       ! (level, cell) [Pa]
         integer, intent(in) :: nCells
         integer, intent(in) :: nVertLevels
-        integer, intent(in) :: index_qAB
-        integer, intent(in) :: index_qA
-        integer, intent(in) :: index_qB
         integer, intent(out) :: error_code
         character(len=:), allocatable, intent(out) :: error_message
 
-        type(error_t) :: err
-        integer :: spec_ab, spec_a, spec_b
         integer :: cell_stride, var_stride
-        integer :: k, iCell, idx, micm_cell
-        real(real64) :: q_ab, q_a, q_b
-        real(real64) :: rho, T, P
-        real(real64) :: conc_ab, conc_a, conc_b
+        integer :: i_sp, k, iCell, idx, micm_cell
+        real(real64) :: q_val, rho, conc
 
         error_code = 0
         error_message = ''
@@ -414,63 +442,28 @@ module mpas_musica
             return
         end if
 
-        ! Get MICM species indices
-        spec_ab = state%species_ordering%index('AB', err)
-        if (has_error_occurred(err, error_message, error_code)) return
-        spec_a = state%species_ordering%index('A', err)
-        if (has_error_occurred(err, error_message, error_code)) return
-        spec_b = state%species_ordering%index('B', err)
-        if (has_error_occurred(err, error_message, error_code)) return
-
-        ! Get strides for MICM array access
         cell_stride = state%species_strides%grid_cell
         var_stride  = state%species_strides%variable
 
-        ! Loop over cells and levels
-        ! MICM state has nCells × nVertLevels grid cells
-        ! MICM cell index = (iCell - 1) * nVertLevels + k
         do iCell = 1, nCells
             do k = 1, nVertLevels
-                ! Compute MICM grid cell index (1-based)
                 micm_cell = (iCell - 1) * nVertLevels + k
-
-                ! Get MPAS values
-                q_ab = scalars(index_qAB, k, iCell)
-                q_a  = scalars(index_qA,  k, iCell)
-                q_b  = scalars(index_qB,  k, iCell)
-                rho  = rho_air(k, iCell)
-                T    = temperature(k, iCell)
-                P    = pressure(k, iCell)
+                rho = rho_air(k, iCell)
 
                 ! Set MICM environmental conditions
-                state%conditions(micm_cell)%temperature = T
-                state%conditions(micm_cell)%pressure = P
-                state%conditions(micm_cell)%air_density = rho / M_AIR  ! Convert kg/m³ to mol/m³
+                state%conditions(micm_cell)%temperature = temperature(k, iCell)
+                state%conditions(micm_cell)%pressure = pressure(k, iCell)
+                state%conditions(micm_cell)%air_density = rho / M_AIR
 
-                ! Convert mixing ratio [kg/kg] to concentration [mol/m³]
-                ! C = q × rho_air / M_species
-                conc_ab = q_ab * rho / M_AB
-                conc_a  = q_a  * rho / M_A
-                conc_b  = q_b  * rho / M_B
-
-                ! Store in MICM state using strided access
-                idx = 1 + (micm_cell - 1) * cell_stride + (spec_ab - 1) * var_stride
-                state%concentrations(idx) = conc_ab
-                idx = 1 + (micm_cell - 1) * cell_stride + (spec_a - 1) * var_stride
-                state%concentrations(idx) = conc_a
-                idx = 1 + (micm_cell - 1) * cell_stride + (spec_b - 1) * var_stride
-                state%concentrations(idx) = conc_b
+                ! Convert each species: mixing ratio [kg/kg] -> concentration [mol/m³]
+                do i_sp = 1, n_chem_species
+                    q_val = scalars(chem_species(i_sp)%mpas_index, k, iCell)
+                    conc = q_val * rho / chem_species(i_sp)%molar_mass
+                    idx = 1 + (micm_cell - 1) * cell_stride + (chem_species(i_sp)%micm_index - 1) * var_stride
+                    state%concentrations(idx) = conc
+                end do
             end do
         end do
-
-        ! Probe cell logging: log one cell for debugging (cell 100, level 1)
-        if (nCells >= 100 .and. nVertLevels >= 1) then
-            call mpas_log_write('[MICM_from] Probe cell=100 lev=1: qAB=$r qA=$r qB=$r T=$r P=$r rho=$r', &
-                realArgs=[real(scalars(index_qAB, 1, 100), kind=RKIND), &
-                          real(scalars(index_qA, 1, 100), kind=RKIND), &
-                          real(scalars(index_qB, 1, 100), kind=RKIND), &
-                          temperature(1, 100), pressure(1, 100), rho_air(1, 100)])
-        end if
 
     end subroutine MICM_from_chemistry
 
@@ -478,39 +471,27 @@ module mpas_musica
     !  subroutine MICM_to_chemistry
     !
     !> \brief Copies MICM state to MPAS chemistry state with unit conversion
-    !> \author CheMPAS-A Developers
-    !> \date   January 2026
     !> \details
-    !>  This subroutine copies MICM concentrations (mol/m³) back to
-    !>  MPAS scalar tracers (mixing ratios in kg/kg) after the solver step.
-    !>  Unit conversion: q = C × M_species / rho_air
+    !>  Loops over chem_species to convert MICM concentrations (mol/m³)
+    !>  back to MPAS mixing ratios (kg/kg) after the solver step.
     !------------------------------------------------------------------------
     subroutine MICM_to_chemistry(scalars, rho_air, nCells, nVertLevels, &
-            index_qAB, index_qA, index_qB, &
             error_code, error_message)
 
         use iso_fortran_env, only: real64
         use mpas_kind_types, only: RKIND
-        use musica_util, only: error_t
         use mpas_log, only: mpas_log_write
 
         real(kind=RKIND), dimension(:,:,:), intent(inout) :: scalars   ! (tracer, level, cell)
         real(kind=RKIND), dimension(:,:), intent(in) :: rho_air        ! (level, cell) [kg/m³]
         integer, intent(in) :: nCells
         integer, intent(in) :: nVertLevels
-        integer, intent(in) :: index_qAB
-        integer, intent(in) :: index_qA
-        integer, intent(in) :: index_qB
         integer, intent(out) :: error_code
         character(len=:), allocatable, intent(out) :: error_message
 
-        type(error_t) :: err
-        integer :: spec_ab, spec_a, spec_b
         integer :: cell_stride, var_stride
-        integer :: k, iCell, idx, micm_cell
-        real(real64) :: rho
-        real(real64) :: conc_ab, conc_a, conc_b
-        real(real64) :: q_ab, q_a, q_b
+        integer :: i_sp, k, iCell, idx, micm_cell
+        real(real64) :: rho, conc, q_val
 
         error_code = 0
         error_message = ''
@@ -521,56 +502,23 @@ module mpas_musica
             return
         end if
 
-        ! Get MICM species indices
-        spec_ab = state%species_ordering%index('AB', err)
-        if (has_error_occurred(err, error_message, error_code)) return
-        spec_a = state%species_ordering%index('A', err)
-        if (has_error_occurred(err, error_message, error_code)) return
-        spec_b = state%species_ordering%index('B', err)
-        if (has_error_occurred(err, error_message, error_code)) return
-
-        ! Get strides for MICM array access
         cell_stride = state%species_strides%grid_cell
         var_stride  = state%species_strides%variable
 
-        ! Loop over cells and levels
-        ! MICM state has nCells × nVertLevels grid cells
-        ! MICM cell index = (iCell - 1) * nVertLevels + k
         do iCell = 1, nCells
             do k = 1, nVertLevels
-                ! Compute MICM grid cell index (1-based)
                 micm_cell = (iCell - 1) * nVertLevels + k
-
                 rho = rho_air(k, iCell)
 
-                ! Read from MICM state using strided access
-                idx = 1 + (micm_cell - 1) * cell_stride + (spec_ab - 1) * var_stride
-                conc_ab = state%concentrations(idx)
-                idx = 1 + (micm_cell - 1) * cell_stride + (spec_a - 1) * var_stride
-                conc_a = state%concentrations(idx)
-                idx = 1 + (micm_cell - 1) * cell_stride + (spec_b - 1) * var_stride
-                conc_b = state%concentrations(idx)
-
-                ! Convert concentration [mol/m³] to mixing ratio [kg/kg]
-                ! q = C × M_species / rho_air
-                q_ab = conc_ab * M_AB / rho
-                q_a  = conc_a  * M_A  / rho
-                q_b  = conc_b  * M_B  / rho
-
-                ! Store in MPAS scalars
-                scalars(index_qAB, k, iCell) = q_ab
-                scalars(index_qA,  k, iCell) = q_a
-                scalars(index_qB,  k, iCell) = q_b
+                ! Convert each species: concentration [mol/m³] -> mixing ratio [kg/kg]
+                do i_sp = 1, n_chem_species
+                    idx = 1 + (micm_cell - 1) * cell_stride + (chem_species(i_sp)%micm_index - 1) * var_stride
+                    conc = state%concentrations(idx)
+                    q_val = conc * chem_species(i_sp)%molar_mass / rho
+                    scalars(chem_species(i_sp)%mpas_index, k, iCell) = q_val
+                end do
             end do
         end do
-
-        ! Probe cell logging: log one cell for debugging (cell 100, level 1)
-        if (nCells >= 100 .and. nVertLevels >= 1) then
-            call mpas_log_write('[MICM_to] Probe cell=100 lev=1: qAB=$r qA=$r qB=$r', &
-                realArgs=[real(scalars(index_qAB, 1, 100), kind=RKIND), &
-                          real(scalars(index_qA, 1, 100), kind=RKIND), &
-                          real(scalars(index_qB, 1, 100), kind=RKIND)])
-        end if
 
     end subroutine MICM_to_chemistry
 
@@ -829,60 +777,38 @@ module mpas_musica
     subroutine log_column_comparison(probe_cell, nVertLevels)
 
         use iso_fortran_env, only: real64
-        use musica_util, only: error_t
         use mpas_log, only: mpas_log_write
         use mpas_kind_types, only: RKIND
 
-        integer, intent(in) :: probe_cell   ! The cell index to log
-        integer, intent(in) :: nVertLevels  ! Number of vertical levels
+        integer, intent(in) :: probe_cell
+        integer, intent(in) :: nVertLevels
 
-        type(error_t) :: err
-        integer :: spec_ab, spec_a, spec_b
         integer :: cell_stride, var_stride
-        integer :: k, micm_cell, idx
-        real(real64) :: conc_ab, conc_a, conc_b
-        real(real64) :: conc_ab_ref, conc_a_ref, conc_b_ref
+        integer :: i_sp, k, micm_cell, idx
+        real(real64) :: conc_coupled, conc_ref
 
         if (.not. associated(state) .or. .not. associated(state_ref)) return
+        if (n_chem_species == 0) return
 
-        ! Get MICM species indices
-        spec_ab = state%species_ordering%index('AB', err)
-        spec_a = state%species_ordering%index('A', err)
-        spec_b = state%species_ordering%index('B', err)
-
-        ! Get strides
         cell_stride = state%species_strides%grid_cell
         var_stride  = state%species_strides%variable
 
         call mpas_log_write('[COMPARE] Probe cell=$i: Coupled vs Reference (chemistry-only)', &
             intArgs=[probe_cell])
-        call mpas_log_write('[COMPARE] Level | AB_coupled AB_ref | A_coupled A_ref | B_coupled B_ref')
 
-        ! Log a few levels (1, middle, top)
         do k = 1, nVertLevels, max(1, nVertLevels/4)
             micm_cell = (probe_cell - 1) * nVertLevels + k
 
-            ! Coupled state
-            idx = 1 + (micm_cell - 1) * cell_stride + (spec_ab - 1) * var_stride
-            conc_ab = state%concentrations(idx)
-            idx = 1 + (micm_cell - 1) * cell_stride + (spec_a - 1) * var_stride
-            conc_a = state%concentrations(idx)
-            idx = 1 + (micm_cell - 1) * cell_stride + (spec_b - 1) * var_stride
-            conc_b = state%concentrations(idx)
+            do i_sp = 1, n_chem_species
+                idx = 1 + (micm_cell - 1) * cell_stride + (chem_species(i_sp)%micm_index - 1) * var_stride
+                conc_coupled = state%concentrations(idx)
+                conc_ref = state_ref%concentrations(idx)
 
-            ! Reference state
-            idx = 1 + (micm_cell - 1) * cell_stride + (spec_ab - 1) * var_stride
-            conc_ab_ref = state_ref%concentrations(idx)
-            idx = 1 + (micm_cell - 1) * cell_stride + (spec_a - 1) * var_stride
-            conc_a_ref = state_ref%concentrations(idx)
-            idx = 1 + (micm_cell - 1) * cell_stride + (spec_b - 1) * var_stride
-            conc_b_ref = state_ref%concentrations(idx)
-
-            call mpas_log_write('[COMPARE] $i | $r $r | $r $r | $r $r', &
-                intArgs=[k], &
-                realArgs=[real(conc_ab, kind=RKIND), real(conc_ab_ref, kind=RKIND), &
-                          real(conc_a, kind=RKIND), real(conc_a_ref, kind=RKIND), &
-                          real(conc_b, kind=RKIND), real(conc_b_ref, kind=RKIND)])
+                call mpas_log_write('[COMPARE] lev=$i ' // trim(chem_species(i_sp)%micm_name) // &
+                    ' coupled=$r ref=$r', &
+                    intArgs=[k], &
+                    realArgs=[real(conc_coupled, kind=RKIND), real(conc_ref, kind=RKIND)])
+            end do
         end do
 
     end subroutine log_column_comparison
