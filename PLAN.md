@@ -182,8 +182,17 @@ At `atm_setup_block` time, field arrays are **not yet allocated** — only metad
 - Chemistry tracers (qA, qAB, qB): **bitwise identical** to Phase 1 reference
 - Met fields unaffected
 
+### Codex 5.3 Review — All Issues Fixed
+
+Codex reviewed commits `195452e`–`46c180d` and found three issues, all resolved:
+
+1. **High: LBC incompatibility** — Runtime tracers extend `num_scalars` beyond `lbc_scalars` bounds. Fixed with `MPAS_LOG_CRIT` guard when `config_apply_lbcs=true`.
+2. **Medium: `scalars_tend` naming** — Constituent names used `q*` instead of `tend_q*`. Fixed by adding `tend_` prefix in `extend_field_metadata`.
+3. **Low: Memory leak on error** — `musica_query_species` leaked `tmp_micm`/`tmp_state` on error paths. Fixed with `goto`-based cleanup and null-initialized pointers.
+
 ### Future Work (Post Phase 2)
 
+- **LBC support for dynamic tracers** — Extend `lbc_scalars` metadata at runtime (currently guarded with hard-fail)
 - **`__do advect` filtering** — Support non-advected species
 - **Fallback molar mass table** — For configs lacking `__molar mass`
 - **Generic visualization** — `plot_chemistry.py` discovers species dynamically
