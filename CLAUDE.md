@@ -89,6 +89,17 @@ Skills are defined in `.claude/commands/` and can be invoked with `/skillname`:
 
 CheMPAS is an agent-driven development project. See `AGENTS.md` for the full manifesto, agent roles, workflow, and human review gates.
 
+## Multi-Agent Workflow
+
+CheMPAS uses three agents from three vendors (see `AGENTS.md`). Codex 5.3 reviews Claude's work and may push doc edits or review findings directly to the repo.
+
+**Convention for cross-agent communication:**
+- Codex writes review findings to `CODEX_REVIEW.md` and pushes to `develop`
+- When the user says "check the review", pull and read `CODEX_REVIEW.md`
+- Implement fixes, then remove `CODEX_REVIEW.md` (it's a transient artifact, not a permanent doc)
+- Codex may also edit `.md` documentation files directly — always `git pull` before committing if Codex has been active
+- Before merging to main, ensure no concurrent Codex edits are in flight
+
 ## Notes for AI Assistants
 
 1. **Fortran Standards**: This is a Fortran 2008 codebase using MPI for parallelism
