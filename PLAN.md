@@ -13,7 +13,7 @@ Key commits:
 
 All chemistry tracer coupling in CheMPAS was hardcoded for the 3-species ABBA mechanism (AB, A, B). Species names appeared as string literals in 7+ places each, molar masses were Fortran `parameter` constants, and tracer indices were fetched individually by name. This made it impossible to switch chemistry mechanisms without editing Fortran source code.
 
-Phase 1 generalized the coupling layer to loop over species dynamically using MICM's runtime API. Registry.xml tracer definitions remain static for now — runtime scalars allocation (Phase 2) will be a separate future effort.
+Phase 1 generalized the coupling layer to loop over species dynamically using MICM's runtime API. Phase 2 then removed chemistry tracers from `Registry.xml` entirely, discovering them at runtime from the MICM config.
 
 ## Files Modified (Phase 1)
 
@@ -135,7 +135,7 @@ Remove chemistry tracers from `Registry.xml`. Discover species from MICM config 
 
 4. **Extend both `scalars` and `scalars_tend` together** — Following the `atm_allocate_scalars` (CAM dycore) precedent. Both arrays grow by the same chemistry species count.
 
-5. **I/O deferred** — Stream registration for dynamic tracers is a follow-up. Correctness is verified via log diagnostics and regression test against `reference_phase1_output.nc`.
+5. **I/O works automatically** — The MPAS stream system writes all constituents of a var_array. Since dynamic tracers are added to `constituentNames`, they appear in `output.nc` with no extra I/O registration needed.
 
 ### Architecture
 
@@ -184,7 +184,6 @@ At `atm_setup_block` time, field arrays are **not yet allocated** — only metad
 
 ### Future Work (Post Phase 2)
 
-- **Stream/I/O registration** — Dynamic tracers in NetCDF output
 - **`__do advect` filtering** — Support non-advected species
 - **Fallback molar mass table** — For configs lacking `__molar mass`
 - **Generic visualization** — `plot_chemistry.py` discovers species dynamically

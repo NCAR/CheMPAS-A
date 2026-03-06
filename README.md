@@ -17,7 +17,7 @@ It is an independent project and does not sync with the upstream repositories.
 CheMPAS uses an agent-driven development model. AI agents handle code
 development, review, and CI, with human oversight reserved for scientific
 correctness, architectural decisions, and physical validation. See
-[MANIFESTO.md](MANIFESTO.md) for the full rationale and
+[PURPOSE.md](PURPOSE.md) for the full rationale and
 [AGENTS.md](AGENTS.md) for operational details.
 
 ## Building
@@ -66,7 +66,7 @@ CheMPAS/
 
 | Document | Description |
 |----------|-------------|
-| [MANIFESTO.md](MANIFESTO.md) | Project motivation and development philosophy |
+| [PURPOSE.md](PURPOSE.md) | Project motivation and development philosophy |
 | [AGENTS.md](AGENTS.md) | Agent roles, workflow, and review gates |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture |
 | [BUILD.md](BUILD.md) | Build instructions |
