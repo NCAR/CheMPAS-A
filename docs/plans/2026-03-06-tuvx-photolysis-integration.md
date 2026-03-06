@@ -1,240 +1,200 @@
-# TUV-x Photolysis Integration Plan
+# Photolysis and Tropospheric Chemistry Integration Plan
 
 ## Document Status
 
-- `Historical Context:` Adapted from ancestor project plan
-  (`MPAS-Model-ACOM-dev/PLAN_TUVx.md`). The original plan assumed static
-  Registry.xml tracers; this version accounts for CheMPAS Phase 2 runtime
-  tracer allocation.
-- `Current State:` Planning stage. Not yet started.
-- `Use This As:` Primary reference for TUV-x integration work.
+- `Historical Context:` Adapted from ancestor project plans — the TUV-x
+  photolysis plan (`MPAS-Model-ACOM-dev/PLAN_TUVx.md`) and the DAVINCI
+  lightning-NOx/O3 mechanism (`DAVINCI-MPAS/PLAN.md` Phase 6, `SCIENCE.md`).
+- `Current State:` Planning stage. Phase 0 next.
+- `Use This As:` Primary reference for post-ABBA chemistry development.
 
-## Goal
+## Strategic Direction
 
-Integrate TUV-x into MPAS-MUSICA so MICM photolysis rates are computed from
-radiative transfer using MPAS atmospheric state, replacing hardcoded constants.
+The ABBA mechanism validated the MPAS-MICM coupling infrastructure and the
+Phase 2 runtime tracer allocation. It served its purpose brilliantly. Now we
+need a mechanism that is *scientifically meaningful* in our supercell test
+domain.
 
-## Key Adaptation Notes (vs Ancestor Plan)
+**Key insight from the DAVINCI sister project:** The supercell domain is
+tropospheric (0–20 km). Chapman oxygen photolysis (`j_O2`) is negligible below
+the stratosphere — it would be a plumbing test, not real science. But
+lightning-NOx-driven O3 photochemistry is *exactly* what happens in supercell
+thunderstorms. This is the natural next mechanism for CheMPAS.
 
-The ancestor plan was written before CheMPAS Phase 2 (runtime tracer
-allocation). Key differences:
+The DAVINCI project has already implemented and validated this system through
+Phase 6 (LNOx-O3 tropospheric photochemistry, code complete on the same
+supercell domain). That work is gold — it gives us a proven 3-species
+mechanism, analytical verification targets, and DC3 observational validation
+data to aim for.
 
-1. **Chemistry tracers are runtime-allocated, not in Registry.xml.** Switching
-   from ABBA to Chapman requires only changing `config_micm_file` to point to
-   `chapman_simplified.json`. The tracers `qO3`, `qO2`, `qO` will be
-   discovered automatically from the MICM config — no Registry.xml edits for
-   tracers.
+## Why LNOx-O3 Instead of Chapman
 
-2. **MICM config is the source of truth for chemistry species**, not
-   Registry.xml. The ancestor plan's "make Registry.xml authoritative" applies
-   only to namelist options, not tracers.
+We love this direction for five reasons:
 
-3. **ABBA code removal is simpler.** The generic species coupling (Phase 1) and
-   runtime allocation (Phase 2) already eliminated most ABBA-specific code.
-   The remaining ABBA artifacts are the `abba.yaml` config file and the
-   `state_ref` reference state path.
+1. **Physically meaningful in the supercell domain.** O3 titration where
+   lightning injects NO, O3 recovery downwind as NO2 photolyzes — these are
+   real, observable phenomena in thunderstorms.
 
-4. **The `tend_` prefix convention** for `scalars_tend` constituent names is
-   already in place.
+2. **Only 3 species, 3 reactions.** Simple enough to verify analytically
+   (Leighton photostationary ratio), but scientifically interesting.
 
-## Scope Decisions (From Ancestor, Still Valid)
+3. **Runtime tracer discovery handles it.** Create an `lnox_o3.json` MICM
+   config, point `config_micm_file` at it, and `qNO`, `qNO2`, `qO3` appear
+   automatically. Zero Fortran changes — the Phase 2 infrastructure pays off
+   immediately.
 
-- Target real-world meshes first (correctness over early optimization).
-- Keep `state_ref` chemistry path (useful for advection diagnostics).
-- Phase 1 uses per-column photolysis (no SZA-only binning).
-- Primary test domain top is ~20 km. Full stratospheric Chapman validation
-  deferred to Phase 6 high-top/offline tests.
-- Optional supercell lightning-NOx experiment deferred to Phase 8.
+4. **DC3 validation targets exist.** The Deep Convective Clouds and Chemistry
+   campaign (Barth et al., 2015) provides real observational data for exactly
+   this scenario — see `DAVINCI-MPAS/DC3.md` for the full reference.
 
-## Phase 1 Mechanism: Simplified Chapman
+5. **Proven in the sister project.** DAVINCI Phase 6 implemented this system
+   with an internal ODE solver on the same supercell mesh. The chemistry,
+   Jacobian, conservation properties, and verification criteria are all worked
+   out.
 
-5 reactions, no O1D:
+## Phase 0: LNOx-O3 with Fixed Rates (No TUV-x Yet)
 
-| Reaction | Type | Notes |
-|----------|------|-------|
-| O + O3 -> 2 O2 | ARRHENIUS | |
-| O + O2 + M -> O3 + M | ARRHENIUS | termolecular |
-| O2 + hv -> 2 O | PHOTOLYSIS (`jo2_b`) | |
-| O3 + hv -> O + O2 | PHOTOLYSIS (`jo3_a`) | |
-| O3 + hv -> O + O2 | PHOTOLYSIS (`jo3_b`) | redirected O1D channel |
+**Goal:** Replace ABBA with a 3-species NO/NO2/O3 tropospheric photochemistry
+mechanism using constant (prescribed) photolysis and reaction rates. Validate
+that the runtime tracer machinery works end-to-end with the new species.
 
-Runtime-discovered MPAS tracers: `qO3`, `qO2`, `qO`
+### Chemistry
 
-`M` is air number density from `state%conditions(:)%air_density`, not a
-transported tracer.
-
-## Architecture (Phase 1)
+The tropospheric photostationary system (from DAVINCI Phase 6):
 
 ```
-MPAS Atmosphere Core
-====================
-
-Dynamics -> Physics -> Chemistry (mpas_atm_chemistry.F)
-                           |
-                           v
-                     mpas_musica.F
-                     =============
-                     1) Extract MPAS state (T, P, rho, tracers, zgrid, lat/lon, time)
-                     2) Build/update per-column TUV-x profiles
-                     3) Run TUV-x per column -> j-values
-                     4) Map j-values -> MICM rate_parameters
-                     5) MPAS tracers -> MICM concentrations
-                     6) MICM solve (adaptive internal sub-steps)
-                     7) MICM concentrations -> MPAS tracers
+NO + O3 → NO2 + O2     (k: Arrhenius, temperature-dependent)
+NO2 + hv → NO + O3     (j_NO2: prescribed constant, ~0.01 s⁻¹ daytime)
 ```
 
-## Phases
+The net O3 reaction is `NO2 + hv → NO + O + (O + O2 + M → O3)`, written as a
+single step because atomic O reaches steady state in microseconds in the
+troposphere.
 
-### Phase 0: Baseline and Code Hardening
+### ODE System
 
-**Goal:** Clean baseline for Chapman chemistry without TUV-x.
+```
+d[NO]/dt  =  j*[NO2] - k*[NO]*[O3] + S_ltg
+d[NO2]/dt = -j*[NO2] + k*[NO]*[O3]
+d[O3]/dt  =  j*[NO2] - k*[NO]*[O3]
+```
 
-**Implementation:**
-1. Create `chapman_simplified.json` MICM config with fixed (constant)
-   photolysis rates — no TUV-x yet. Switch `config_micm_file` to point to
-   it. Runtime tracer discovery handles `qO3/qO2/qO` automatically.
-2. Verify the coupled run produces physically plausible Chapman chemistry
-   with constant photolysis (O3 photolysis, O recombination, steady state).
-3. Add remaining MUSICA namelist options to Registry.xml:
-   - `config_tuvx_config_file`
-   - `config_chemistry_latitude` / `config_chemistry_longitude`
-   - `config_musica_internal_max_step_s`
-   - `config_musica_solver_fallback`
-4. Keep `state_ref` for now (useful for diagnosing advection effects).
-5. Fix chemistry loops to use `nCellsSolve` instead of `nCells` (exclude halo
-   cells in MPI runs).
-6. Code hardening:
-   - Eliminate per-timestep allocate/deallocate churn for work arrays.
-   - Add warning log on pressure fallback.
-   - Add explicit `musica_finalize` cleanup.
-   - Cache species/rate-parameter indices at init.
+where `S_ltg` is the lightning NO source term.
 
-**Exit criteria:**
-- Build passes, initializes with Chapman tracers via runtime discovery.
-- Chapman chemistry with fixed photolysis rates produces physically plausible
-  O3/O2/O steady-state behavior.
-- Tracer fields remain physically bounded (no negative qO3, qO2, qO).
+**Conservation:** Ox = [O3] + [NO2] is conserved in the absence of the
+lightning source.
 
-### Phase 1: Solar Geometry and Day/Night Physics
+### Open Question: Lightning Source in MICM
 
-**Goal:** Physically correct solar zenith angle for chemistry.
+MICM may not support spatially varying source terms directly. The lightning
+source needs to inject NO preferentially in active convective regions (tied to
+vertical velocity or other storm-structure diagnostics). Options to explore:
 
-**Implementation:**
-1. Per-cell SZA from model time + `latCell/lonCell`.
-2. Idealized fallback using `config_chemistry_latitude/longitude`.
-3. Nighttime mask (SZA >= 90 deg).
+1. **MICM rate parameter injection** — Map a spatial source field into a MICM
+   reaction rate parameter each chemistry step (as sketched in the ancestor
+   TUV-x plan for Phase 8). Requires a "source reaction" in the MICM config.
 
-**Exit criteria:**
-- Plausible diurnal SZA cycle across latitudes/seasons.
-- Nighttime photolysis rates numerically near zero.
+2. **Pre-MICM tendency injection** — Add the lightning source to MPAS tracer
+   tendencies before calling MICM, outside the solver. Simpler but introduces
+   operator splitting.
 
-### Phase 2: TUV-x Radiative Transfer (Diagnostic Mode)
+3. **Hybrid** — Use MICM for the NO/NO2/O3 chemistry, inject the lightning
+   source as a direct tracer modification between coupling steps. This is what
+   DAVINCI does (source packed into RPAR for the ODE solver).
 
-**Goal:** Validate TUV-x photolysis physics before coupling to chemistry.
+This is the key technical question to resolve in Phase 0.
 
-**Implementation:**
-1. Add `mpas_tuvx_setup.F`, compile/link in MUSICA makefiles.
-2. Initialize TUV-x with MPAS vertical grid per column.
-3. Update profiles every chemistry step from MPAS state.
-4. Run TUV-x per column, log/store j-values only (no MICM update yet).
+### Implementation Steps
 
-**Exit criteria:**
-- j-value relative error <= 10% vs standalone MUSICA column results.
-- No unphysical j discontinuities.
+1. Create `lnox_o3.json` MICM mechanism config with:
+   - Species: NO, NO2, O3
+   - Arrhenius reaction: NO + O3 → NO2 + O2
+   - Photolysis reaction: NO2 + hv → NO + O3 (fixed rate)
+   - Molar masses for each species
 
-### Phase 3: Photolysis-to-MICM Coupling
+2. Point `config_micm_file` at the new config. Runtime tracer discovery
+   gives us `qNO`, `qNO2`, `qO3` automatically.
 
-**Goal:** Mapped photolysis rates drive correct oxygen chemistry.
+3. Initialize O3 to a uniform background (~50 ppbv), NO and NO2 to zero.
 
-**Implementation:**
-1. Cache `PHOTO.jo2_b`, `PHOTO.jo3_a`, `PHOTO.jo3_b` indices at init.
-2. Inject per-column j-values into `state%rate_parameters`.
-3. Remove default `rate_parameters = 1.0` for photolysis entries.
+4. Run without lightning source first — verify photostationary equilibrium
+   and Ox conservation.
 
-**Exit criteria:**
-- Oxygen budget drift <= 0.5% in closed-window tests.
-- Correct sign of diurnal tendencies (dO3/dt < 0 in photolysis regime).
-- No top-level O/O3 artifact growth.
+5. Add lightning source mechanism and verify O3 titration in updraft core.
 
-### Phase 4: Solver Robustness
+### Verification Criteria (from DAVINCI Phase 6)
 
-**Goal:** Stable integration of stiff oxygen chemistry.
+| Check | Criterion |
+|-------|-----------|
+| Non-negativity | qNO >= 0, qNO2 >= 0, qO3 >= 0 everywhere |
+| O3 background | O3 ≈ 50 ppbv away from storm |
+| O3 titration | O3 depressed in updraft core where NO is injected |
+| O3 recovery | O3 rebounds away from fresh NO source (NO2 photolysis) |
+| Leighton ratio | φ = j[NO2]/(k[NO][O3]) ≈ 1 in photostationary regions |
+| Ox conservation | [O3] + [NO2] conserved away from lightning source |
 
-**Implementation:**
-1. Adaptive sub-stepping with configurable max internal step.
-2. Non-convergence and zero-progress guards.
-3. Fallback solver path (BackwardEulerStandardOrder).
+### Exit Criteria
 
-**Exit criteria:**
-- Chemistry convergence >= 99.9% of calls.
-- No infinite-loop sub-step events.
+- Build passes, initializes with LNOx-O3 tracers via runtime discovery.
+- 30-minute supercell run produces physically plausible O3 titration.
+- Tracer fields remain non-negative.
+- Ox conservation holds away from the lightning source region.
 
-### Phase 5: Real-World Robustness
+## Phase 1: Solar Geometry and Day/Night Physics
 
-**Goal:** Reproducibility across decomposition and runtime settings.
+(Unchanged from previous plan — per-cell SZA from model time + lat/lon,
+nighttime mask for j_NO2 = 0.)
 
-**Exit criteria:**
-- Cross-decomposition differences within tolerance.
-- Phase-gate diagnostics pass in automated regression.
+## Phase 2: TUV-x Radiative Transfer (Diagnostic Mode)
 
-### Phase 6: Full Chapman (O1D)
+(Unchanged — validate TUV-x j-values before coupling.)
 
-**Goal:** Reintroduce O1D pathway with high-top/offline validation.
+## Phase 3: TUV-x Coupled Photolysis
 
-### Phase 7: Performance Optimization
+Replace fixed j_NO2 with TUV-x-computed values. Add j_O3 channels when
+ready for full Chapman extension.
 
-**Goal:** Reduce wall-clock cost after physics is validated.
+## Later Phases
 
-### Phase 8 (Optional): Lightning-NOx Experiment
-
-**Goal:** Localized NOx production and O3 titration in supercell test.
+- Phase 4: Solver robustness under real-world forcing
+- Phase 5: Real-world robustness and reproducibility
+- Phase 6: Full Chapman (O1D) reintroduction
+- Phase 7: Performance optimization
+- Phase 8 (Optional): Extended NOx chemistry (PAN, HNO3, organic nitrates)
 
 ## Key Constraints
 
-1. **Vertical grid from MPAS** — TUV-x height edges from `zgrid(:, iCell)`,
-   no hardcoded grids.
+1. **Vertical grid from MPAS** — TUV-x height edges from `zgrid(:, iCell)`.
 2. **Profiles from MPAS state** — No static atmosphere data files.
-3. **Photolysis mapping must match MICM names exactly** — see mapping table
-   in ancestor plan.
-4. **Domain-top limitation** — 20 km top only samples UTLS; full Chapman
-   validation requires high-top or offline.
-5. **Source terms through MICM** — Lightning-NOx via MICM rate parameters,
-   not direct tracer tendency hacks.
+3. **Domain-top limitation** — 20 km top only samples troposphere/UTLS.
+4. **Source terms through MICM where possible** — Lightning-NOx via MICM rate
+   parameters if supported, otherwise pre-solver injection.
+5. **Keep `state_ref`** — Useful for diagnosing advection effects on chemistry.
 
-## Phase Gate Runbook
+## Reference Material
 
-See ancestor plan (`MPAS-Model-ACOM-dev/PLAN_TUVx.md`) for:
-- Required namelist block
-- Runtime settings for gate runs
-- Required output variables
-- Log tag conventions
-- Pass/fail script specifications
-- Phase-by-phase gate matrix
-- Artifact storage convention
+### DAVINCI Sister Project
 
-These will be adapted to CheMPAS conventions as each phase begins.
+The DAVINCI project (`~/EarthSystem/DAVINCI-MPAS/`) contains:
+
+- `SCIENCE.md` — Lightning NOx physics, Leighton framework, DC3 findings
+- `PLAN.md` Phase 6 — LNOx-O3 mechanism details, ODE system, Jacobian,
+  verification criteria
+- `DC3.md` — Deep Convective Clouds and Chemistry campaign reference
+  (Barth et al., 2015), observational validation targets
+- `TUV.md` — TUV-x algorithm and data file reference
+
+### Ancestor TUV-x Plan
+
+`MPAS-Model-ACOM-dev/PLAN_TUVx.md` contains:
+- Full 9-phase TUV-x integration plan with physical verification gates
+- Phase gate runbook (namelist, runtime settings, pass/fail scripts)
+- Fortran implementation sketches
+- Photolysis-to-MICM rate parameter mapping
 
 ## Dependencies
 
-- MUSICA-Fortran with TUV-x support
-- TUV-x v5.4 data files (cross sections, quantum yields, solar data)
-- TUV-x config file (e.g., `tuv_5_4.json`)
-- MICM simplified Chapman config (Phase 1) and full Chapman config (Phase 6)
-- Python `netCDF4` for phase-gate scripts
-
-## Planned New Files
-
-| File | Purpose |
-|------|---------|
-| `src/core_atmosphere/chemistry/musica/mpas_tuvx_setup.F` | TUV-x init and profile update |
-| `scripts/check_tuvx_phase.py` | Phase-gate pass/fail checks |
-| `scripts/run_tuvx_phase_gate.sh` | Phase wrapper for gate checks |
-
-## Planned Modified Files
-
-| File | Changes |
-|------|---------|
-| `mpas_musica.F` | TUV-x lifecycle, rate-parameter mapping, adaptive sub-stepping |
-| `mpas_atm_chemistry.F` | Extract runtime fields for TUV-x, fix nCellsSolve loops |
-| `Registry.xml` | Add MUSICA namelist options (not tracers — those are runtime) |
-| `chemistry/musica/Makefile` | Compile/link mpas_tuvx_setup.o |
+- MUSICA-Fortran with MICM support (already linked)
+- MICM LNOx-O3 mechanism config (to be created)
+- TUV-x support in MUSICA-Fortran (Phase 2+)
+- Python `netCDF4` for verification scripts

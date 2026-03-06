@@ -15,7 +15,7 @@
 
 ## Active Plans
 
-- [TUV-x Photolysis Integration](docs/plans/2026-03-06-tuvx-photolysis-integration.md) — 9-phase plan to replace hardcoded photolysis with TUV-x radiative transfer (not yet started)
+- [Photolysis and Tropospheric Chemistry](docs/plans/2026-03-06-tuvx-photolysis-integration.md) — LNOx-O3 mechanism for supercell domain, then TUV-x integration (Phase 0 next)
 
 ## Historical Plans
 
