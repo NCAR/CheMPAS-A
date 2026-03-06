@@ -153,16 +153,22 @@ python init_tracer_sine.py -t qAB --waves-x 2 --amplitude 0.4 --offset 0.6
 ### 2026-03-06: LNOx-O3 Case A — 2-minute equilibrium diagnostic
 
 **Duration:** 2 minutes
-**Chemistry:** Same mechanism, source disabled
+**Chemistry:** Same mechanism (`lnox_o3.yaml`, no LOSS reactions), source disabled
 **Initial conditions:** NO=5, NO2=5, O3=50 ppbv (uniform)
 
 **Key observations:**
 - Chemistry drives system toward photostationary equilibrium
-- NO and NO2 both decrease as expected from photolysis/titration
-- Ox (O3+NO2) not perfectly conserved in single cells due to advection
-  (domain has background wind shear)
+- Domain-integrated Ox (O3+NO2) conserved to machine precision (0.0000% drift)
+- Domain-integrated NOx (NO+NO2) conserved to machine precision (0.0000% drift)
+- Single-cell Ox varies due to advection (expected — advection redistributes, not destroys)
 - All tracers non-negative
-- A rigorous Ox conservation test requires transport disabled
+
+**MICM FIRST_ORDER_LOSS bug discovered:**
+- With `lnox_o3.yaml` containing LOSS reactions (rate set to 0), Ox drifted 8.67%
+  and NOx dropped 48% in 2 minutes — spurious mass loss
+- MICM applies a nonzero loss even when rate parameters are explicitly set to 0
+- Fix: default config (`lnox_o3.yaml`) omits LOSS reactions; separate config
+  (`lnox_o3_sink.yaml`) available when finite sink timescale is intended
 
 ---
 

@@ -121,9 +121,12 @@ NOx sink are disabled.
    photolysis) are defined in the MICM config. MICM handles the ODE solve.
 
 3. **Sink in MICM config** — NOx loss is represented by mechanism-defined
-   first-order sink terms with configurable timescale `tau`. The current
-   `lnox_o3.yaml` includes `FIRST_ORDER_LOSS` reactions for NO and NO2, and
+   first-order sink terms with configurable timescale `tau`. A separate config
+   `lnox_o3_sink.yaml` includes `FIRST_ORDER_LOSS` reactions for NO and NO2;
    `mpas_musica.F` sets their rates to `1/tau` when `config_lnox_nox_tau > 0`.
+   **Important:** MICM applies a nonzero loss even when rate parameters are set
+   to 0, so the default `lnox_o3.yaml` omits LOSS reactions entirely. Use
+   `lnox_o3_sink.yaml` only when a finite sink timescale is intended.
 
 4. **Namelist control** — Seven parameters in `&musica`:
    `config_lnox_source_rate`, `config_lnox_w_threshold`, `config_lnox_w_ref`,
@@ -146,15 +149,18 @@ NOx sink are disabled.
 - [x] `scripts/plot_lnox_o3.py` + `scripts/style.py` — visualization suite
 - [x] `mpas_musica.F` — default photolysis rate parameters to 0 (was 1.0)
 - [x] Arrhenius A parameter corrected from cm³/molecule/s to m³/mol/s
-- [x] `micm_configs/lnox_o3.yaml` — added FIRST_ORDER_LOSS reactions for NO
-  and NO2 with rate = 1/tau (set externally via `config_lnox_nox_tau`)
+- [x] `micm_configs/lnox_o3_sink.yaml` — separate config with FIRST_ORDER_LOSS
+  reactions for NO and NO2 (rate = 1/tau, set via `config_lnox_nox_tau`)
+- [x] Discovered MICM FIRST_ORDER_LOSS bug: nonzero loss even with rate=0;
+  default `lnox_o3.yaml` now omits LOSS reactions to preserve Ox/NOx conservation
 - [x] **Case B (storm chemistry):** 15-min supercell run with lightning source
    produces visible O3 titration in updraft core. NO peaks ~3500 ppbv (at
    artificially high 50 ppbv/s source rate), NO2 produced via Arrhenius, O3
    depleted to near zero where NO is injected.
 - [x] **Case A (equilibrium diagnostic):** Ran with j_NO2=0.01, source off,
-  uniform NOx+O3 init. Chemistry directionally correct; rigorous Ox
-  conservation requires transport-disabled test.
+  uniform NOx+O3 init. Domain-integrated Ox and NOx conserved to machine
+  precision (0.0000% drift) using `lnox_o3.yaml` (without LOSS reactions).
+- [x] `scripts/verify_ox_conservation.py` — domain-integrated Ox/NOx verification
 - [x] Tuned source rate to 0.5 ppbv/s — physically realistic, ~28 ppbv NO peak
 - [x] ppbv conversions verified: q [kg/kg] × (M_air/M_species) × 1e9
 - [x] Corrected lightning source: delta_q = rate × scale × dt × 1e-9 × (M_NO/M_AIR)

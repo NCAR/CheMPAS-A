@@ -1,5 +1,5 @@
 version: "1.0.0"
-name: LNOx-O3
+name: LNOx-O3-sink
 species:
   # __initial concentration (mol/m3) is required by MICM but overwritten by
   # MPAS state transfer each timestep.  Set to 0 here; actual ICs live in
@@ -56,3 +56,21 @@ reactions:
       - species name: O3
         coefficient: 1
     name: no2_photolysis
+
+  # NOx first-order loss reactions.  Rate = 1/tau is set externally via
+  # config_lnox_nox_tau in the &musica namelist.
+  # WARNING: MICM applies a nonzero loss even when rate parameters are set
+  # to 0, so only use this config when a finite sink timescale is intended.
+  - type: FIRST_ORDER_LOSS
+    gas phase: gas
+    reactants:
+      - species name: NO
+        coefficient: 1
+    name: no_loss
+
+  - type: FIRST_ORDER_LOSS
+    gas phase: gas
+    reactants:
+      - species name: NO2
+        coefficient: 1
+    name: no2_loss

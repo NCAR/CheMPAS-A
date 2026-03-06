@@ -168,13 +168,21 @@ open chemistry.png chemistry_timeseries.png chemistry_diff.png
 The LNOx-O3 mechanism simulates lightning-NOx-driven ozone photochemistry:
 - `NO + O3 → NO2` (Arrhenius, temperature-dependent)
 - `NO2 + hv → NO + O3` (photolysis, prescribed rate)
-- First-order NOx loss (configurable timescale)
+- First-order NOx loss (optional, requires `lnox_o3_sink.yaml`)
+
+Two MICM configs are provided:
+- `lnox_o3.yaml` — default, no sink reactions (Ox/NOx conserved exactly)
+- `lnox_o3_sink.yaml` — includes FIRST_ORDER_LOSS for NO/NO2 (use with `config_lnox_nox_tau > 0`)
+
+**Note:** MICM applies a nonzero loss even when FIRST_ORDER_LOSS rate parameters
+are set to 0, so the default config omits them to preserve conservation.
 
 ### Setup
 
 1. Copy the MICM config to the run directory:
    ```bash
    cp ~/EarthSystem/CheMPAS/micm_configs/lnox_o3.yaml ~/Data/MPAS/supercell/
+   # If using NOx sink: also copy lnox_o3_sink.yaml and set config_micm_file accordingly
    ```
 
 2. Initialize tracers (O3=50 ppbv, NO=NO2=0):
