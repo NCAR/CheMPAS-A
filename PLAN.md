@@ -1,8 +1,13 @@
 # Plan: Generalize Chemistry Coupling — Remove Hardcoded ABBA
 
-## Status: Phase 1 Complete
+## Status: Phase 1 Complete — Merged to Main
 
-Phase 1 was implemented and merged to `develop` in commit `2dee808`.
+Phase 1 implemented on `develop` and merged to `main`.
+
+Key commits:
+- `2dee808` — Core refactoring: dynamic species table, generic coupling loops
+- `dd7824f` — Documentation: MUSICA build pitfalls in BUILD.md, testing notes in CLAUDE.md
+- `88fa2a0` — Bugfix: gradient check scans all tracers before seeding
 
 ## Context
 
@@ -15,10 +20,12 @@ Phase 1 generalized the coupling layer to loop over species dynamically using MI
 | File | Changes |
 |------|---------|
 | `src/core_atmosphere/chemistry/musica/mpas_musica.F` | Dynamic `species_entry_t` table, generic coupling loops |
-| `src/core_atmosphere/chemistry/mpas_atm_chemistry.F` | Removed per-species index args, renamed `chemistry_seed_chem` |
+| `src/core_atmosphere/chemistry/mpas_atm_chemistry.F` | Removed per-species index args, renamed `chemistry_seed_chem`, fixed gradient check |
 | `src/core_atmosphere/mpas_atm_core.F` | Updated call sites: `chemistry_seed_chem`, `chem_seed_after_stream` |
 | `src/core_atmosphere/Registry.xml` | Wrapped qAB/qA/qB in `#ifdef MPAS_USE_MUSICA` |
-| `~/Data/MPAS/supercell/abba.yaml` | Added `__molar mass` to each species |
+| `BUILD.md` | MUSICA build pitfalls documentation |
+| `CLAUDE.md` | Testing notes (8 MPI ranks requirement) |
+| `~/Data/MPAS/supercell/abba.yaml` | Added `__molar mass`, corrected scaling factors to 2.0e-3 / 1.0e-3 |
 
 ## What Was Done (Phase 1)
 
@@ -59,7 +66,7 @@ Generic species loops replace explicit per-species blocks. No more index argumen
 
 ### Step 7: Rename `micm_to_mpas_abba` → `micm_to_mpas_chem` — DONE
 
-Generic seeding loop over `chem_species(:)`. Gradient detection uses first species.
+Generic seeding loop over `chem_species(:)`.
 
 ### Step 8: Generalize `log_column_comparison` — DONE
 
@@ -67,7 +74,7 @@ Dynamic loop prints each species name and coupled/reference concentrations.
 
 ### Step 9: Update `mpas_atm_chemistry.F` — DONE
 
-Removed per-species index declarations and pool lookups. Simplified call signatures. Renamed public interface.
+Removed per-species index declarations and pool lookups. Simplified call signatures. Renamed public interface. Fixed gradient check to scan all tracers.
 
 ### Step 10: Update `mpas_atm_core.F` — DONE
 
@@ -77,10 +84,16 @@ All call sites updated: `chemistry_seed_abba` → `chemistry_seed_chem`, `abba_s
 
 Used `#ifdef MPAS_USE_MUSICA` / `#endif` around qAB/qA/qB entries in both `scalars` and `scalars_tend` var_arrays. Non-MUSICA builds have no chemistry tracers.
 
+## Bugs Found and Fixed
+
+1. **Gradient check only examined first species** — The seeding skip logic checked `chem_species(1)` (species A) for spatial gradients, missing sine wave patterns on qAB. Fixed to loop over all chemistry tracers.
+
+2. **Scaling factors too fast** — `abba.yaml` had scaling factors 2.0 / 1.0 (instant equilibrium). Corrected to 2.0e-3 / 1.0e-3 for gradual chemistry evolution visible over 15-minute runs.
+
 ## Verification Results
 
 1. **Build:** MUSICA=true build succeeds (MUSICA-Fortran 0.13.0)
-2. **Run:** Supercell test passes with 8 MPI ranks, ~32s wall time, 0 errors/warnings
+2. **Run:** Supercell test passes with 8 MPI ranks, 15-minute run, 0 errors/warnings
 3. **Log check:** Dynamic species discovery confirmed:
    - `[MUSICA] Species A molar_mass=0.029 kg/mol`
    - `[MUSICA] Species AB molar_mass=0.058 kg/mol`
@@ -88,15 +101,23 @@ Used `#ifdef MPAS_USE_MUSICA` / `#endif` around qAB/qA/qB entries in both `scala
    - `[MUSICA] Resolved A -> MPAS index 5`
    - `[MUSICA] Resolved AB -> MPAS index 4`
    - `[MUSICA] Resolved B -> MPAS index 6`
-4. **Chemistry correctness:** Mass conservation holds (qA + qB + qAB ≈ 1.0)
-5. **Net change:** -89 lines (244 insertions, 333 deletions) across 5 files
+4. **Chemistry correctness:** Mass conservation holds (qA + qB + qAB ≈ 1.0), smooth exponential decay
+5. **Sine wave init:** Gradient check correctly detects spatial variation, preserves init file patterns
+6. **Plots:** All visualization types generated successfully (temporal, multispecies, diff, single-cell, vertical)
 
 ## Lessons Learned
 
 - `state%species_ordering%index(name)` returns the stride-based index needed for concentration array access; the iteration counter from `species_ordering%name(i)` is NOT the same thing
 - `micm%get_species_property_double` returns a scalar `real(8)`, not an array
 - MPAS logging `realArgs` must use `kind=RKIND` (not `kind=4`) when `-fdefault-real-8` is active
-- Running with wrong MPI rank count (e.g., 1 rank on 8-partition mesh) causes segfaults in RK3 dynamics — always test with correct partition
+- Running with wrong MPI rank count (e.g., 1 rank on 8-partition mesh) causes segfaults in RK3 dynamics — always test with 8 ranks
+- Gradient detection must check ALL chemistry tracers, not just the first in iteration order
+- ABBA scaling factors: use 2.0e-3 / 1.0e-3 for visible chemistry evolution; 2.0 / 1.0 equilibrates in one timestep
+
+## Design Notes
+
+- **`state_ref` keeps uniform initial concentrations** even when init file has spatial gradients. This is intentional — `state_ref` is a debugging device for comparing MICM's standalone ODE solution against the coupled run.
+- **MICM state gets real values from MPAS** at the first coupling step via `MICM_from_chemistry`, so the uniform MICM initial state is harmlessly overwritten.
 
 ## Phase 2: Future Work
 
