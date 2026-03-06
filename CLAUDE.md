@@ -97,7 +97,8 @@ CheMPAS is an agent-driven development project. See `AGENTS.md` for the full man
 4. **MPI**: Uses `include 'mpif.h'` via `NOMPIMOD` flag (not `use mpi` module)
 5. **Registry System**: Variable definitions are in `Registry.xml`, parsed at build time
 6. **Physics**: Many physics schemes from WRF, NoahMP, and other sources
-7. **MUSICA**: MUSICA-Fortran must be built with flang; `musica-fortran.pc` may need yaml-cpp path fix
+7. **MUSICA**: MUSICA-Fortran must be built with flang; `musica-fortran.pc` may need yaml-cpp path fix. See `BUILD.md` for details.
+8. **Testing**: Always run with 8 MPI ranks (`mpiexec -n 8`). A mismatched rank count with no matching partition file causes segfaults in the dynamics solver. See `RUN.md` for details.
 
 ## Common Tasks
 

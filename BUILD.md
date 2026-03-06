@@ -196,6 +196,20 @@ make -j8 llvm \
 
 The build will report `MPAS was linked with the MUSICA-Fortran library version X.Y.Z` on success.
 
+**Current versions:** MUSICA-Fortran 0.13.0, MICM 3.10.0
+
+#### MUSICA Build Pitfalls
+
+1. **`PKG_CONFIG_PATH` is required.** Without it, `pkg-config` can't find `musica-fortran.pc` and the build silently skips MUSICA linking.
+
+2. **`-fdefault-real-8` affects `kind=` specifiers.** Under the LLVM flags, `real(kind=4)` becomes 8-byte. Use `RKIND` (from `mpas_kind_types`) for MPAS log calls (`realArgs`) and any real literals that interface with the framework. Do not use `kind=4`.
+
+3. **Registry.xml chemistry tracers are guarded.** Chemistry tracer entries (qAB, qA, qB and their tendencies) are wrapped in `#ifdef MPAS_USE_MUSICA` / `#endif`. Non-MUSICA builds have no chemistry tracers. The `MUSICA=true` build flag defines `MPAS_USE_MUSICA` via the preprocessor.
+
+4. **MICM API returns scalars.** `micm%get_species_property_double(name, property, error)` returns a scalar `real(real64)`, not an array. Assigning to an allocatable array causes undefined behavior.
+
+5. **Species ordering index vs iteration order.** `state%species_ordering%name(i)` gives the i-th species name in iteration order, but `state%species_ordering%index(name)` gives the stride-based index for concentration array access. These are not the same — always use `%index(name)` for array indexing.
+
 #### Known Warnings
 
 These warnings are expected and harmless:
