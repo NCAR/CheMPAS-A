@@ -29,6 +29,7 @@ module mpas_musica
     public :: MICM_from_chemistry, MICM_to_chemistry
     public :: log_column_comparison, copy_state_to_ref
     public :: resolve_mpas_indices, n_chem_species, chem_species
+    public :: musica_query_species
 
     type(micm_t),  pointer :: micm  => null ( )  ! Pointer to the MICM ODE solver instance
     type(state_t), pointer :: state => null ( )  ! Pointer to the state of the MICM solver (coupled to MPAS)
@@ -213,6 +214,64 @@ module mpas_musica
         end do
 
     end subroutine resolve_mpas_indices
+
+    !------------------------------------------------------------------------
+    !  subroutine musica_query_species
+    !
+    !> \brief Query MICM config for chemistry species names without full init
+    !> \details
+    !>  Creates a temporary MICM instance to read species_ordering from
+    !>  the config file. Returns species count and MPAS tracer names
+    !>  (with 'q' prefix). The temporary MICM instance is destroyed.
+    !>  Used by atm_setup_block to extend scalars before chemistry_init.
+    !------------------------------------------------------------------------
+    subroutine musica_query_species(config_path, num_species, species_names, error_code, error_message)
+
+        use musica_micm,  only: RosenbrockStandardOrder
+        use musica_state, only: state_t
+        use musica_util,  only: error_t
+        use mpas_log,     only: mpas_log_write
+
+        character(len=*), intent(in)                :: config_path
+        integer, intent(out)                        :: num_species
+        character(len=64), allocatable, intent(out)  :: species_names(:)
+        integer, intent(out)                        :: error_code
+        character(len=:), allocatable, intent(out)   :: error_message
+
+        type(micm_t), pointer  :: tmp_micm
+        type(state_t), pointer :: tmp_state
+        type(error_t)          :: error
+        integer                :: i
+
+        error_code = 0
+        error_message = ''
+        num_species = 0
+
+        if (len_trim(config_path) == 0) then
+            call mpas_log_write('[MUSICA] No MICM config path; skipping chemistry tracer discovery')
+            return
+        end if
+
+        call mpas_log_write('[MUSICA] Querying MICM config for species list...')
+
+        tmp_micm => micm_t(trim(config_path), RosenbrockStandardOrder, error)
+        if (has_error_occurred(error, error_message, error_code)) return
+
+        tmp_state => tmp_micm%get_state(1, error)
+        if (has_error_occurred(error, error_message, error_code)) return
+
+        num_species = tmp_state%species_ordering%size()
+        allocate(species_names(num_species))
+
+        do i = 1, num_species
+            species_names(i) = 'q' // trim(tmp_state%species_ordering%name(i))
+            call mpas_log_write('[MUSICA] Discovered chemistry tracer: ' // trim(species_names(i)))
+        end do
+
+        deallocate(tmp_state)
+        deallocate(tmp_micm)
+
+    end subroutine musica_query_species
 
     !------------------------------------------------------------------------
     !  subroutine musica_step
