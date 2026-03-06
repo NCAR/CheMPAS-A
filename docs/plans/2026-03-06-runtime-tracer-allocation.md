@@ -1,6 +1,14 @@
 # Runtime Chemistry Tracer Allocation — Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+## Document Status
+
+- `Historical Context:` Task-by-task implementation plan used to deliver runtime
+  chemistry tracer allocation.
+- `Current State:` Complete and merged to `main` (as of March 6, 2026).
+- `Use This As:` Implementation history and design rationale, not active task
+  instructions.
+- `Original Authoring Note:` "For Claude: REQUIRED SUB-SKILL: Use
+  superpowers:executing-plans to implement this plan task-by-task."
 
 **Goal:** Remove chemistry tracers from Registry.xml and inject them dynamically at runtime based on the MICM config, so switching chemistry mechanisms requires zero source code changes.
 

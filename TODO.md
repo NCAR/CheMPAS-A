@@ -8,8 +8,8 @@
   - Current workaround: seeding is skipped if tracers have spatial gradients
 
 - [ ] **Output reference state to NetCDF**
-  - Add `qAB_ref`, `qA_ref`, `qB_ref` variables to `Registry.xml`
-  - Modify `mpas_musica.F` to copy reference state concentrations to MPAS pools each timestep
+  - Add runtime chemistry reference tracers (e.g., `q*_ref`) without hardcoding species in `Registry.xml`
+  - Modify `mpas_musica.F` to copy reference-state concentrations to MPAS pools each timestep
   - Add reference variables to output stream in `streams.atmosphere`
   - Update `plot_chemistry.py` to compare coupled vs reference states
   - This enables visualization of advection effects (coupled - reference = advection contribution)
@@ -25,5 +25,4 @@
 - [ ] Full atmospheric chemistry mechanisms (tropospheric ozone, etc.)
 - [ ] TUV-x photolysis rate calculations
 - [ ] Aerosol chemistry integration
-- [ ] Species-specific molar mass lookup from MICM config
 - [ ] Parallel processing optimization for MICM solver

@@ -6,7 +6,7 @@ Record of test runs for chemistry-atmosphere coupling validation.
 
 Idealized supercell thunderstorm with ABBA chemistry (AB ↔ A + B reactions).
 
-**Location:** `~/MPAS/supercell`
+**Location:** `~/Data/MPAS/supercell`
 
 ### Run Configuration
 

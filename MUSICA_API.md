@@ -125,7 +125,8 @@ flag = micm%get_species_property_bool(species_name, property_name, error)
 ```
 
 **Common Property Names:**
-- `"molecular weight [kg mol-1]"` - Molar mass
+- `"__molar mass"` - Molar mass (used by CheMPAS runtime coupling)
+- `"molecular weight [kg mol-1]"` - Legacy/alternate molar-mass key in some MICM examples
 - `"__long name"` - Full species name
 - `"__atoms"` - Number of atoms
 - `"__do advect"` - Advection flag
