@@ -163,6 +163,76 @@ cd ~/Data/MPAS/supercell
 open chemistry.png chemistry_timeseries.png chemistry_diff.png
 ```
 
+## LNOx-O3 Chemistry Test Cases
+
+The LNOx-O3 mechanism simulates lightning-NOx-driven ozone photochemistry:
+- `NO + O3 → NO2` (Arrhenius, temperature-dependent)
+- `NO2 + hv → NO + O3` (photolysis, prescribed rate)
+- First-order NOx loss (configurable timescale)
+
+### Setup
+
+1. Copy the MICM config to the run directory:
+   ```bash
+   cp ~/EarthSystem/CheMPAS/micm_configs/lnox_o3.yaml ~/Data/MPAS/supercell/
+   ```
+
+2. Initialize tracers (O3=50 ppbv, NO=NO2=0):
+   ```bash
+   cd ~/Data/MPAS/supercell
+   ~/miniconda3/envs/mpas/bin/python ~/EarthSystem/CheMPAS/scripts/init_lnox_o3.py -i supercell_init.nc
+   ```
+
+3. Configure `namelist.atmosphere` `&musica` section:
+   ```
+   &musica
+       config_micm_file = 'lnox_o3.yaml'
+       config_lnox_source_rate = 0.5      ! NO source [ppbv/s] when w - w_threshold = w_ref (0 = disabled)
+       config_lnox_w_threshold = 5.0      ! min updraft for injection [m/s]
+       config_lnox_w_ref = 10.0           ! excess updraft used in source scaling [m/s]
+       config_lnox_z_min = 5000.0         ! min altitude for injection [m]
+       config_lnox_z_max = 12000.0        ! max altitude for injection [m]
+       config_lnox_j_no2 = 0.01           ! NO2 photolysis rate [s⁻¹] (0 = disabled)
+       config_lnox_nox_tau = 0.0          ! NOx sink timescale [s] (0 = no sink)
+   /
+   ```
+
+The source scaling follows `S = rate * max(0, w - w_threshold) / w_ref`, so
+`config_lnox_source_rate` is reached when `w - w_threshold = config_lnox_w_ref`.
+
+### Case B: Storm Chemistry (15-min supercell)
+
+The primary test case with lightning NOx source active:
+
+```bash
+cd ~/Data/MPAS/supercell
+ts=$(date +%Y%m%d_%H%M%S)
+[ -f output.nc ] && mv output.nc output.${ts}.nc
+[ -f log.atmosphere.0000.out ] && mv log.atmosphere.0000.out log.atmosphere.0000.${ts}.out
+mpiexec -n 8 ~/EarthSystem/CheMPAS/atmosphere_model
+```
+
+**Expected behavior:** NO injected in updraft core (w > 5 m/s, 5–12 km altitude),
+O3 titrated where NO is present, NO2 produced via Arrhenius reaction, O3 recovery
+downwind via NO2 photolysis.
+
+### Case A: Equilibrium Diagnostic
+
+Set `config_lnox_source_rate = 0.0` and initialize with uniform NO=5 ppbv,
+NO2=5 ppbv, O3=50 ppbv to test Leighton equilibrium approach. Use a short
+run duration (2 minutes). Note: Ox conservation is approximate in coupled runs
+due to advection; a rigorous test requires transport disabled.
+
+### Verification
+
+| Check | What to look for |
+|-------|-----------------|
+| Non-negativity | `qNO >= 0`, `qNO2 >= 0`, `qO3 >= 0` everywhere |
+| O3 background | O3 ≈ 50 ppbv away from storm |
+| O3 titration | O3 depressed in updraft core where NO is injected |
+| NO2 production | NO2 present where NO+O3 reaction occurs |
+| Photolysis | NO2 converted back to NO+O3 (prevents NO2 accumulation) |
+
 ## Other Test Cases
 
 Additional test cases can be added to `~/Data/MPAS/` following the same pattern.

@@ -56,3 +56,17 @@ reactions:
       - species name: O3
         coefficient: 1
     name: no2_photolysis
+
+  - type: FIRST_ORDER_LOSS
+    gas phase: gas
+    reactants:
+      - species name: NO
+        coefficient: 1
+    name: no_loss
+
+  - type: FIRST_ORDER_LOSS
+    gas phase: gas
+    reactants:
+      - species name: NO2
+        coefficient: 1
+    name: no2_loss

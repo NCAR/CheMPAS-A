@@ -67,6 +67,8 @@ module mpas_atm_chemistry
         integer, pointer                :: nCells_ptr
         integer, pointer                :: nVertLevels_ptr
         type (mpas_pool_type), pointer  :: statePool
+        real(kind=RKIND), pointer       :: j_no2_ptr, nox_tau_ptr
+        real(kind=RKIND)                :: j_no2_val, nox_tau_val
 #endif
 
         call mpas_log_write('Initializing chemistry packages...')
@@ -84,8 +86,19 @@ module mpas_atm_chemistry
 
         call mpas_pool_get_config(configs, 'config_micm_file', filepath_ptr)
 
+        ! Read prescribed photolysis and sink parameters
+        j_no2_val = 0.0_RKIND
+        nox_tau_val = 0.0_RKIND
+        nullify(j_no2_ptr)
+        nullify(nox_tau_ptr)
+        call mpas_pool_get_config(configs, 'config_lnox_j_no2', j_no2_ptr)
+        if (associated(j_no2_ptr)) j_no2_val = j_no2_ptr
+        call mpas_pool_get_config(configs, 'config_lnox_nox_tau', nox_tau_ptr)
+        if (associated(nox_tau_ptr)) nox_tau_val = nox_tau_ptr
+
         ! Initialize MICM (species already injected into scalars by atm_setup_block)
-        call musica_init(filepath_ptr, nCells * nVertLevels, error_code, error_message)
+        call musica_init(filepath_ptr, nCells * nVertLevels, &
+                         j_no2_val, nox_tau_val, error_code, error_message)
 
         if (error_code /= 0) then
             call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)

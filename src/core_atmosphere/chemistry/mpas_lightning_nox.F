@@ -18,6 +18,7 @@
 !>
 !>  The source rate scales linearly with updraft strength:
 !>    S = source_rate * max(0, w - w_threshold) / w_ref  [ppbv/s]
+!>  The configured source_rate is reached when (w - w_threshold) = w_ref.
 !>
 !>  At init time the module looks up index_qNO in the scalars pool.
 !>  If qNO is not present (mechanism doesn't use it), the module is a no-op.
@@ -40,11 +41,15 @@ module mpas_lightning_nox
     integer, save :: idx_qNO = -1
 
     ! Parameters (set from namelist at init)
-    real(kind=RKIND), save :: source_rate_ppbv = 0.0_RKIND   ! peak rate [ppbv/s]
+    real(kind=RKIND), save :: source_rate_ppbv = 0.0_RKIND   ! rate [ppbv/s] when (w - w_threshold) = w_ref
     real(kind=RKIND), save :: w_threshold      = 5.0_RKIND   ! [m/s]
-    real(kind=RKIND), save :: w_ref            = 10.0_RKIND  ! reference w for scaling [m/s]
+    real(kind=RKIND), save :: w_ref            = 10.0_RKIND  ! excess updraft scale [m/s]
     real(kind=RKIND), save :: z_min            = 5000.0_RKIND ! [m]
     real(kind=RKIND), save :: z_max            = 12000.0_RKIND ! [m]
+
+    ! Constants for unit conversion (ppbv -> kg/kg mass mixing ratio)
+    real(kind=RKIND), parameter :: M_NO  = 0.030_RKIND   ! kg/mol (NO molar mass)
+    real(kind=RKIND), parameter :: M_AIR = 0.029_RKIND   ! kg/mol (dry air molar mass)
 
 contains
 
@@ -110,6 +115,12 @@ contains
             return
         end if
 
+        if (w_ref <= 0.0_RKIND) then
+            call mpas_log_write('[LNOx] w_ref <= 0; lightning source disabled (would cause divide-by-zero).')
+            lnox_active = .false.
+            return
+        end if
+
         lnox_active = .true.
 
         call mpas_log_write('[LNOx] Lightning NOx source enabled:')
@@ -129,7 +140,8 @@ contains
     !> \brief Inject NO source into scalars where w > threshold
     !> \details
     !>  Modifies scalars(index_qNO, k, iCell) in place. Called before
-    !>  MICM solves the chemistry. Source is in mixing ratio (ppbv * 1e-9).
+    !>  MICM solves the chemistry. The source is converted from ppbv/s to
+    !>  mass mixing ratio tendency [kg/kg] before it is added to qNO.
     !>
     !>  Uses layer-midpoint height from zgrid for altitude gating and
     !>  w interpolated to layer midpoints from interface values.
@@ -167,9 +179,12 @@ contains
                 if (w_mid > w_threshold .and. &
                     z_mid >= z_min .and. z_mid <= z_max) then
 
-                    ! Source in mixing ratio: rate [ppbv/s] * scale * dt * 1e-9
+                    ! Source in mass mixing ratio [kg/kg]:
+                    !   rate [ppbv/s] * scale * dt * 1e-9 * (M_NO / M_AIR)
+                    ! The 1e-9 converts ppbv to mole fraction; M_NO/M_AIR
+                    ! converts volume mixing ratio to mass mixing ratio.
                     delta_q = source_rate_ppbv * (w_mid - w_threshold) / w_ref &
-                              * dt * 1.0e-9_RKIND
+                              * dt * 1.0e-9_RKIND * (M_NO / M_AIR)
 
                     scalars(idx_qNO, k, iCell) = scalars(idx_qNO, k, iCell) + delta_q
                     n_activated = n_activated + 1

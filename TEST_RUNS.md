@@ -120,6 +120,52 @@ python init_tracer_sine.py -t qAB --waves-x 2 --amplitude 0.4 --offset 0.6
 /plot-chemistry full
 ```
 
+---
+
+### 2026-03-06: LNOx-O3 Case B — 15-minute storm with realistic source
+
+**Duration:** 15 minutes
+**Chemistry:** LNOx-O3 (NO+O3→NO2 Arrhenius, NO2+hv→NO+O3 photolysis)
+**Source:** 0.5 ppbv/s when w - w_threshold = w_ref, w_threshold=5 m/s, w_ref=10 m/s, altitude 5–12 km
+**Photolysis:** j_NO2 = 0.01 s⁻¹ (constant)
+**Sink:** Disabled (tau = 0)
+**Initial conditions:** NO=0, NO2=0, O3=50 ppbv
+
+**Key observations:**
+- Lightning source activates ~12 min (updraft reaches w > 5 m/s)
+- NO peaks at 27.8 ppbv at t=15 min
+- NO2 peaks at 5.9 ppbv (from Arrhenius titration)
+- O3 depleted from 50 to 41.5 ppbv in updraft core (8.5 ppbv depletion)
+- O3 background stable at 50 ppbv away from storm
+- All tracers non-negative
+- Photolysis active — NO2 recycled back to NO+O3
+
+**Verification passed:**
+- [x] Non-negativity for all species
+- [x] O3 background preserved at 50 ppbv
+- [x] O3 titration in updraft core
+- [x] NO2 produced by Arrhenius reaction
+- [x] Photolysis prevents NO2 accumulation
+- [x] Physically realistic concentrations with 0.5 ppbv/s source
+
+---
+
+### 2026-03-06: LNOx-O3 Case A — 2-minute equilibrium diagnostic
+
+**Duration:** 2 minutes
+**Chemistry:** Same mechanism, source disabled
+**Initial conditions:** NO=5, NO2=5, O3=50 ppbv (uniform)
+
+**Key observations:**
+- Chemistry drives system toward photostationary equilibrium
+- NO and NO2 both decrease as expected from photolysis/titration
+- Ox (O3+NO2) not perfectly conserved in single cells due to advection
+  (domain has background wind shear)
+- All tracers non-negative
+- A rigorous Ox conservation test requires transport disabled
+
+---
+
 ## Notes
 
 1. **PnetCDF compatibility:** Use `io_type="netcdf"` in streams.atmosphere on macOS/LLVM builds
