@@ -13,7 +13,7 @@ Key commits:
 
 All chemistry tracer coupling in CheMPAS was hardcoded for the 3-species ABBA mechanism (AB, A, B). Species names appeared as string literals in 7+ places each, molar masses were Fortran `parameter` constants, and tracer indices were fetched individually by name. This made it impossible to switch chemistry mechanisms without editing Fortran source code.
 
-Phase 1 generalized the coupling layer to loop over species dynamically using MICM's runtime API. Registry.xml tracer definitions remain static for now — runtime scalars allocation (Phase 2) will be a separate future effort.
+Phase 1 generalized the coupling layer to loop over species dynamically using MICM's runtime API. Phase 2 then removed chemistry tracers from `Registry.xml` entirely, discovering them at runtime from the MICM config.
 
 ## Files Modified (Phase 1)
 
@@ -119,10 +119,72 @@ Used `#ifdef MPAS_USE_MUSICA` / `#endif` around qAB/qA/qB entries in both `scala
 - **`state_ref` keeps uniform initial concentrations** even when init file has spatial gradients. This is intentional — `state_ref` is a debugging device for comparing MICM's standalone ODE solution against the coupled run.
 - **MICM state gets real values from MPAS** at the first coupling step via `MICM_from_chemistry`, so the uniform MICM initial state is harmlessly overwritten.
 
-## Phase 2: Future Work
+## Phase 2: Runtime Chemistry Tracer Allocation — COMPLETE
 
-- **Runtime scalars allocation** — Remove tracers from Registry.xml entirely; allocate at runtime based on MICM config
+### Goal
+
+Remove chemistry tracers from `Registry.xml`. Discover species from MICM config at startup and inject them into the `scalars` and `scalars_tend` var_arrays dynamically. Switching chemistry mechanisms requires zero Fortran or registry changes.
+
+### Design Decisions
+
+1. **Only chemistry tracers are dynamic** — Core met tracers (qv, qc, qi, etc.) stay in Registry.xml. Chemistry tracers from MICM are appended at runtime. Other modules (physics, different chemistry packages) can still define tracers in the registry.
+
+2. **Two-phase initialization (A2)** — A lightweight early scan of the MICM config gets species names/count during `atm_setup_block`. The full MICM solver initialization still happens later in `chemistry_init`.
+
+3. **Temporary MICM instance for early scan** — Create a throwaway `micm_t` to query `species_ordering`, extract names/count, then destroy it. Keeps MICM config as the single source of truth — no sidecar files, no YAML parsing.
+
+4. **Extend both `scalars` and `scalars_tend` together** — Following the `atm_allocate_scalars` (CAM dycore) precedent. Both arrays grow by the same chemistry species count.
+
+5. **I/O works automatically** — The MPAS stream system writes all constituents of a var_array. Since dynamic tracers are added to `constituentNames`, they appear in `output.nc` with no extra I/O registration needed.
+
+### Architecture
+
+```
+atm_setup_block
+  |-> atm_generate_structs()           # Registry tracers allocated (qv, qc, qi...)
+  |-> atm_extend_scalars_for_chemistry()  # NEW
+  |     |-> Read MICM config path from namelist
+  |     |-> Create temporary micm_t, query species_ordering
+  |     |-> For each species: extend scalars 1st dim, add index_qXX dimension
+  |     |-> Same for scalars_tend
+  |     |-> Destroy temporary micm_t
+  |
+  ... later ...
+  |
+chemistry_init
+  |-> musica_init()                    # Full MICM solver (unchanged)
+  |-> resolve_mpas_indices()           # Finds index_qXX injected by step above (unchanged)
+  |-> chemistry_seed_chem()            # Seeds MPAS tracers from MICM state (unchanged)
+```
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `Registry.xml` | Remove `#ifdef MPAS_USE_MUSICA` tracer block (qAB/qA/qB + tendencies) |
+| `mpas_atm_core_interface.F` | Add `atm_extend_scalars_for_chemistry`; call from `atm_setup_block` |
+| `mpas_musica.F` | Add `musica_query_species(config_path, names, count)` lightweight query |
+| `mpas_atm_chemistry.F` | Minor adjustments if needed for new init sequence |
+
+### Key Technical Detail
+
+At `atm_setup_block` time, field arrays are **not yet allocated** — only metadata exists. The extension modifies metadata only:
+- Update `num_scalars` dimension in-place via pointer (`mpas_pool_add_dimension` silently ignores duplicate keys)
+- Extend `constituentNames` and `attLists` arrays for each time level
+- Add `index_qXX` dimensions for each new species
+- Repeat for `scalars_tend` in the tend pool
+- The framework (`mpas_block_creator.F`) later allocates correctly-sized arrays using the updated `num_scalars`
+
+### Regression Test — PASSED
+
+- Reference output: `~/Data/MPAS/supercell/reference_phase1_output.nc`
+- Build: MUSICA=true, run supercell 15 min / 8 ranks
+- Chemistry tracers (qA, qAB, qB): **bitwise identical** to Phase 1 reference
+- Met fields unaffected
+
+### Future Work (Post Phase 2)
+
 - **`__do advect` filtering** — Support non-advected species
-- **Fallback molar mass table** — For community chemistry configs that lack `__molar mass`
-- **Generic visualization** — Update `plot_chemistry.py` to discover species dynamically instead of hardcoding qA/qB/qAB
-- **Non-MUSICA build verification** — Confirm clean compilation without MUSICA flag
+- **Fallback molar mass table** — For configs lacking `__molar mass`
+- **Generic visualization** — `plot_chemistry.py` discovers species dynamically
+- **Non-MUSICA build verification** — Clean compilation without MUSICA flag

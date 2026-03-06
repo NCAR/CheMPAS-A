@@ -29,6 +29,7 @@ module mpas_musica
     public :: MICM_from_chemistry, MICM_to_chemistry
     public :: log_column_comparison, copy_state_to_ref
     public :: resolve_mpas_indices, n_chem_species, chem_species
+    public :: musica_query_species
 
     type(micm_t),  pointer :: micm  => null ( )  ! Pointer to the MICM ODE solver instance
     type(state_t), pointer :: state => null ( )  ! Pointer to the state of the MICM solver (coupled to MPAS)
@@ -63,8 +64,7 @@ module mpas_musica
     !------------------------------------------------------------------------
     subroutine musica_init(filename_of_micm_configuration, &
             number_of_grid_cells, &
-            error_code, error_message, &
-            registry_tracer_names)
+            error_code, error_message)
 
         use iso_fortran_env, only: real64
         use mpas_kind_types, only: RKIND
@@ -78,7 +78,6 @@ module mpas_musica
         integer,                       intent(in)  :: number_of_grid_cells
         integer,                       intent(out) :: error_code
         character(len=:), allocatable, intent(out) :: error_message
-        character(len=*), dimension(:), intent(in), optional :: registry_tracer_names
 
         character(len=*), parameter :: INITIAL_CONCENTRATION_PROPERTY = "__initial concentration"
         character(len=*), parameter :: MOLAR_MASS_PROPERTY = "__molar mass"
@@ -90,8 +89,6 @@ module mpas_musica
         type(string_t) :: micm_version
         integer :: solver_type = RosenbrockStandardOrder
         integer :: i_species, spec_idx
-        integer :: check_error_code
-        character(len=:), allocatable :: check_error_message
         character(len=:), allocatable :: sp_name
 
         micm_version = get_micm_version()
@@ -114,14 +111,6 @@ module mpas_musica
         do i_species = 1, state%species_ordering%size()
             call mpas_log_write('[MUSICA] MICM species: ' // state%species_ordering%name(i_species))
         end do
-
-        call check_registry_tracer_consistency(state, registry_tracer_names, &
-                check_error_code, check_error_message)
-        if (check_error_code /= 0) then
-            error_code = check_error_code
-            error_message = check_error_message
-            return
-        end if
 
         call assign_rate_parameters(state, number_of_grid_cells)
         call assign_rate_parameters(state_ref, number_of_grid_cells)
@@ -213,6 +202,64 @@ module mpas_musica
         end do
 
     end subroutine resolve_mpas_indices
+
+    !------------------------------------------------------------------------
+    !  subroutine musica_query_species
+    !
+    !> \brief Query MICM config for chemistry species names without full init
+    !> \details
+    !>  Creates a temporary MICM instance to read species_ordering from
+    !>  the config file. Returns species count and MPAS tracer names
+    !>  (with 'q' prefix). The temporary MICM instance is destroyed.
+    !>  Used by atm_setup_block to extend scalars before chemistry_init.
+    !------------------------------------------------------------------------
+    subroutine musica_query_species(config_path, num_species, species_names, error_code, error_message)
+
+        use musica_micm,  only: RosenbrockStandardOrder
+        use musica_state, only: state_t
+        use musica_util,  only: error_t
+        use mpas_log,     only: mpas_log_write
+
+        character(len=*), intent(in)                :: config_path
+        integer, intent(out)                        :: num_species
+        character(len=64), allocatable, intent(out)  :: species_names(:)
+        integer, intent(out)                        :: error_code
+        character(len=:), allocatable, intent(out)   :: error_message
+
+        type(micm_t), pointer  :: tmp_micm
+        type(state_t), pointer :: tmp_state
+        type(error_t)          :: error
+        integer                :: i
+
+        error_code = 0
+        error_message = ''
+        num_species = 0
+
+        if (len_trim(config_path) == 0) then
+            call mpas_log_write('[MUSICA] No MICM config path; skipping chemistry tracer discovery')
+            return
+        end if
+
+        call mpas_log_write('[MUSICA] Querying MICM config for species list...')
+
+        tmp_micm => micm_t(trim(config_path), RosenbrockStandardOrder, error)
+        if (has_error_occurred(error, error_message, error_code)) return
+
+        tmp_state => tmp_micm%get_state(1, error)
+        if (has_error_occurred(error, error_message, error_code)) return
+
+        num_species = tmp_state%species_ordering%size()
+        allocate(species_names(num_species))
+
+        do i = 1, num_species
+            species_names(i) = 'q' // trim(tmp_state%species_ordering%name(i))
+            call mpas_log_write('[MUSICA] Discovered chemistry tracer: ' // trim(species_names(i)))
+        end do
+
+        deallocate(tmp_state)
+        deallocate(tmp_micm)
+
+    end subroutine musica_query_species
 
     !------------------------------------------------------------------------
     !  subroutine musica_step
@@ -543,80 +590,6 @@ module mpas_musica
             end do
         end do
     end subroutine assign_rate_parameters
-
-    subroutine check_registry_tracer_consistency(state, registry_tracer_names, &
-            error_code, error_message)
-        use mpas_log, only : mpas_log_write
-
-        type(state_t), intent(in) :: state
-        character(len=*), dimension(:), intent(in), optional :: registry_tracer_names
-        integer, intent(out) :: error_code
-        character(len=:), allocatable, intent(out) :: error_message
-
-        integer :: i_species, i_tracer, registry_count
-        logical :: found
-        logical, allocatable :: registry_used(:)
-        character(len=:), allocatable :: missing_list
-        character(len=:), allocatable :: extra_list
-        character(len=:), allocatable :: species_name
-        character(len=:), allocatable :: expected_tracer
-
-        error_code = 0
-        error_message = ''
-
-        if (.not. present(registry_tracer_names)) then
-            call mpas_log_write('[MUSICA] Registry tracers not provided; skipping MICM/MPAS consistency check.')
-            return
-        end if
-
-        registry_count = size(registry_tracer_names)
-        if (registry_count == 0) then
-            call mpas_log_write('[MUSICA] Registry tracer list is empty; skipping MICM/MPAS consistency check.')
-            return
-        end if
-
-        allocate(registry_used(registry_count))
-        registry_used = .false.
-        missing_list = ''
-        extra_list = ''
-
-        do i_species = 1, state%species_ordering%size()
-            species_name = trim(state%species_ordering%name(i_species))
-            expected_tracer = 'q' // species_name
-            found = .false.
-            do i_tracer = 1, registry_count
-                if (expected_tracer == trim(registry_tracer_names(i_tracer))) then
-                    found = .true.
-                    registry_used(i_tracer) = .true.
-                    call mpas_log_write('[MUSICA] Matched MICM species ' // trim(species_name) // ' to MPAS tracer ' // trim(expected_tracer))
-                    exit
-                end if
-            end do
-            if (.not. found) then
-                missing_list = missing_list // ' ' // expected_tracer
-            end if
-        end do
-
-        do i_tracer = 1, registry_count
-            if (.not. registry_used(i_tracer)) then
-                extra_list = extra_list // ' ' // trim(registry_tracer_names(i_tracer))
-            end if
-        end do
-
-        if (len_trim(missing_list) > 0) then
-            error_code = 1
-            error_message = '[MUSICA] MICM species missing in MPAS registry tracers:' // trim(adjustl(missing_list))
-            call mpas_log_write(error_message)
-        else
-            call mpas_log_write('[MUSICA] MICM/MPAS tracer consistency check passed.')
-        end if
-
-        if (len_trim(extra_list) > 0) then
-            call mpas_log_write('[MUSICA] MPAS registry tracers not present in MICM config:' // trim(adjustl(extra_list)))
-        end if
-
-        deallocate(registry_used)
-    end subroutine check_registry_tracer_consistency
 
     subroutine set_species_profile(state, species_name, values, err)
         ! Write a 1-D profile into the contiguous concentrations array.

@@ -27,6 +27,7 @@ module mpas_atm_chemistry
 
     public :: chemistry_init, chemistry_step, chemistry_finalize, chemistry_seed_chem
     public :: chemistry_from_MPAS, chemistry_to_MPAS
+    public :: chemistry_query_species
 
     contains
 
@@ -46,9 +47,9 @@ module mpas_atm_chemistry
         use mpas_musica, only: musica_init, resolve_mpas_indices
 #endif
         use mpas_log, only : mpas_log_write
-        use mpas_derived_types, only: mpas_pool_type, MPAS_LOG_CRIT, field3dReal
+        use mpas_derived_types, only: mpas_pool_type, MPAS_LOG_CRIT
         use mpas_pool_routines, only: mpas_pool_get_config, mpas_pool_get_dimension, &
-                                      mpas_pool_get_subpool, mpas_pool_get_field, mpas_pool_get_array
+                                      mpas_pool_get_subpool
 
         type (mpas_pool_type), intent(in) :: configs
         type (mpas_pool_type), intent(in) :: dimensions
@@ -63,8 +64,6 @@ module mpas_atm_chemistry
         integer, pointer                :: nCells_ptr
         integer, pointer                :: nVertLevels_ptr
         type (mpas_pool_type), pointer  :: statePool
-        type (field3dReal), pointer     :: scalarsField
-        character(len=StrKIND), dimension(:), pointer :: tracer_names
 #endif
 
         call mpas_log_write('Initializing chemistry packages...')
@@ -82,32 +81,16 @@ module mpas_atm_chemistry
 
         call mpas_pool_get_config(configs, 'config_micm_file', filepath_ptr)
 
-        nullify(statePool)
-        nullify(scalarsField)
-        nullify(tracer_names)
-        nullify(tracer_names)
-
-        call mpas_pool_get_subpool(structs, 'state', statePool)
-        if (associated(statePool)) then
-            call mpas_pool_get_field(statePool, 'scalars', scalarsField, 1)
-            if (associated(scalarsField)) then
-                tracer_names => scalarsField%constituentNames
-            end if
-        end if
-
-        ! Initialize MICM with total grid cells = nCells × nVertLevels
-        ! This allows processing all cells in parallel rather than column-by-column
-        if (associated(tracer_names)) then
-            call musica_init(filepath_ptr, nCells * nVertLevels, error_code, error_message, tracer_names)
-        else
-            call musica_init(filepath_ptr, nCells * nVertLevels, error_code, error_message)
-        end if
+        ! Initialize MICM (species already injected into scalars by atm_setup_block)
+        call musica_init(filepath_ptr, nCells * nVertLevels, error_code, error_message)
 
         if (error_code /= 0) then
             call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
         end if
 
         ! Resolve MPAS tracer indices for all chemistry species
+        nullify(statePool)
+        call mpas_pool_get_subpool(structs, 'state', statePool)
         if (associated(statePool)) then
             call resolve_mpas_indices(statePool, error_code, error_message)
             if (error_code /= 0) then
@@ -539,5 +522,36 @@ module mpas_atm_chemistry
 #endif
 
     end subroutine chemistry_seed_chem
+
+
+    !------------------------------------------------------------------------
+    !  subroutine chemistry_query_species
+    !
+    !> \brief Wrapper to query MICM config for chemistry species names
+    !> \details
+    !>  Delegates to musica_query_species. Provides a clean interface
+    !>  for mpas_atm_core_interface without requiring direct musica access.
+    !------------------------------------------------------------------------
+    subroutine chemistry_query_species(config_path, num_species, species_names, error_code, error_message)
+
+#ifdef MPAS_USE_MUSICA
+        use mpas_musica, only: musica_query_species
+#endif
+
+        character(len=*), intent(in)                :: config_path
+        integer, intent(out)                        :: num_species
+        character(len=64), allocatable, intent(out)  :: species_names(:)
+        integer, intent(out)                        :: error_code
+        character(len=:), allocatable, intent(out)   :: error_message
+
+        error_code = 0
+        error_message = ''
+        num_species = 0
+
+#ifdef MPAS_USE_MUSICA
+        call musica_query_species(config_path, num_species, species_names, error_code, error_message)
+#endif
+
+    end subroutine chemistry_query_species
 
 end module mpas_atm_chemistry

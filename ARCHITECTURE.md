@@ -17,29 +17,54 @@ MPAS is a modular, unstructured mesh framework for Earth system modeling. It sup
 ## Architecture Diagram
 
 ```
-                    MPAS Main Driver
-                     (src/driver/)
-                          |
-            +-------------+-------------+
-            |                           |
-      Atmosphere Core             Ocean/Other Core
-            |
-            +---------------------------+
-            |                           |
-        Dynamics                    Physics
-         (SRK3)                  (Convection,
-                                  Radiation,
-                                  Microphysics,
-                                  LSM)
-                                      |
-                                  Chemistry
-                                  (MUSICA/MICM)
+                        MPAS Main Driver
+                         (src/driver/)
+                              |
+                +-------------+-------------+
+                |                           |
+          Atmosphere Core             Ocean/Other Core
+                |
+    +-----------+-----------+
+    |           |           |
+ Dynamics    Physics    Chemistry
+  (SRK3)  (Convection,  (MUSICA/MICM)
+           Radiation,        |
+           Microphysics, Runtime tracer
+           LSM)          discovery from
+                         MICM config
 
-   ================================================
+   ====================================================
         MPAS Framework (Shared)
-        I/O, DMpar, Logging, Halo, etc.
-   ================================================
+        Pools, I/O, DMpar, Logging, Halo, Block Creator
+   ====================================================
 ```
+
+### Chemistry Tracer Flow
+
+Chemistry tracers are **not** defined in `Registry.xml`. They are discovered
+at runtime from the MICM configuration file:
+
+```
+atm_setup_block
+  |-> atm_generate_structs()                  # Registry tracers (qv, qc, qr...)
+  |-> atm_extend_scalars_for_chemistry()      # Queries MICM config
+  |     |-> musica_query_species()            #   Creates temp micm_t, reads species
+  |     |-> Update num_scalars in-place       #   Extends pool dimension via pointer
+  |     |-> Extend constituentNames/attLists  #   Metadata only (arrays not yet allocated)
+  |     |-> Add index_qXX dimensions          #   Per-species index dimensions
+  |
+  |-> mpas_block_creator allocates arrays     # Uses updated num_scalars for sizing
+  |
+  ... later ...
+  |
+chemistry_init
+  |-> musica_init()                           # Full MICM solver instance
+  |-> resolve_mpas_indices()                  # Finds index_qXX from pool
+  |-> chemistry_seed_chem()                   # Seeds MPAS scalars from MICM state
+```
+
+Switching chemistry mechanisms requires only changing the MICM config file —
+no Fortran source or registry edits.
 
 ## Directory Structure
 
