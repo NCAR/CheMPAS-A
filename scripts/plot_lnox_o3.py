@@ -66,10 +66,25 @@ def add_colorbar(cf, ax, label=''):
 
 def save_figure(output_file, dpi=300):
     """Save figure to both PNG and PDF."""
-    plt.savefig(output_file, dpi=dpi, bbox_inches='tight')
-    pdf_file = output_file.replace('.png', '.pdf')
+    png_file = output_file if output_file.endswith('.png') else output_file + '.png'
+    pdf_file = png_file.replace('.png', '.pdf')
+    plt.savefig(png_file, dpi=dpi, bbox_inches='tight')
     plt.savefig(pdf_file, bbox_inches='tight')
-    print(f"  saved {output_file} and {pdf_file}")
+    print(f"  saved {png_file} and {pdf_file}")
+
+
+def smart_levels(data_min, data_max, n=51):
+    """Choose contour levels that reveal structure in the data."""
+    span = data_max - data_min
+    if span < 1e-12:
+        return np.linspace(0, max(data_max, 1e-6), n)
+    # Round to clean boundaries
+    nice = 10 ** np.floor(np.log10(span))
+    lo = np.floor(data_min / nice) * nice
+    hi = np.ceil(data_max / nice) * nice
+    if hi <= lo:
+        hi = lo + nice
+    return np.linspace(lo, hi, n)
 
 
 def load_data(filename):
@@ -216,37 +231,40 @@ def plot_vertical_cross_section(data, time_idx, output_file, y_slice=None,
     z_center_m = z * 1000  # km -> m
     w_xsec = data['w'][time_idx, selected, :] if 'w' in data else None
 
+    # Compute all slices first for shared scaling
+    o3_slice = to_ppbv(data['qO3'][time_idx, selected, :], M_O3)
+    no_slice = to_ppbv(data['qNO'][time_idx, selected, :], M_NO)
+    no2_slice = to_ppbv(data['qNO2'][time_idx, selected, :], M_NO2)
+
+    # Use a shared NOx scale so NO and NO2 are visually comparable
+    nox_vmax = max(no_slice.max(), no2_slice.max(), 1.0)
+    nox_levels = smart_levels(0, nox_vmax)
+
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
-    # (a) O3 in ppbv
+    # (a) O3 in ppbv — show full range anchored at 0
     ax = axes[0, 0]
-    o3_slice = to_ppbv(data['qO3'][time_idx, selected, :], M_O3)
-    o3_max = max(o3_slice.max(), 1e-6)
-    cf = ax.contourf(X, Z, o3_slice.T, levels=50, cmap='ncar_sunset',
-                     vmin=0, vmax=o3_max)
+    o3_levels = smart_levels(0, max(o3_slice.max(), 1.0))
+    cf = ax.contourf(X, Z, o3_slice.T, levels=o3_levels, cmap='ncar_sunset')
     rasterize_contours(cf)
     add_colorbar(cf, ax, label='ppbv')
     overlay_wind(ax)
     ax.set_title(style.format_title('(a) O3'))
     ax.set_ylabel('Height (km)')
 
-    # (b) NO in ppbv
+    # (b) NO in ppbv — same scale as NO2
     ax = axes[0, 1]
-    no_slice = to_ppbv(data['qNO'][time_idx, selected, :], M_NO)
-    no_max = max(no_slice.max(), 1e-6)
-    cf = ax.contourf(X, Z, no_slice.T, levels=50, cmap='ncar_sunset',
-                     vmin=0, vmax=no_max)
+    cf = ax.contourf(X, Z, no_slice.T, levels=nox_levels, cmap='ncar_sunset',
+                     extend='max')
     rasterize_contours(cf)
     add_colorbar(cf, ax, label='ppbv')
     overlay_wind(ax)
     ax.set_title('(b) NO')
 
-    # (c) NO2 in ppbv
+    # (c) NO2 in ppbv — same scale as NO
     ax = axes[1, 0]
-    no2_slice = to_ppbv(data['qNO2'][time_idx, selected, :], M_NO2)
-    no2_max = max(no2_slice.max(), 1e-6)
-    cf = ax.contourf(X, Z, no2_slice.T, levels=50, cmap='ncar_sunset',
-                     vmin=0, vmax=no2_max)
+    cf = ax.contourf(X, Z, no2_slice.T, levels=nox_levels, cmap='ncar_sunset',
+                     extend='max')
     rasterize_contours(cf)
     add_colorbar(cf, ax, label='ppbv')
     overlay_wind(ax)
@@ -258,12 +276,12 @@ def plot_vertical_cross_section(data, time_idx, output_file, y_slice=None,
     ax = axes[1, 1]
     nox_slice = no_slice + no2_slice
     with np.errstate(divide='ignore', invalid='ignore'):
-        ratio = np.where(nox_slice > 1e-6, no2_slice / nox_slice, np.nan)
-    cf = ax.contourf(X, Z, ratio.T, levels=np.linspace(0, 1, 51),
+        ratio = np.where(nox_slice > 0.1, no2_slice / nox_slice, np.nan)
+    cf = ax.contourf(X, Z, ratio.T, levels=np.linspace(0, 1, 21),
                      cmap='coolwarm')
     rasterize_contours(cf)
     cb = add_colorbar(cf, ax, label='fraction')
-    cb.ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.2f}'))
+    cb.ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.1f}'))
     overlay_wind(ax)
     ax.set_title(style.format_title('(d) NO2 / NOx'))
     ax.set_xlabel('X (km)')
@@ -321,12 +339,16 @@ def plot_time_evolution(data, output_file, dt_seconds=60.0):
     ax2.set_title('Domain mean (NOx)')
     ax2.legend()
 
-    # O3 peak and mean
+    # O3: show peak, mean, and min (min shows titration)
+    o3_min = np.array([o3_ppbv[t].min() for t in range(data['nTimes'])])
     ax3.plot(t_min, o3_peak, color=c_o3, lw=2, label=style.species_label('O3') + ' peak')
     ax3.plot(t_min, o3_mean, color=c_o3, lw=2, ls='--', label=style.species_label('O3') + ' mean')
+    ax3.plot(t_min, o3_min, color=c_o3, lw=2, ls=':', label=style.species_label('O3') + ' min')
     ax3.set_xlabel('Time (min)')
     ax3.set_ylabel('Mixing ratio (ppbv)')
     ax3.set_title(style.format_title('O3'))
+    ax3.set_ylim(bottom=0)
+    ax3.yaxis.get_major_formatter().set_useOffset(False)
     ax3.legend()
 
     plt.suptitle(style.format_title('LNOx-O3 Time Evolution'),
@@ -354,8 +376,8 @@ def plot_horizontal_evolution(data, level, output_file, n_times=6,
 
     # Global color scale: use final-time max across all panels
     no_all = to_ppbv(data['qNO'][:], M_NO)
-    vmax = max(no_all[tidx[-1], :, level].max(), 1e-6)
-    shared_levels = np.linspace(0, vmax, 51)
+    vmax = max(no_all[tidx[-1], :, level].max(), 1.0)
+    shared_levels = smart_levels(0, vmax)
 
     n_cols = min(3, len(tidx))
     n_rows = (len(tidx) + n_cols - 1) // n_cols
@@ -408,13 +430,16 @@ def plot_species_comparison(data, level, time_idx, output_file,
     no_ppbv = to_ppbv(data['qNO'][time_idx, :, level], M_NO)
     no2_ppbv = to_ppbv(data['qNO2'][time_idx, :, level], M_NO2)
 
+    # Shared NOx scale
+    nox_vmax = max(no_ppbv.max(), no2_ppbv.max(), 1.0)
+    nox_levels = smart_levels(0, nox_vmax)
+
     fig, axes = plt.subplots(1, 3, figsize=(17, 5))
 
     # NO
     ax = axes[0]
-    vmax_no = max(no_ppbv.max(), 1e-6)
-    cf = ax.tricontourf(tri, no_ppbv, levels=50, cmap='ncar_sunset',
-                        vmin=0, vmax=vmax_no)
+    cf = ax.tricontourf(tri, no_ppbv, levels=nox_levels, cmap='ncar_sunset',
+                        extend='max')
     rasterize_contours(cf)
     add_colorbar(cf, ax, label='ppbv')
     if wind:
@@ -426,9 +451,8 @@ def plot_species_comparison(data, level, time_idx, output_file,
 
     # NO2
     ax = axes[1]
-    vmax_no2 = max(no2_ppbv.max(), 1e-6)
-    cf = ax.tricontourf(tri, no2_ppbv, levels=50, cmap='ncar_sunset',
-                        vmin=0, vmax=vmax_no2)
+    cf = ax.tricontourf(tri, no2_ppbv, levels=nox_levels, cmap='ncar_sunset',
+                        extend='max')
     rasterize_contours(cf)
     add_colorbar(cf, ax, label='ppbv')
     if wind:
@@ -642,8 +666,8 @@ def main():
                         help='Vertical level index (default: auto ~5 km)')
     parser.add_argument('-t', '--time', type=int, default=-1,
                         help='Time index (default: -1 = last)')
-    parser.add_argument('--dt', type=float, default=60.0,
-                        help='Output interval in seconds (default: 60)')
+    parser.add_argument('--dt', type=float, default=30.0,
+                        help='Output interval in seconds (default: 30)')
     parser.add_argument('--y-slice', type=float, default=None,
                         help='Y for cross-section (default: max updraft)')
     parser.add_argument('--show', action='store_true',
@@ -703,7 +727,7 @@ def main():
     print(f"  peak NO = {no_max:.2f} ppbv, peak NO2 = {no2_max:.2f} ppbv")
     print(f"  peak O3 = {o3_max:.2f} ppbv, mean O3 = {o3_mean:.2f} ppbv")
 
-    base = args.output
+    base = args.output.removesuffix('.png').removesuffix('.pdf')
 
     if not any([args.all, args.vertical, args.evolution, args.horizontal,
                 args.comparison, args.profiles, args.source]):

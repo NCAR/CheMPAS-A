@@ -5,18 +5,28 @@
 - `Historical Context:` Adapted from ancestor project plans — the TUV-x
   photolysis plan (`MPAS-Model-ACOM-dev/PLAN_TUVx.md`) and the DAVINCI
   lightning-NOx/O3 mechanism (`DAVINCI-MPAS/PLAN.md` Phase 6, `SCIENCE.md`).
-- `Current State:` Phase 0 in progress. Lightning source module built and
-  compiling. MICM config and test runs next.
+- `Current State:` Phase 0 largely complete (2026-03-06). LNOx-O3 mechanism
+  running end-to-end: lightning source injects NO, Arrhenius titration produces
+  NO2, O3 depletion visible in updraft core. Photolysis rates default to 0
+  (disabled) until TUV-x integration. Remaining: Leighton/Ox verification cases,
+  realistic source rate tuning.
 - `Use This As:` Primary reference for post-ABBA chemistry development.
 
 ## Locked Decisions (2026-03-06)
 
 1. **NOx sink path:** Carry over NOx loss via MICM-configured sink terms (not
    hard-coded Fortran sink tendencies).
-2. **Lightning source path:** Keep source integrated in the chemistry solver
-   path (no pre-solver operator-split source update).
+2. **Lightning source path:** Operator-split pre-MICM injection via standalone
+   `mpas_lightning_nox.F` module. MICM doesn't support spatially varying source
+   terms, so injection happens before solve.
 3. **Verification:** Include a dedicated controlled-NOx pulse/equilibration
    case for Leighton-ratio validation.
+4. **MICM units:** Concentrations in mol/m³. Arrhenius `A` must be in m³/mol/s
+   (convert from cm³/molecule/s via `A × Nₐ × 10⁻⁶`). Photolysis rate
+   parameters in s⁻¹, set externally.
+5. **Initial conditions:** Set via MPAS init file (kg/kg), not MICM config.
+   MICM `__initial concentration` is required by the parser but overwritten
+   by state transfer; set to 0.
 
 ## Strategic Direction
 
@@ -123,20 +133,23 @@ NOx sink are disabled.
 - [x] `mpas_atm_chemistry.F` — hook lightning init and inject into chemistry pipeline
 - [x] `chemistry/Makefile` — build integration with dependency ordering
 - [x] Build passes with MUSICA=true
-- [ ] Create `lnox_o3.json` MICM mechanism config with:
-   - Species: NO, NO2, O3
-   - Arrhenius reaction: NO + O3 → NO2 + O2
-   - Photolysis reaction: NO2 + hv → NO + O3 (fixed rate)
-   - Molar masses for each species
-- [ ] Point `config_micm_file` at the new config. Runtime tracer discovery
-   gives us `qNO`, `qNO2`, `qO3` automatically.
-- [ ] **Case A (equilibrium diagnostic):** initialize O3 to uniform background
-   (~50 ppbv) and apply a small controlled NOx pulse/seed (non-zero NO and NO2),
-   with lightning source off, to verify Leighton behavior and Ox conservation.
-- [ ] **Case B (storm chemistry):** initialize O3 background (~50 ppbv), NO=NO2=0,
-   lightning source on, to verify O3 titration/recovery patterns.
-- [ ] Add/verify diagnostic conversions for ppbv reporting from MPAS tracer mixing
-   ratios so verification thresholds are unit-consistent.
+- [x] `micm_configs/lnox_o3.yaml` — MICM config (YAML v1 format) with:
+   - Species: NO, NO2, O3 (molar masses, `__initial concentration: 0`)
+   - Arrhenius reaction: NO + O3 → NO2 (A=1.084e6 m³/mol/s, C=-1370)
+   - Photolysis reaction: NO2 + hv → NO + O3 (rate set externally)
+- [x] Runtime tracer discovery: `qNO`, `qNO2`, `qO3` created automatically
+- [x] `scripts/init_lnox_o3.py` — initialize tracers in supercell_init.nc
+- [x] `scripts/plot_lnox_o3.py` + `scripts/style.py` — visualization suite
+- [x] `mpas_musica.F` — default photolysis rate parameters to 0 (was 1.0)
+- [x] Arrhenius A parameter corrected from cm³/molecule/s to m³/mol/s
+- [x] **Case B (storm chemistry):** 15-min supercell run with lightning source
+   produces visible O3 titration in updraft core. NO peaks ~3500 ppbv (at
+   artificially high 50 ppbv/s source rate), NO2 produced via Arrhenius, O3
+   depleted to near zero where NO is injected.
+- [ ] **Case A (equilibrium diagnostic):** Leighton ratio and Ox conservation
+   verification with controlled NOx pulse (requires nonzero j_NO2)
+- [ ] Tune source rate to physically realistic value (~0.5 ppbv/s) and re-run
+- [ ] Add/verify ppbv diagnostic conversions for unit-consistent verification
 
 ### Verification Criteria (from DAVINCI Phase 6)
 
@@ -214,6 +227,6 @@ The DAVINCI project (`~/EarthSystem/DAVINCI-MPAS/`) contains:
 ## Dependencies
 
 - MUSICA-Fortran with MICM support (already linked)
-- MICM LNOx-O3 mechanism config (to be created)
+- MICM LNOx-O3 mechanism config (`micm_configs/lnox_o3.yaml`, done)
 - TUV-x support in MUSICA-Fortran (Phase 2+)
 - Python `netCDF4` for verification scripts
