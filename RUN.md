@@ -4,7 +4,7 @@ This document describes how to run MPAS atmosphere test cases.
 
 ## Supercell Test Case
 
-The supercell thunderstorm is an idealized convection test case located at `~/MPAS/supercell`.
+The supercell thunderstorm is an idealized convection test case located at `~/Data/MPAS/supercell`. This directory is shared with the upstream MPAS-Model-ACOM-dev project.
 
 ### Important: I/O Configuration
 
@@ -38,7 +38,7 @@ The `streams.atmosphere` file must use `io_type="netcdf"` for input and output s
 ### Running the Test
 
 ```bash
-cd ~/MPAS/supercell
+cd ~/Data/MPAS/supercell
 
 # Archive previous run output (if any)
 timestamp=$(date +%Y%m%d_%H%M%S)
@@ -96,7 +96,7 @@ Look for final timestep and timing statistics.
 Create a helper script `run.sh`:
 ```bash
 #!/bin/bash
-cd ~/MPAS/supercell
+cd ~/Data/MPAS/supercell
 
 # Archive previous output
 ts=$(date +%Y%m%d_%H%M%S)
@@ -115,7 +115,7 @@ To visualize advection effects on chemistry tracers, use custom initial conditio
 ### Initialize with Sine Wave Pattern
 
 ```bash
-cd ~/MPAS/supercell
+cd ~/Data/MPAS/supercell
 
 # Backup uniform initial conditions
 cp supercell_init.nc supercell_init_uniform.nc
@@ -146,7 +146,7 @@ For visible advection displacement, run 10-15 minutes:
 ### Visualization
 
 ```bash
-cd ~/MPAS/supercell
+cd ~/Data/MPAS/supercell
 
 # Main summary plot
 ~/miniconda3/envs/mpas/bin/python plot_chemistry.py -o chemistry.png
@@ -163,4 +163,4 @@ open chemistry.png chemistry_timeseries.png chemistry_diff.png
 
 ## Other Test Cases
 
-Additional test cases can be added to `~/MPAS/` following the same pattern.
+Additional test cases can be added to `~/Data/MPAS/` following the same pattern.

@@ -149,7 +149,7 @@ Packages: numpy, matplotlib, netcdf4
 
 **plot_chemistry.py usage:**
 ```bash
-cd ~/CheMPAS/supercell
+cd ~/Data/MPAS/supercell
 ~/miniconda3/envs/mpas/bin/python plot_chemistry.py -o output.png
 ~/miniconda3/envs/mpas/bin/python plot_chemistry.py --time-series  # Spatial evolution
 ~/miniconda3/envs/mpas/bin/python plot_chemistry.py --diff          # Difference from t=0
@@ -163,6 +163,6 @@ python init_tracer_sine.py -i supercell_init.nc -t qAB --waves-x 2 --amplitude 0
 
 ## Test Run Directory
 
-The supercell test case is located at `~/CheMPAS/supercell/`. See `RUN.md` for execution instructions.
+The supercell test case is located at `~/Data/MPAS/supercell/` (shared with MPAS-Model-ACOM-dev). See `RUN.md` for execution instructions.
 
 **Important:** The `streams.atmosphere` file must use `io_type="netcdf"` to avoid PnetCDF compatibility issues on macOS/LLVM builds.
