@@ -40,7 +40,7 @@ allocation). Key differences:
 ## Scope Decisions (From Ancestor, Still Valid)
 
 - Target real-world meshes first (correctness over early optimization).
-- Disable `state_ref` chemistry path during TUV-x integration.
+- Keep `state_ref` chemistry path (useful for advection diagnostics).
 - Phase 1 uses per-column photolysis (no SZA-only binning).
 - Primary test domain top is ~20 km. Full stratospheric Chapman validation
   deferred to Phase 6 high-top/offline tests.
@@ -90,26 +90,30 @@ Dynamics -> Physics -> Chemistry (mpas_atm_chemistry.F)
 **Goal:** Clean baseline for Chapman chemistry without TUV-x.
 
 **Implementation:**
-1. Switch `config_micm_file` to `chapman_simplified.json` (runtime tracer
-   discovery handles the rest — no Registry.xml tracer edits needed).
-2. Add remaining MUSICA namelist options to Registry.xml:
+1. Create `chapman_simplified.json` MICM config with fixed (constant)
+   photolysis rates — no TUV-x yet. Switch `config_micm_file` to point to
+   it. Runtime tracer discovery handles `qO3/qO2/qO` automatically.
+2. Verify the coupled run produces physically plausible Chapman chemistry
+   with constant photolysis (O3 photolysis, O recombination, steady state).
+3. Add remaining MUSICA namelist options to Registry.xml:
    - `config_tuvx_config_file`
    - `config_chemistry_latitude` / `config_chemistry_longitude`
    - `config_musica_internal_max_step_s`
    - `config_musica_solver_fallback`
-3. Remove `state_ref` allocation and stepping.
-4. Fix chemistry loops to use `nCellsSolve` instead of `nCells` (exclude halo
+4. Keep `state_ref` for now (useful for diagnosing advection effects).
+5. Fix chemistry loops to use `nCellsSolve` instead of `nCells` (exclude halo
    cells in MPI runs).
-5. Code hardening:
+6. Code hardening:
    - Eliminate per-timestep allocate/deallocate churn for work arrays.
    - Add warning log on pressure fallback.
    - Add explicit `musica_finalize` cleanup.
    - Cache species/rate-parameter indices at init.
 
 **Exit criteria:**
-- Build passes, initializes with Chapman tracers.
+- Build passes, initializes with Chapman tracers via runtime discovery.
+- Chapman chemistry with fixed photolysis rates produces physically plausible
+  O3/O2/O steady-state behavior.
 - Tracer fields remain physically bounded (no negative qO3, qO2, qO).
-- All ABBA-specific artifacts removed from active source.
 
 ### Phase 1: Solar Geometry and Day/Night Physics
 
@@ -230,7 +234,7 @@ These will be adapted to CheMPAS conventions as each phase begins.
 
 | File | Changes |
 |------|---------|
-| `mpas_musica.F` | TUV-x lifecycle, rate-parameter mapping, adaptive sub-stepping, remove state_ref |
+| `mpas_musica.F` | TUV-x lifecycle, rate-parameter mapping, adaptive sub-stepping |
 | `mpas_atm_chemistry.F` | Extract runtime fields for TUV-x, fix nCellsSolve loops |
 | `Registry.xml` | Add MUSICA namelist options (not tracers — those are runtime) |
 | `chemistry/musica/Makefile` | Compile/link mpas_tuvx_setup.o |
