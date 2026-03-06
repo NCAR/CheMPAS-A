@@ -8,7 +8,7 @@ Work on MUSICA/MICM atmospheric chemistry integration with MPAS.
 |------|---------|
 | `src/core_atmosphere/chemistry/mpas_atm_chemistry.F` | Generic chemistry interface |
 | `src/core_atmosphere/chemistry/musica/mpas_musica.F` | MUSICA/MICM coupler |
-| `src/core_atmosphere/Registry.xml` | Variable definitions |
+| `src/core_atmosphere/Registry.xml` | Core metadata (non-chemistry tracers); MUSICA tracers are runtime-injected |
 
 ## Build with MUSICA
 
