@@ -15,7 +15,7 @@
 
 ## Active Plans
 
-- None currently.
+- [TUV-x Photolysis Integration](docs/plans/2026-03-06-tuvx-photolysis-integration.md) — 9-phase plan to replace hardcoded photolysis with TUV-x radiative transfer (not yet started)
 
 ## Historical Plans
 
