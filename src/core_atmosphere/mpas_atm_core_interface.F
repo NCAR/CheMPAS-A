@@ -675,14 +675,12 @@ module atm_core_interface
       type (mpas_pool_type), pointer :: statePool, tendPool
       type (field3dReal), pointer :: fieldPtr
 
-      real (kind=RKIND), dimension(:,:,:), pointer :: old_array, new_array
       character(len=StrKIND), dimension(:), pointer :: old_names, new_names
       type (att_lists_type), dimension(:), pointer :: old_atts, new_atts
 
       integer :: old_count, new_count, t, i, j
-      integer :: nVertLevels, nCells
-      integer, pointer :: nVertLevels_ptr, nCells_ptr
       integer :: err_level
+      integer, pointer :: dimPtr
 
       ierr = 0
 
@@ -720,13 +718,10 @@ module atm_core_interface
       call mpas_log_write('[Chemistry] Extending scalars with $i chemistry tracers', &
                           intArgs=[num_chem_species])
 
-      ! Get dimensions
-      call mpas_pool_get_dimension(block % dimensions, 'nVertLevels', nVertLevels_ptr)
-      call mpas_pool_get_dimension(block % dimensions, 'nCells', nCells_ptr)
-      nVertLevels = nVertLevels_ptr
-      nCells = nCells_ptr
-
-      ! --- Extend scalars in state pool ---
+      ! --- Extend scalars metadata in state pool ---
+      ! NOTE: At atm_setup_block time, field arrays are NOT yet allocated.
+      ! We only modify metadata (num_scalars, constituentNames, attLists, index dims).
+      ! The framework will allocate correctly-sized arrays later using num_scalars.
       nullify(statePool)
       call mpas_pool_get_subpool(block % structs, 'state', statePool)
       if (.not. associated(statePool)) then
@@ -735,7 +730,7 @@ module atm_core_interface
          return
       end if
 
-      ! Get time level 1 to determine current size
+      ! Get time level 1 to determine current constituent count
       nullify(fieldPtr)
       call mpas_pool_get_field(statePool, 'scalars', fieldPtr, 1)
       if (.not. associated(fieldPtr)) then
@@ -744,22 +739,28 @@ module atm_core_interface
          return
       end if
 
-      old_count = size(fieldPtr % array, 1)
+      old_count = size(fieldPtr % constituentNames)
       new_count = old_count + num_chem_species
 
       call mpas_log_write('[Chemistry] scalars: old_count=$i new_count=$i', &
                           intArgs=[old_count, new_count])
 
-      ! Update num_scalars dimension
-      call mpas_pool_add_dimension(statePool, 'num_scalars', new_count)
+      ! Update num_scalars dimension (must modify in-place; mpas_pool_add_dimension
+      ! silently ignores duplicate keys)
+      nullify(dimPtr)
+      call mpas_pool_get_dimension(statePool, 'num_scalars', dimPtr)
+      if (associated(dimPtr)) then
+         dimPtr = new_count
+      else
+         call mpas_pool_add_dimension(statePool, 'num_scalars', new_count)
+      end if
 
-      ! Extend each time level (scalars has 2 time levels)
+      ! Extend metadata for each time level (scalars has 2 time levels)
       do t = 1, 2
          nullify(fieldPtr)
          call mpas_pool_get_field(statePool, 'scalars', fieldPtr, t)
 
-         call extend_field3d(fieldPtr, old_count, new_count, num_chem_species, &
-                             chem_names, nVertLevels, nCells)
+         call extend_field_metadata(fieldPtr, old_count, new_count, num_chem_species, chem_names)
       end do
 
       ! Add index dimensions for each chemistry tracer
@@ -769,7 +770,7 @@ module atm_core_interface
                              intArgs=[old_count + i])
       end do
 
-      ! --- Extend scalars_tend in tend pool ---
+      ! --- Extend scalars_tend metadata in tend pool ---
       nullify(tendPool)
       call mpas_pool_get_subpool(block % structs, 'tend', tendPool)
       if (.not. associated(tendPool)) then
@@ -786,14 +787,19 @@ module atm_core_interface
          return
       end if
 
-      old_count = size(fieldPtr % array, 1)
+      old_count = size(fieldPtr % constituentNames)
       new_count = old_count + num_chem_species
 
-      call mpas_pool_add_dimension(tendPool, 'num_scalars_tend', new_count)
+      nullify(dimPtr)
+      call mpas_pool_get_dimension(tendPool, 'num_scalars_tend', dimPtr)
+      if (associated(dimPtr)) then
+         dimPtr = new_count
+      else
+         call mpas_pool_add_dimension(tendPool, 'num_scalars_tend', new_count)
+      end if
 
       ! scalars_tend has 1 time level
-      call extend_field3d(fieldPtr, old_count, new_count, num_chem_species, &
-                          chem_names, nVertLevels, nCells)
+      call extend_field_metadata(fieldPtr, old_count, new_count, num_chem_species, chem_names)
 
       ! Add index dimensions for tend pool too
       do i = 1, num_chem_species
@@ -806,25 +812,15 @@ module atm_core_interface
 
       contains
 
-      subroutine extend_field3d(fld, old_n, new_n, n_chem, names, nVert, nCell)
+      subroutine extend_field_metadata(fld, old_n, new_n, n_chem, names)
 
          type (field3dReal), pointer, intent(inout) :: fld
-         integer, intent(in) :: old_n, new_n, n_chem, nVert, nCell
+         integer, intent(in) :: old_n, new_n, n_chem
          character(len=64), intent(in) :: names(:)
 
-         real (kind=RKIND), dimension(:,:,:), pointer :: old_arr, new_arr
          character(len=StrKIND), dimension(:), pointer :: onames, nnames
          type (att_lists_type), dimension(:), pointer :: oatts, natts
          integer :: ii, jj
-
-         ! Extend data array
-         old_arr => fld % array
-         allocate(new_arr(new_n, nVert, nCell))
-         new_arr = 0.0_RKIND
-         new_arr(1:old_n, :, :) = old_arr(1:old_n, :, :)
-         fld % array => new_arr
-         deallocate(old_arr)
-         fld % dimSizes(1) = new_n
 
          ! Extend constituentNames
          onames => fld % constituentNames
@@ -846,10 +842,9 @@ module atm_core_interface
             allocate(natts(jj) % attList)
          end do
          fld % attLists => natts
-         ! Shallow-copied elements; only deallocate the container
          deallocate(oatts)
 
-      end subroutine extend_field3d
+      end subroutine extend_field_metadata
 
    end function atm_extend_scalars_for_chemistry
 #endif
