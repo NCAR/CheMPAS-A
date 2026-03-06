@@ -515,12 +515,15 @@ module mpas_atm_chemistry
             end if
         end do
 
-        ! Skip seeding if first chemistry tracer already has spatial gradients (initialized from file)
-        mpas_idx = chem_species(1)%mpas_index
-        if (maxval(scalars_time1(mpas_idx,:,:)) - minval(scalars_time1(mpas_idx,:,:)) > 1.0e-10_RKIND) then
-            call mpas_log_write('[MUSICA] Tracers already initialized with gradients, skipping MICM seed.')
-            return
-        end if
+        ! Skip seeding if any chemistry tracer already has spatial gradients (initialized from file)
+        do i_sp = 1, n_chem_species
+            mpas_idx = chem_species(i_sp)%mpas_index
+            if (maxval(scalars_time1(mpas_idx,:,:)) - minval(scalars_time1(mpas_idx,:,:)) > 1.0e-10_RKIND) then
+                call mpas_log_write('[MUSICA] Tracer ' // trim(chem_species(i_sp)%mpas_name) // &
+                    ' has spatial gradients, skipping MICM seed.')
+                return
+            end if
+        end do
 
         error_code = 0
         call micm_to_mpas_chem(scalars_time1, nCells, nVertLevels, error_code, error_message)
