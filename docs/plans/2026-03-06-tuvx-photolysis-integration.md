@@ -5,7 +5,8 @@
 - `Historical Context:` Adapted from ancestor project plans — the TUV-x
   photolysis plan (`MPAS-Model-ACOM-dev/PLAN_TUVx.md`) and the DAVINCI
   lightning-NOx/O3 mechanism (`DAVINCI-MPAS/PLAN.md` Phase 6, `SCIENCE.md`).
-- `Current State:` Planning stage. Phase 0 next.
+- `Current State:` Phase 0 in progress. Lightning source module built and
+  compiling. MICM config and test runs next.
 - `Use This As:` Primary reference for post-ABBA chemistry development.
 
 ## Locked Decisions (2026-03-06)
@@ -97,35 +98,44 @@ NOx sink are disabled.
 
 ### Source/Sink Coupling Strategy (Decided)
 
-1. **Integrated source in solver path** — Implement lightning source as a MICM
-   source reaction with per-cell rate parameter updates each chemistry step.
-2. **Sink in MICM config** — Represent NOx loss through mechanism-defined
-   first-order sink terms (e.g., NO and NO2 sink pathways) with configurable
-   timescale `tau`.
-3. **No operator-split source path in Phase 0** — Do not inject source as a
-   pre-MICM tracer tendency update.
+1. **Operator-split lightning source** — A standalone Fortran module
+   (`mpas_lightning_nox.F`) injects NO into MPAS scalars before MICM runs each
+   timestep. Source scales linearly with updraft strength:
+   `S = rate * max(0, w - w_thr) / w_ref` in cells where altitude is in range.
+   This is the same approach used in DAVINCI-MPAS, adapted to work with MPAS
+   pools directly (no DAVINCI state types). The module is a complete no-op if
+   `qNO` is not present in the mechanism or `config_lnox_source_rate = 0`.
 
-### Implementation Steps
+2. **Chemistry in MICM** — The NO/NO2/O3 reactions (Arrhenius titration +
+   photolysis) are defined in the MICM config. MICM handles the ODE solve.
 
-1. Create `lnox_o3.json` MICM mechanism config with:
+3. **Sink in MICM config** — NOx loss through mechanism-defined first-order
+   sink terms with configurable timescale `tau`.
+
+4. **Namelist control** — Five parameters in `&musica`: `config_lnox_source_rate`,
+   `config_lnox_w_threshold`, `config_lnox_w_ref`, `config_lnox_z_min`,
+   `config_lnox_z_max`.
+
+### Implementation Progress
+
+- [x] `mpas_lightning_nox.F` — lightning source module (init + inject)
+- [x] Registry.xml — namelist parameters for lightning source
+- [x] `mpas_atm_chemistry.F` — hook lightning init and inject into chemistry pipeline
+- [x] `chemistry/Makefile` — build integration with dependency ordering
+- [x] Build passes with MUSICA=true
+- [ ] Create `lnox_o3.json` MICM mechanism config with:
    - Species: NO, NO2, O3
    - Arrhenius reaction: NO + O3 → NO2 + O2
    - Photolysis reaction: NO2 + hv → NO + O3 (fixed rate)
-   - Lightning source reaction(s) for NO with per-cell rate parameter input
-   - NOx sink reaction(s) with configurable `tau`
    - Molar masses for each species
-
-2. Point `config_micm_file` at the new config. Runtime tracer discovery
+- [ ] Point `config_micm_file` at the new config. Runtime tracer discovery
    gives us `qNO`, `qNO2`, `qO3` automatically.
-
-3. **Case A (equilibrium diagnostic):** initialize O3 to uniform background
+- [ ] **Case A (equilibrium diagnostic):** initialize O3 to uniform background
    (~50 ppbv) and apply a small controlled NOx pulse/seed (non-zero NO and NO2),
    with lightning source off, to verify Leighton behavior and Ox conservation.
-
-4. **Case B (storm chemistry):** initialize O3 background (~50 ppbv), NO=NO2=0,
+- [ ] **Case B (storm chemistry):** initialize O3 background (~50 ppbv), NO=NO2=0,
    lightning source on, to verify O3 titration/recovery patterns.
-
-5. Add/verify diagnostic conversions for ppbv reporting from MPAS tracer mixing
+- [ ] Add/verify diagnostic conversions for ppbv reporting from MPAS tracer mixing
    ratios so verification thresholds are unit-consistent.
 
 ### Verification Criteria (from DAVINCI Phase 6)
@@ -147,7 +157,7 @@ NOx sink are disabled.
 - Case A passes Leighton + Ox checks with controlled NOx initialization.
 - 30-minute supercell run (Case B) produces physically plausible O3 titration.
 - Tracer fields remain non-negative.
-- Source/sink behavior matches configured mechanism terms (no operator-split path).
+- Lightning source activates only in updraft cores within altitude range.
 
 ## Phase 1: Solar Geometry and Day/Night Physics
 
