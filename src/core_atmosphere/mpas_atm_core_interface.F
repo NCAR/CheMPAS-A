@@ -495,6 +495,14 @@ module atm_core_interface
          ierr = atm_allocate_scalars(block, cam_pcnst)
       end if
 
+#ifdef MPAS_USE_MUSICA
+      ierr = atm_extend_scalars_for_chemistry(block)
+      if (ierr /= 0) then
+         call mpas_log_write('** Error extending scalars for chemistry', messageType=MPAS_LOG_ERR)
+         return
+      end if
+#endif
+
    end function atm_setup_block
 
 
@@ -630,6 +638,222 @@ module atm_core_interface
       call mpas_pool_add_field(block % allFields, 'scalars_tend', scalarsField)
 
    end function atm_allocate_scalars
+
+
+#ifdef MPAS_USE_MUSICA
+   !-----------------------------------------------------------------------
+   !
+   !  function atm_extend_scalars_for_chemistry
+   !
+   !> \brief   Extend scalars/scalars_tend with chemistry tracers from MICM
+   !> \author  CheMPAS-A Developers
+   !> \date    March 2026
+   !> \details
+   !>  Queries MICM config for species names, then extends the existing
+   !>  scalars and scalars_tend var_arrays by appending chemistry tracers.
+   !>  Called from atm_setup_block after atm_generate_structs.
+   !
+   !-----------------------------------------------------------------------
+   function atm_extend_scalars_for_chemistry(block) result(ierr)
+
+      use mpas_atm_chemistry, only : chemistry_query_species
+      use mpas_kind_types,    only : StrKIND, RKIND
+      use mpas_log,           only : mpas_log_write
+
+      implicit none
+
+      type (block_type), pointer :: block
+      integer :: ierr
+
+      ! Local variables
+      character(len=StrKIND), pointer :: config_micm_file
+      integer :: num_chem_species
+      character(len=64), allocatable :: chem_names(:)
+      integer :: error_code
+      character(len=:), allocatable :: error_message
+
+      type (mpas_pool_type), pointer :: statePool, tendPool
+      type (field3dReal), pointer :: fieldPtr
+
+      real (kind=RKIND), dimension(:,:,:), pointer :: old_array, new_array
+      character(len=StrKIND), dimension(:), pointer :: old_names, new_names
+      type (att_lists_type), dimension(:), pointer :: old_atts, new_atts
+
+      integer :: old_count, new_count, t, i, j
+      integer :: nVertLevels, nCells
+      integer, pointer :: nVertLevels_ptr, nCells_ptr
+      integer :: err_level
+
+      ierr = 0
+
+      ! Get MICM config path from namelist
+      nullify(config_micm_file)
+      err_level = mpas_pool_get_error_level()
+      call mpas_pool_set_error_level(MPAS_POOL_SILENT)
+      call mpas_pool_get_config(block % domain % configs, 'config_micm_file', config_micm_file)
+      call mpas_pool_set_error_level(err_level)
+
+      if (.not. associated(config_micm_file)) then
+         call mpas_log_write('[Chemistry] No config_micm_file found; skipping dynamic tracer allocation')
+         return
+      end if
+
+      if (len_trim(config_micm_file) == 0) then
+         call mpas_log_write('[Chemistry] config_micm_file is empty; skipping dynamic tracer allocation')
+         return
+      end if
+
+      ! Query MICM for species names
+      call chemistry_query_species(config_micm_file, num_chem_species, chem_names, error_code, error_message)
+      if (error_code /= 0) then
+         call mpas_log_write('[Chemistry] Error querying MICM species: ' // trim(error_message), &
+                             messageType=MPAS_LOG_ERR)
+         ierr = error_code
+         return
+      end if
+
+      if (num_chem_species == 0) then
+         call mpas_log_write('[Chemistry] MICM config has no species; no tracers to add')
+         return
+      end if
+
+      call mpas_log_write('[Chemistry] Extending scalars with $i chemistry tracers', &
+                          intArgs=[num_chem_species])
+
+      ! Get dimensions
+      call mpas_pool_get_dimension(block % dimensions, 'nVertLevels', nVertLevels_ptr)
+      call mpas_pool_get_dimension(block % dimensions, 'nCells', nCells_ptr)
+      nVertLevels = nVertLevels_ptr
+      nCells = nCells_ptr
+
+      ! --- Extend scalars in state pool ---
+      nullify(statePool)
+      call mpas_pool_get_subpool(block % structs, 'state', statePool)
+      if (.not. associated(statePool)) then
+         call mpas_log_write('[Chemistry] No state pool found', messageType=MPAS_LOG_ERR)
+         ierr = 1
+         return
+      end if
+
+      ! Get time level 1 to determine current size
+      nullify(fieldPtr)
+      call mpas_pool_get_field(statePool, 'scalars', fieldPtr, 1)
+      if (.not. associated(fieldPtr)) then
+         call mpas_log_write('[Chemistry] No scalars field found in state pool', messageType=MPAS_LOG_ERR)
+         ierr = 1
+         return
+      end if
+
+      old_count = size(fieldPtr % array, 1)
+      new_count = old_count + num_chem_species
+
+      call mpas_log_write('[Chemistry] scalars: old_count=$i new_count=$i', &
+                          intArgs=[old_count, new_count])
+
+      ! Update num_scalars dimension
+      call mpas_pool_add_dimension(statePool, 'num_scalars', new_count)
+
+      ! Extend each time level (scalars has 2 time levels)
+      do t = 1, 2
+         nullify(fieldPtr)
+         call mpas_pool_get_field(statePool, 'scalars', fieldPtr, t)
+
+         call extend_field3d(fieldPtr, old_count, new_count, num_chem_species, &
+                             chem_names, nVertLevels, nCells)
+      end do
+
+      ! Add index dimensions for each chemistry tracer
+      do i = 1, num_chem_species
+         call mpas_pool_add_dimension(statePool, 'index_' // trim(chem_names(i)), old_count + i)
+         call mpas_log_write('[Chemistry] Added index_' // trim(chem_names(i)) // ' = $i', &
+                             intArgs=[old_count + i])
+      end do
+
+      ! --- Extend scalars_tend in tend pool ---
+      nullify(tendPool)
+      call mpas_pool_get_subpool(block % structs, 'tend', tendPool)
+      if (.not. associated(tendPool)) then
+         call mpas_log_write('[Chemistry] No tend pool found', messageType=MPAS_LOG_ERR)
+         ierr = 1
+         return
+      end if
+
+      nullify(fieldPtr)
+      call mpas_pool_get_field(tendPool, 'scalars_tend', fieldPtr, 1)
+      if (.not. associated(fieldPtr)) then
+         call mpas_log_write('[Chemistry] No scalars_tend field found', messageType=MPAS_LOG_ERR)
+         ierr = 1
+         return
+      end if
+
+      old_count = size(fieldPtr % array, 1)
+      new_count = old_count + num_chem_species
+
+      call mpas_pool_add_dimension(tendPool, 'num_scalars_tend', new_count)
+
+      ! scalars_tend has 1 time level
+      call extend_field3d(fieldPtr, old_count, new_count, num_chem_species, &
+                          chem_names, nVertLevels, nCells)
+
+      ! Add index dimensions for tend pool too
+      do i = 1, num_chem_species
+         call mpas_pool_add_dimension(tendPool, 'index_' // trim(chem_names(i)), old_count + i)
+      end do
+
+      if (allocated(chem_names)) deallocate(chem_names)
+
+      call mpas_log_write('[Chemistry] Dynamic tracer allocation complete')
+
+      contains
+
+      subroutine extend_field3d(fld, old_n, new_n, n_chem, names, nVert, nCell)
+
+         type (field3dReal), pointer, intent(inout) :: fld
+         integer, intent(in) :: old_n, new_n, n_chem, nVert, nCell
+         character(len=64), intent(in) :: names(:)
+
+         real (kind=RKIND), dimension(:,:,:), pointer :: old_arr, new_arr
+         character(len=StrKIND), dimension(:), pointer :: onames, nnames
+         type (att_lists_type), dimension(:), pointer :: oatts, natts
+         integer :: ii, jj
+
+         ! Extend data array
+         old_arr => fld % array
+         allocate(new_arr(new_n, nVert, nCell))
+         new_arr = 0.0_RKIND
+         new_arr(1:old_n, :, :) = old_arr(1:old_n, :, :)
+         fld % array => new_arr
+         deallocate(old_arr)
+         fld % dimSizes(1) = new_n
+
+         ! Extend constituentNames
+         onames => fld % constituentNames
+         allocate(nnames(new_n))
+         nnames(1:old_n) = onames(1:old_n)
+         do ii = 1, n_chem
+            nnames(old_n + ii) = trim(names(ii))
+         end do
+         fld % constituentNames => nnames
+         deallocate(onames)
+
+         ! Extend attLists
+         oatts => fld % attLists
+         allocate(natts(new_n))
+         do jj = 1, old_n
+            natts(jj) = oatts(jj)
+         end do
+         do jj = old_n + 1, new_n
+            allocate(natts(jj) % attList)
+         end do
+         fld % attLists => natts
+         ! Shallow-copied elements; only deallocate the container
+         deallocate(oatts)
+
+      end subroutine extend_field3d
+
+   end function atm_extend_scalars_for_chemistry
+#endif
+
 
 #include "setup_immutable_streams.inc"
 

@@ -27,6 +27,7 @@ module mpas_atm_chemistry
 
     public :: chemistry_init, chemistry_step, chemistry_finalize, chemistry_seed_chem
     public :: chemistry_from_MPAS, chemistry_to_MPAS
+    public :: chemistry_query_species
 
     contains
 
@@ -539,5 +540,36 @@ module mpas_atm_chemistry
 #endif
 
     end subroutine chemistry_seed_chem
+
+
+    !------------------------------------------------------------------------
+    !  subroutine chemistry_query_species
+    !
+    !> \brief Wrapper to query MICM config for chemistry species names
+    !> \details
+    !>  Delegates to musica_query_species. Provides a clean interface
+    !>  for mpas_atm_core_interface without requiring direct musica access.
+    !------------------------------------------------------------------------
+    subroutine chemistry_query_species(config_path, num_species, species_names, error_code, error_message)
+
+#ifdef MPAS_USE_MUSICA
+        use mpas_musica, only: musica_query_species
+#endif
+
+        character(len=*), intent(in)                :: config_path
+        integer, intent(out)                        :: num_species
+        character(len=64), allocatable, intent(out)  :: species_names(:)
+        integer, intent(out)                        :: error_code
+        character(len=:), allocatable, intent(out)   :: error_message
+
+        error_code = 0
+        error_message = ''
+        num_species = 0
+
+#ifdef MPAS_USE_MUSICA
+        call musica_query_species(config_path, num_species, species_names, error_code, error_message)
+#endif
+
+    end subroutine chemistry_query_species
 
 end module mpas_atm_chemistry
