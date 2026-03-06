@@ -571,25 +571,34 @@ module mpas_musica
     end subroutine MICM_to_chemistry
 
     subroutine assign_rate_parameters(state, number_of_grid_cells)
-        ! Provide a default value for any rate parameters (none for ABBA by default).
+        ! Set default rate parameters.  Photolysis rates default to 0
+        ! (disabled) until TUV-x integration provides real values.
         use iso_fortran_env, only : real64
+        use mpas_log, only : mpas_log_write
 
         type(state_t), intent(inout) :: state
         integer, intent(in)          :: number_of_grid_cells
 
         integer :: cell_stride, var_stride, rp_index, cell, idx
+        character(len=256) :: msg
 
         if (state%number_of_rate_parameters == 0) return
 
         cell_stride = state%rate_parameters_strides%grid_cell
         var_stride  = state%rate_parameters_strides%variable
 
+        ! Default all rate parameters to 0 (safe for photolysis rates).
+        ! Arrhenius rates are computed internally by MICM from temperature.
         do rp_index = 1, state%rate_parameters_ordering%size()
             do cell = 1, number_of_grid_cells
                 idx = 1 + (cell - 1) * cell_stride + (rp_index - 1) * var_stride
-                state%rate_parameters(idx) = 1.0_real64
+                state%rate_parameters(idx) = 0.0_real64
             end do
         end do
+
+        write(msg, '(A,I0,A)') '[MUSICA] Set ', state%number_of_rate_parameters, &
+            ' rate parameter(s) to 0 (photolysis disabled until TUV-x)'
+        call mpas_log_write(trim(msg))
     end subroutine assign_rate_parameters
 
     subroutine set_species_profile(state, species_name, values, err)

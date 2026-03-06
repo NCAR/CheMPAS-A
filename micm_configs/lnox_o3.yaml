@@ -1,0 +1,58 @@
+version: "1.0.0"
+name: LNOx-O3
+species:
+  # __initial concentration (mol/m3) is required by MICM but overwritten by
+  # MPAS state transfer each timestep.  Set to 0 here; actual ICs live in
+  # the MPAS init file (kg/kg).
+  - name: NO
+    __absolute tolerance: 1e-12
+    __long name: nitric_oxide
+    __do advect: true
+    __initial concentration: 0.0
+    __molar mass: 0.030
+  - name: NO2
+    __absolute tolerance: 1e-12
+    __long name: nitrogen_dioxide
+    __do advect: true
+    __initial concentration: 0.0
+    __molar mass: 0.046
+  - name: O3
+    __absolute tolerance: 1e-12
+    __long name: ozone
+    __do advect: true
+    __initial concentration: 0.0
+    __molar mass: 0.048
+
+phases:
+  - name: gas
+    species:
+      - NO
+      - NO2
+      - O3
+
+reactions:
+  - type: ARRHENIUS
+    gas phase: gas
+    reactants:
+      - species name: NO
+        coefficient: 1
+      - species name: O3
+        coefficient: 1
+    products:
+      - species name: NO2
+        coefficient: 1
+    A: 1.084e6
+    C: -1370.0
+    name: o3_titration
+
+  - type: PHOTOLYSIS
+    gas phase: gas
+    reactants:
+      - species name: NO2
+        coefficient: 1
+    products:
+      - species name: NO
+        coefficient: 1
+      - species name: O3
+        coefficient: 1
+    name: no2_photolysis

@@ -37,10 +37,12 @@ The `streams.atmosphere` file must use `io_type="netcdf"` for input and output s
 
 ### Running the Test
 
+**Important:** You must remove or move any existing `output.nc` before running. MPAS defaults to `clobber_mode = never_modify`, so if `output.nc` already exists the model will silently skip all output writes — the run completes but produces no new data.
+
 ```bash
 cd ~/Data/MPAS/supercell
 
-# Archive previous run output (if any)
+# Archive previous run output (REQUIRED — model won't overwrite existing output.nc)
 timestamp=$(date +%Y%m%d_%H%M%S)
 [ -f output.nc ] && mv output.nc output.${timestamp}.nc
 [ -f log.atmosphere.0000.out ] && mv log.atmosphere.0000.out log.atmosphere.0000.${timestamp}.out
