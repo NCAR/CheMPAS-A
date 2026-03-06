@@ -119,7 +119,7 @@ Used `#ifdef MPAS_USE_MUSICA` / `#endif` around qAB/qA/qB entries in both `scala
 - **`state_ref` keeps uniform initial concentrations** even when init file has spatial gradients. This is intentional — `state_ref` is a debugging device for comparing MICM's standalone ODE solution against the coupled run.
 - **MICM state gets real values from MPAS** at the first coupling step via `MICM_from_chemistry`, so the uniform MICM initial state is harmlessly overwritten.
 
-## Phase 2: Runtime Chemistry Tracer Allocation — IN PROGRESS
+## Phase 2: Runtime Chemistry Tracer Allocation — COMPLETE
 
 ### Goal
 
@@ -168,19 +168,19 @@ chemistry_init
 
 ### Key Technical Detail
 
-Extending an existing var_array requires:
-- Reallocate `scalars%array(:,:,:)` with larger first dimension, copy existing data, zero-fill new slots
-- Update `num_scalars` dimension in the state pool
-- Add `constituentNames` entries for each new species
+At `atm_setup_block` time, field arrays are **not yet allocated** — only metadata exists. The extension modifies metadata only:
+- Update `num_scalars` dimension in-place via pointer (`mpas_pool_add_dimension` silently ignores duplicate keys)
+- Extend `constituentNames` and `attLists` arrays for each time level
 - Add `index_qXX` dimensions for each new species
 - Repeat for `scalars_tend` in the tend pool
+- The framework (`mpas_block_creator.F`) later allocates correctly-sized arrays using the updated `num_scalars`
 
-### Regression Test
+### Regression Test — PASSED
 
-- Reference output saved: `~/Data/MPAS/supercell/reference_phase1_output.nc`
-- After implementation: build MUSICA=true, run supercell 15 min / 8 ranks
-- Compare chemistry tracers — should be bitwise identical to reference
-- Verify met fields (theta, qv, pressure) unaffected
+- Reference output: `~/Data/MPAS/supercell/reference_phase1_output.nc`
+- Build: MUSICA=true, run supercell 15 min / 8 ranks
+- Chemistry tracers (qA, qAB, qB): **bitwise identical** to Phase 1 reference
+- Met fields unaffected
 
 ### Future Work (Post Phase 2)
 
