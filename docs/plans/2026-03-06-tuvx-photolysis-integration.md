@@ -862,6 +862,220 @@ NO2 → NO + O3 faster, reducing NO2 accumulation and O3 depletion.
 
 ---
 
+## Phase 3: Cloud Opacity in TUV-x
+
+**Goal:** Add cloud water and rain as a from-host radiator in TUV-x so that
+photolysis rates are attenuated inside clouds. This eliminates the largest
+physics gap in the current implementation: the supercell updraft core has
+cloud optical depth ~900, which would reduce j_NO2 to near zero inside the
+storm — exactly where lightning NOx is injected.
+
+**Rationale:** Phase 2 computes clear-sky j_NO2 everywhere. In a supercell,
+cloud liquid water content reaches 2–3 g/kg in the updraft core. The
+estimated cloud optical depth (935 at the thickest cell) would essentially
+shut off NO2 photolysis inside the cloud, preventing the NO2 → NO + O3
+recycling pathway and allowing NO2 to accumulate. This is a first-order
+effect on the chemistry, not a refinement.
+
+### Physics
+
+Cloud optical depth per layer:
+
+```
+τ_cloud = (3 × LWC × Δz) / (2 × r_eff × ρ_water)
+```
+
+where:
+- `LWC` = liquid water content [kg/m³] = `qc × ρ_air`
+- `Δz` = layer thickness [m]
+- `r_eff` = effective droplet radius [m] (~10 μm for warm clouds)
+- `ρ_water` = 1000 kg/m³
+
+For the Kessler microphysics scheme (current supercell config), only `qc`
+(cloud water) and `qr` (rain water) are available — no ice. Rain drops are
+much larger (r_eff ~ 500 μm) so their optical depth contribution per unit
+mass is ~50x smaller than cloud droplets; include for completeness but expect
+cloud water to dominate.
+
+Cloud optical properties are approximately wavelength-independent in the
+visible/near-UV (geometric optics regime, droplet size >> wavelength):
+- **Single-scattering albedo (SSA):** ~0.999999 (pure scattering, negligible
+  absorption at 300–420 nm)
+- **Asymmetry factor (g):** ~0.85 (strong forward scattering)
+
+These can be set as constants across all wavelength bins. The key variable
+is the optical depth profile, which comes from the host model's cloud water.
+
+### TUV-x API Pattern
+
+TUV-x supports from-host radiators via `musica_tuvx_radiator`:
+
+```fortran
+use musica_tuvx_radiator, only: radiator_t
+use musica_tuvx_radiator_map, only: radiator_map_t
+
+! At init: create cloud radiator (needs both height and wavelength grids)
+cloud_radiator => radiator_t("clouds", height_grid, wavelength_grid, err)
+call radiators%add(cloud_radiator, err)
+
+! After TUV-x construction, retrieve updatable handle
+radiators => tuvx_solver%get_radiators(err)  ! if available, or use stored ptr
+cloud_radiator => radiators%get("clouds", err)
+
+! Each timestep, per column: set optical properties
+!   optical_depths(nVertLevels, nWavelengths) — cloud OD per layer/wavelength
+!   single_scattering_albedos(nVertLevels, nWavelengths)
+!   asymmetry_factors(nVertLevels, nWavelengths, 1) — 1 stream for delta-Eddington
+call cloud_radiator%set_optical_depths(cloud_od, err)
+call cloud_radiator%set_single_scattering_albedos(cloud_ssa, err)
+call cloud_radiator%set_asymmetry_factors(cloud_g, err)
+```
+
+The optical property arrays are shaped `(nLayers, nWavelengthBins)`. With the
+CAM wavelength grid (103 bins) and 40 vertical levels, each array is
+40 × 103 = 4,120 values. Since cloud optical properties are
+wavelength-independent in the visible/near-UV, each column in the array is
+identical (broadcast from a 1-D vertical profile).
+
+### Performance: Per-Column Solves Required
+
+With cloud opacity, **the single-column optimization is not valid.** Cloud
+fields vary spatially — the updraft core is optically thick while surrounding
+clear air has zero cloud OD. TUV-x must be solved per column wherever clouds
+are present.
+
+**Optimization strategy:** Two-tier approach:
+1. **Clear-sky columns** (qc_max < threshold, e.g., 1e-6 kg/kg): Use a
+   single precomputed clear-sky j_NO2 profile (one TUV-x solve per timestep).
+2. **Cloudy columns** (qc_max >= threshold): Full per-column TUV-x solve with
+   cloud radiator updated from host cloud water.
+
+This avoids solving TUV-x for ~27,000 clear-sky cells while correctly
+handling the ~1,000–2,000 cloudy cells in a supercell. Expected speedup:
+~15x over the current all-columns approach, while capturing the cloud effect.
+
+### MPAS Hydrometeor Variables
+
+| Variable | Description | Microphysics |
+|----------|-------------|-------------|
+| `qc` | Cloud water mixing ratio [kg/kg] | Kessler, Thompson, WSM6 |
+| `qr` | Rain water mixing ratio [kg/kg] | Kessler, Thompson, WSM6 |
+| `qi` | Cloud ice mixing ratio [kg/kg] | Thompson, WSM6 (not Kessler) |
+| `qs` | Snow mixing ratio [kg/kg] | Thompson, WSM6 (not Kessler) |
+| `qg` | Graupel mixing ratio [kg/kg] | Thompson, WSM6 (not Kessler) |
+
+For Kessler (current supercell config), only `qc` and `qr` are available.
+For more sophisticated microphysics, ice-phase hydrometeors would also
+contribute to cloud optical depth (with different r_eff and optical
+properties).
+
+### New/Modified Source Files
+
+**`src/core_atmosphere/chemistry/mpas_tuvx.F` (modify)**
+
+Add cloud radiator support:
+- Module-level: `cloud_radiator` pointer, `wavelength_grid` pointer,
+  `n_wavelength_bins`, work arrays for cloud OD/SSA/g
+- `tuvx_init`: Create from-host `radiator_t("clouds", ...)`, register in
+  radiator map before TUV-x construction, retrieve updatable handle and
+  wavelength grid after construction
+- `tuvx_compute_photolysis`: Accept `qc` and `qr` arrays, compute cloud
+  OD per layer, set radiator optical properties before `tuvx_solver%run()`
+- New helper: `compute_cloud_optical_depth(qc, qr, rho_air, dz, cloud_od)`
+
+**`src/core_atmosphere/chemistry/mpas_atm_chemistry.F` (modify)**
+
+- Pass `qc` (and optionally `qr`) to `tuvx_compute_photolysis`
+- Implement clear-sky/cloudy column split optimization
+- Resolve `index_qc` (and `index_qr`) from scalars pool at init
+
+**`micm_configs/tuvx_no2.json` (no change needed)**
+
+The cloud radiator is created from-host in Fortran, not defined in the JSON
+config. The JSON config only defines spectral-data-driven radiators (air, O3).
+
+### Cloud Optical Depth Parameterization
+
+```fortran
+subroutine compute_cloud_optical_depth(qc, qr, rho_air, dz_m, nVertLevels, cloud_od)
+    ! Cloud water: small droplets, r_eff ~ 10 um
+    real(dk), parameter :: R_EFF_CLOUD = 10.0e-6_dk   ! [m]
+    real(dk), parameter :: RHO_WATER   = 1000.0_dk     ! [kg/m³]
+
+    ! Rain water: large drops, r_eff ~ 500 um
+    real(dk), parameter :: R_EFF_RAIN  = 500.0e-6_dk   ! [m]
+
+    do k = 1, nVertLevels
+        lwc_cloud = qc(k) * rho_air(k)  ! [kg/m³]
+        lwc_rain  = qr(k) * rho_air(k)  ! [kg/m³]
+
+        ! tau = 3 * LWC * dz / (2 * r_eff * rho_water)
+        cloud_od(k) = (3.0_dk * lwc_cloud * dz_m(k)) / (2.0_dk * R_EFF_CLOUD * RHO_WATER) &
+                    + (3.0_dk * lwc_rain  * dz_m(k)) / (2.0_dk * R_EFF_RAIN  * RHO_WATER)
+    end do
+end subroutine
+```
+
+### Namelist Parameters
+
+No new namelist parameters required for Phase 3. Cloud opacity is automatic
+when TUV-x is enabled and cloud water is present. The `r_eff` values are
+hardcoded constants appropriate for the Kessler scheme (no prognostic droplet
+size). If a more sophisticated microphysics scheme provides effective radius,
+this can be extended later.
+
+### Implementation Checklist
+
+- [ ] In `tuvx_init`, retrieve and cache the wavelength grid handle after
+  TUV-x construction (`grids%get("wavelength", "nm", err)`). Needed for
+  creating the from-host cloud radiator.
+- [ ] Create from-host `radiator_t("clouds", height_grid, wavelength_grid)`
+  and register it in the radiator map before TUV-x construction.
+- [ ] After construction, retrieve the updatable cloud radiator handle.
+- [ ] Allocate work arrays for cloud optical properties:
+  `cloud_od(nVertLevels, n_wavelength_bins)`,
+  `cloud_ssa(nVertLevels, n_wavelength_bins)`,
+  `cloud_g(nVertLevels, n_wavelength_bins, 1)`.
+- [ ] Add `compute_cloud_optical_depth` helper in `mpas_tuvx.F`.
+- [ ] Extend `tuvx_compute_photolysis` signature to accept `qc` and `qr`.
+  Compute cloud OD, broadcast to all wavelength bins, set constant SSA=1.0
+  and g=0.85, call `set_optical_depths` / `set_single_scattering_albedos` /
+  `set_asymmetry_factors` before `tuvx_solver%run()`.
+- [ ] In `chemistry_step`, pass `scalars(index_qc, :, iCell)` (and `qr`) to
+  the TUV-x per-column call. Resolve `index_qc` at init.
+- [ ] Implement clear-sky/cloudy column split: compute clear-sky j_NO2 once
+  per timestep, apply to all clear-sky columns, only call TUV-x per-column
+  for cloudy cells.
+- [ ] Verify: j_NO2 near zero inside optically thick cloud, unchanged in
+  clear air.
+- [ ] Verify: NO2 accumulates inside cloud (no photolysis recycling), O3
+  depletion is stronger inside storm.
+- [ ] Compare storm-core chemistry between Phase 2 (clear-sky) and Phase 3
+  (cloud-attenuated): document the difference in NO2 peak, O3 minimum.
+
+### Verification (Phase 3 Gate)
+
+| Check | Criterion |
+|-------|-----------|
+| Cloud attenuation | j_NO2 < 1e-4 s⁻¹ inside optically thick cloud core |
+| Clear-sky unchanged | j_NO2 in clear air matches Phase 2 values |
+| Non-negativity | All tracers non-negative |
+| Chemistry response | NO2 higher inside cloud vs Phase 2 (less recycling) |
+| O3 response | O3 lower inside cloud vs Phase 2 (less photolytic recovery) |
+| Performance | Runtime comparable to Phase 2 with clear-sky optimization |
+| Fallback | Empty config still uses Phase 1 cos(SZA) path |
+
+### Exit Criteria
+
+- Build passes with cloud radiator code.
+- j_NO2 reduced by >100x inside optically thick cloud (OD > 100).
+- Clear-sky j_NO2 unchanged from Phase 2.
+- 15-min Case B stable with cloud-attenuated photolysis.
+- Clear-sky/cloudy column optimization implemented and tested.
+- Phase 2 vs Phase 3 comparison documented.
+
+---
+
 ## Phase Gate Scripts
 
 Adapted from ancestor project (`MPAS-Model-ACOM-dev/scripts/`):
@@ -889,15 +1103,16 @@ are written to output files.
 | Phase 0 | `nonnegative`, `verify_ox_conservation.py` |
 | Phase 1 | Phase 0 + `night-jzero` |
 | Phase 2 | Phase 1 + `transition-smooth`, `decomp-compare`, `fallback-compare` |
+| Phase 3 | Phase 2 + cloud attenuation, clear-sky unchanged, performance |
 
 ---
 
 ## Later Phases
 
-- Phase 3: Solver robustness under real-world forcing (6–24h stress runs)
-- Phase 4: Real-world robustness and reproducibility
+- Phase 4: Earth-sun distance, extended validation (6–24h stress runs spanning
+  sunset/sunrise), ice-phase hydrometeors for non-Kessler microphysics
 - Phase 5: Full Chapman (O2/O3/O photolysis) — extends mechanism, adds j_O2/j_O3
-- Phase 6: Performance optimization
+- Phase 6: Performance optimization (batched TUV-x solves, cached spectral data)
 - Phase 7 (Optional): Extended NOx chemistry (PAN, HNO3, organic nitrates)
 
 ---
@@ -913,8 +1128,8 @@ are written to output files.
    literature targets.
 3. **Source/sink representation split** — Lightning-NOx source is operator-split
    pre-MICM; NOx sink remains mechanism-defined within MICM.
-4. **Cloud/aerosol optics deferred** — Phase 2 is clear-sky only until cloud
-   and aerosol optical inputs are coupled into TUV-x.
+4. **Cloud opacity** — Phase 2 is clear-sky. Phase 3 adds cloud water as a
+   from-host radiator. Aerosol optics remain deferred.
 5. **MUSICA-level API** — Use `musica_tuvx` module (C-binding wrapper), not
    the raw `tuvx_core` module. One `tuvx_t` instance per MPI rank.
 
