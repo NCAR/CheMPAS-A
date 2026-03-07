@@ -90,6 +90,31 @@ def smart_levels(data_min, data_max, n=51):
 def load_data(filename):
     """Load MPAS output data for lightning NOx analysis."""
     ds = Dataset(filename, 'r')
+    # Parse xtime strings to get elapsed simulation minutes
+    nT = len(ds.dimensions['Time'])
+    xt = ds['xtime'][:]
+
+    def _xtime_to_minutes(chars):
+        s = ''.join([c.decode() if isinstance(c, bytes) else c for c in chars]).strip()
+        # Format: YYYY-DD-MM_HH:MM:SS  (MPAS uses 0000-01-01 epoch)
+        parts = s.split('_')
+        dparts = parts[0].split('-')
+        hms = parts[-1].split(':')
+        days = (int(dparts[0]) * 365 + (int(dparts[1]) - 1) * 30 + int(dparts[2]) - 1)
+        return days * 1440 + int(hms[0]) * 60 + int(hms[1]) + int(hms[2]) / 60.0
+
+    # Use the init file start time (18:00) as t=0 reference if available,
+    # otherwise use the first output frame
+    t0_minutes = _xtime_to_minutes(xt[0])
+    init_file = Path(filename).parent / 'supercell_init.nc'
+    if init_file.exists():
+        ds_init = Dataset(str(init_file), 'r')
+        t0_minutes = _xtime_to_minutes(ds_init['xtime'][0])
+        ds_init.close()
+
+    time_minutes = np.array([_xtime_to_minutes(xt[t]) - t0_minutes
+                             for t in range(nT)])
+
     data = {
         'xCell': ds['xCell'][:] / 1000,       # km
         'yCell': ds['yCell'][:] / 1000,
@@ -99,8 +124,9 @@ def load_data(filename):
         'qO3': ds['qO3'][:],
         'nCells': len(ds.dimensions['nCells']),
         'nVertLevels': len(ds.dimensions['nVertLevels']),
-        'nTimes': len(ds.dimensions['Time']),
-        'times': np.arange(len(ds.dimensions['Time'])),
+        'nTimes': nT,
+        'times': np.arange(nT),
+        'time_minutes': time_minutes,          # actual simulation minutes
     }
     if 'zgrid' in ds.variables:
         data['zgrid'] = ds['zgrid'][:] / 1000  # km (nCells, nVertLevelsP1)
@@ -201,7 +227,7 @@ def plot_vertical_cross_section(data, time_idx, output_file, y_slice=None,
     z = np.array([get_level_height(data, k) for k in range(nLev)])
     X, Z = np.meshgrid(x_s, z)
 
-    t_min = time_idx * dt_seconds / 60.0
+    t_min = data['time_minutes'][time_idx]
 
     # Compute wind vectors for the cross-section (u_zonal, w)
     quiver_kw = None
@@ -302,7 +328,7 @@ def plot_vertical_cross_section(data, time_idx, output_file, y_slice=None,
 
 def plot_time_evolution(data, output_file, dt_seconds=60.0):
     """3-panel time series: peak and domain-mean of NO, NO2, O3."""
-    t_min = data['times'] * dt_seconds / 60.0
+    t_min = data['time_minutes']
 
     no_ppbv = to_ppbv(data['qNO'], M_NO)      # (Time, nCells, nLev)
     no2_ppbv = to_ppbv(data['qNO2'], M_NO2)
@@ -328,7 +354,7 @@ def plot_time_evolution(data, output_file, dt_seconds=60.0):
              lw=2, ls='--', label=style.species_label('NOx'))
     ax1.set_xlabel('Time (min)')
     ax1.set_ylabel('Mixing ratio (ppbv)')
-    ax1.set_title('Domain peak (NOx)')
+    ax1.set_title(style.format_title('Domain peak (NOx)'))
     ax1.legend()
 
     # Domain mean (NOx)
@@ -338,7 +364,7 @@ def plot_time_evolution(data, output_file, dt_seconds=60.0):
              lw=2, ls='--', label=style.species_label('NOx'))
     ax2.set_xlabel('Time (min)')
     ax2.set_ylabel('Mixing ratio (ppbv)')
-    ax2.set_title('Domain mean (NOx)')
+    ax2.set_title(style.format_title('Domain mean (NOx)'))
     ax2.legend()
 
     # O3: show peak, mean, and min (min shows titration)
@@ -398,7 +424,7 @@ def plot_horizontal_evolution(data, level, output_file, n_times=6,
         ax.set_aspect('equal')
         if wind:
             add_wind_barbs(ax, data, t, level, skip=wind_skip)
-        t_min = t * dt_seconds / 60.0
+        t_min = data['time_minutes'][t]
         ax.set_title(f't = {t_min:.0f} min')
         add_colorbar(cf, ax, label='ppbv')
 
@@ -427,7 +453,7 @@ def plot_species_comparison(data, level, time_idx, output_file,
     """3-panel: NO, NO2, and NO source at a single time and level."""
     x, y = data['xCell'], data['yCell']
     tri = Triangulation(x, y)
-    t_min = time_idx * dt_seconds / 60.0
+    t_min = data['time_minutes'][time_idx]
 
     no_ppbv = to_ppbv(data['qNO'][time_idx, :, level], M_NO)
     no2_ppbv = to_ppbv(data['qNO2'][time_idx, :, level], M_NO2)
@@ -502,14 +528,19 @@ def plot_updraft_profiles(data, time_idx, output_file, dt_seconds=60.0):
     nLev = data['nVertLevels']
     z = np.array([get_level_height(data, k) for k in range(nLev)])
 
-    # Find the cell with max column-max w
-    if 'w' in data:
-        w_col_max = data['w'][time_idx].max(axis=1)
-        iCell = np.argmax(w_col_max)
+    # Find the cell nearest the updraft y-slice (consistent with cross-sections)
+    y_slice = find_updraft_y(data, time_idx)
+    # Among cells near that y, pick the one with strongest mid-level w
+    dy = np.abs(data['yCell'] - y_slice)
+    near = dy < 2.0  # within 2 km
+    if 'w' in data and near.any():
+        w_mid = data['w'][time_idx, :, nLev // 4]
+        w_near = np.where(near, w_mid, -999)
+        iCell = np.argmax(w_near)
     else:
         iCell = data['nCells'] // 2
 
-    t_min = time_idx * dt_seconds / 60.0
+    t_min = data['time_minutes'][time_idx]
 
     no_prof = to_ppbv(data['qNO'][time_idx, iCell, :], M_NO)
     no2_prof = to_ppbv(data['qNO2'][time_idx, iCell, :], M_NO2)
@@ -530,7 +561,7 @@ def plot_updraft_profiles(data, time_idx, output_file, dt_seconds=60.0):
             label=style.species_label('NOx'))
     ax.set_xlabel('Mixing ratio (ppbv)')
     ax.set_ylabel('Height (km)')
-    ax.set_title('NOx profiles')
+    ax.set_title(style.format_title('NOx profiles'))
     ax.legend()
 
     # O3 concentration
@@ -609,13 +640,14 @@ def plot_source_profiles(data, output_file, n_times=8, dt_seconds=60.0,
 
     # Color map: time progression
     cmap = plt.cm.magma_r
-    norm = plt.Normalize(vmin=0, vmax=(nT - 1) * dt_seconds / 60)
+    norm = plt.Normalize(vmin=data['time_minutes'][0],
+                         vmax=data['time_minutes'][-1])
 
     fig, ax = plt.subplots(figsize=(7, 7))
 
     for t in tidx:
         w_t = data['w'][t]                # (nCells, nVertLevels)
-        t_min = t * dt_seconds / 60.0
+        t_min = data['time_minutes'][t]
         color = cmap(norm(t_min))
 
         # Convective core: cells where w exceeds threshold at any level
@@ -686,9 +718,9 @@ def plot_photolysis(data, output_file, dt_seconds=60.0):
     add_colorbar(cf, ax, label=r'$\times 10^{-3}$ s$^{-1}$')
     ax.set_xlabel('X (km)')
     ax.set_ylabel('Height (km)')
-    t_label = time_idx * dt_seconds / 60.0
+    t_label = data['time_minutes'][time_idx]
     ax.set_title(style.format_title(
-        f'j$_{{NO_2}}$ (TUV-x) at t = {t_label:.0f} min'))
+        f'j$_{{NO_2}}$ (TUV-x) at y = {y_slice:.0f} km, t = {t_label:.0f} min'))
 
     plt.tight_layout()
     save_figure(output_file)
