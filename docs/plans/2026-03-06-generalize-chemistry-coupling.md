@@ -188,7 +188,7 @@ At `atm_setup_block` time, field arrays are **not yet allocated** — only metad
 - Chemistry tracers (qA, qAB, qB): **bitwise identical** to Phase 1 reference
 - Met fields unaffected
 
-### Codex 5.3 Review — All Issues Fixed
+### Codex Review — All Issues Fixed
 
 Codex reviewed commits `195452e`–`46c180d` and found three issues, all resolved:
 

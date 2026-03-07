@@ -13,7 +13,7 @@ CheMPAS (Chemistry for MPAS) is a standalone project derived from [NCAR/MPAS-Mod
 - `COMPONENTS.md` - Detailed component descriptions
 - `MUSICA_INTEGRATION.md` - MUSICA/MICM coupling details
 - `MUSICA_API.md` - MUSICA Fortran API reference
-- `AGENTS.md` - Agent roles, workflow, manifesto, and operational details
+- `AGENTS.md` - Agent roles, workflow, and operational details
 - `BENCHMARKS.md` - Agent model benchmark comparison
 - `PURPOSE.md` - Project motivation and goals
 - `TEST_RUNS.md` - Test run documentation
@@ -121,13 +121,13 @@ Skills are defined in `.claude/commands/` and can be invoked with `/skillname`:
 | Plot Chemistry | `/plot-chemistry` | Generate and open chemistry visualization plots |
 | MUSICA Dev | `/musica-dev` | Work on MUSICA/MICM chemistry integration |
 
-## Development Manifesto
+## Development Approach
 
-CheMPAS is an agent-driven development project. See `AGENTS.md` for the full manifesto, agent roles, workflow, and human review gates.
+CheMPAS is an agent-driven development project. See `AGENTS.md` for the full workflow, agent roles, and human review gates.
 
 ## Multi-Agent Workflow
 
-CheMPAS uses three agents from three vendors (see `AGENTS.md`). Codex 5.3 reviews Claude's work and may push doc edits or review findings directly to the repo.
+CheMPAS uses three agents from three vendors (see `AGENTS.md`). Codex 5.4 reviews Claude's work and may push doc edits or review findings directly to the repo.
 
 **Convention for cross-agent communication:**
 - Codex writes review findings to `CODEX_REVIEW.md` and pushes to `develop`

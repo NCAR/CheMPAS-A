@@ -7,13 +7,6 @@
   - When `.false.`, skip MICM->MPAS tracer seeding to preserve custom initial conditions
   - Current workaround: seeding is skipped if tracers have spatial gradients
 
-- [ ] **Output reference state to NetCDF**
-  - Add runtime chemistry reference tracers (e.g., `q*_ref`) without hardcoding species in `Registry.xml`
-  - Modify `mpas_musica.F` to copy reference-state concentrations to MPAS pools each timestep
-  - Add reference variables to output stream in `streams.atmosphere`
-  - Update `plot_chemistry.py` to compare coupled vs reference states
-  - This enables visualization of advection effects (coupled - reference = advection contribution)
-
 ## MICM Issues
 
 - [ ] **Report FIRST_ORDER_LOSS rate=0 bug to MUSICA team**

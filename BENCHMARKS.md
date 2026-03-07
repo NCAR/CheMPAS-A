@@ -7,7 +7,7 @@ Comparison of the AI models used in CheMPAS agent-driven development.
 | Role | Model | Provider |
 |------|-------|----------|
 | Development | Claude Opus 4.6 (Max) | Anthropic |
-| Review | Codex 5.3 (Extra High) | OpenAI |
+| Review | Codex 5.4 (Extra High) | OpenAI |
 | Deep Research | Gemini 3 Pro (Deep Think) | Google DeepMind |
 
 ## Why This Three-Model Approach Works for CheMPAS
@@ -15,7 +15,7 @@ Comparison of the AI models used in CheMPAS agent-driven development.
 - **Claude Opus 4.6 for development**: Strong SWE-bench performance, debugging
   accuracy, and terminal proficiency — relevant for writing and testing
   Fortran/MPI code.
-- **Codex 5.3 xhigh for review**: Thorough, methodical analysis across large
+- **Codex 5.4 Extra High for review**: Thorough, methodical analysis across large
   codebases. Abstract reasoning advantage may catch issues that Claude misses.
 - **Gemini 3 Pro for deep research**: 1M+ token context enables full-codebase
   reasoning, scientific literature review, and architectural analysis that
@@ -53,10 +53,10 @@ coupled physics-chemistry tendencies. The human review gates defined in
 | Capability | Best Model | Why |
 |------------|-----------|-----|
 | Writing Fortran/MPI code | Claude Opus 4.6 | SWE-bench performance, debugging accuracy |
-| PR code review | Codex 5.3 xhigh | Methodical, precise bug-finding |
+| PR code review | Codex 5.4 Extra High | Methodical, precise bug-finding |
 | Full-codebase analysis | Gemini 3 Pro | 1M token context, entire repo in one pass |
 | Scientific literature review | Gemini 3 Pro | Graduate-level science reasoning, Deep Think |
-| Architecture planning | Gemini 3 Pro + Codex 5.3 | Large context for analysis, abstract reasoning for design |
+| Architecture planning | Gemini 3 Pro + Codex 5.4 | Large context for analysis, abstract reasoning for design |
 | CI / build verification | Any (automated) | Mechanical task, model quality less critical |
 
 ## Sources
