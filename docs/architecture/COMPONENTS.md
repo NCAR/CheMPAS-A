@@ -127,9 +127,47 @@ See [MUSICA_INTEGRATION.md](../musica/MUSICA_INTEGRATION.md) for details.
 |------|---------|
 | `mpas_atm_chemistry.F` | Initializes chemistry, resolves tracer indices, updates photolysis, runs source/solver coupling |
 | `musica/mpas_musica.F` | Owns MICM state, species mapping, and photolysis-rate updates into MUSICA |
-| `mpas_lightning_nox.F` | Applies the altitude- and updraft-dependent NO source before the chemistry solve |
+| `mpas_lightning_nox.F` | Applies the altitude- and updraft-dependent NO source before the chemistry solve (see below) |
 | `mpas_solar_geometry.F` | Computes fallback solar geometry for Phase 1-style photolysis |
 | `mpas_tuvx.F` | Computes profile-dependent `j_no2` with TUV-x, including cloud-opacity support |
+
+#### Lightning NOx Source Parameterization
+
+The lightning NO source (`mpas_lightning_nox.F`) uses a continuous,
+updraft-scaled parameterization rather than discrete flash-based injection:
+
+```
+S = source_rate * max(0, w - w_threshold) / w_ref   [ppbv/s]
+```
+
+where `w` is the layer-midpoint vertical velocity. The source is active only
+where `w > w_threshold` and `z_min <= z <= z_max`. The increment is converted
+to mass mixing ratio (kg/kg) for MPAS scalars.
+
+**Configurable parameters (namelist):**
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `config_lnox_source_rate` | 0.5 ppbv/s | NO production rate when w_excess = w_ref |
+| `config_lnox_w_threshold` | 5.0 m/s | Minimum updraft to activate source |
+| `config_lnox_w_ref` | 10.0 m/s | Reference excess updraft for scaling |
+| `config_lnox_z_min` | 5000 m | Minimum altitude for source |
+| `config_lnox_z_max` | 12000 m | Maximum altitude for source |
+
+**Literature calibration:**
+
+The default source rate of 0.5 ppbv/s at w_excess = w_ref is calibrated against:
+
+- DeCaria et al. (2005): effective source rate ~0.5 ppbv/s in the updraft core
+- Ott et al. (2007): flash-based estimates of ~330 mol NO/flash, equivalent to
+  0.1-1.0 ppbv/s depending on flash rate and storm volume
+- Ott et al. (2010): CRM simulations produce 100-500 ppbv peak NO in the core
+- Barth et al. (2012): WRF-Chem simulations produce 100-200 ppbv peak NO
+- Pollack et al. (2016): DC3 aircraft observations of 1-8 ppbv in anvil outflow
+
+The w-scaled approach produces peak core NO on the high end (~300 ppbv) because
+the continuous source accumulates in the persistent strong updraft. This is
+within the CRM envelope but above typical flash-based WRF-Chem results.
 
 #### Chemistry Call Path
 
