@@ -297,6 +297,55 @@ python init_tracer_sine.py -t qAB --waves-x 2 --amplitude 0.4 --offset 0.6
 
 ---
 
+### 2026-03-06: Phase 3 continuation — 30-minute LNOx-O3 with cloud photolysis
+
+**Duration:** 30 minutes total (15-min spin-up + 15-min continuation from restart)
+**Chemistry:** LNOx-O3 with TUV-x + cloud radiator
+**Source:** 0.5 ppbv/s at w_excess = w_ref; w_threshold=5 m/s, w_ref=10 m/s, z=5-12 km
+**Photolysis:** TUV-x with from-host cloud radiator (Phase 3)
+**Output interval:** 3 minutes (18:18, 18:21, 18:24, 18:27, 18:30 UTC)
+**Initial conditions:** Restart from 18:15 spin-up; NO=0, NO2=0, O3=50 ppbv at t=0
+
+**Key observations:**
+- Peak NO: 299 ppbv (updraft core at t=30 min)
+- Peak NO2: 28.1 ppbv
+- Peak O3: 50.0 ppbv (background preserved)
+- Mean O3: 49.84 ppbv
+- j_NO2 strongly attenuated inside cloud, enhanced above
+- 3,368 activated cell-levels at final time
+- Mean w excess in active cells: 13.0 m/s
+- Peak source rate: 1.67 ppbv/s (at w_max ~ 38 m/s)
+
+**LNOx source validation against literature:**
+
+| Metric | CheMPAS | Literature | Reference |
+|--------|---------|------------|-----------|
+| Peak NO (updraft core) | 299 ppbv | 100-500 ppbv | Ott et al. (2010) CRM |
+| Peak NO (updraft core) | 299 ppbv | 100-200 ppbv | Barth et al. (2012) WRF-Chem |
+| Anvil outflow NO | ~1-5 ppbv | 1-8 ppbv | Pollack et al. (2016) DC3 obs |
+| Source rate (w=15 m/s) | 0.50 ppbv/s | ~0.5 ppbv/s | DeCaria et al. (2005) |
+| Source rate equivalent | 0.1-1.7 ppbv/s | 0.1-1.0 ppbv/s | Ott et al. (2007), ~330 mol/flash |
+
+**Assessment:**
+- Core NO values (299 ppbv) are within the Ott et al. (2010) CRM envelope
+  but on the high end compared to Barth et al. (2012) WRF-Chem (100-200 ppbv)
+- The continuous w-scaled source accumulates more NO in the persistent
+  strong updraft than a discrete flash-based parameterization would
+- Effective source rate of 0.5 ppbv/s at w=15 m/s matches DeCaria et al. (2005)
+- Domain-mean NO of 1.2 ppbv is consistent with diluted anvil outflow
+  observations from DC3
+
+**Generated plots:**
+- `lightning_nox_vertical.png` — 4-panel cross-section (O3, NO, NO2, NO2/NOx)
+- `lightning_nox_evolution.png` — Time evolution of peak/mean NOx and O3
+- `lightning_nox_horizontal.png` — Horizontal NO slices at 7.8 km
+- `lightning_nox_comparison.png` — NO vs NO2 vs source at 7.8 km
+- `lightning_nox_profiles.png` — Updraft core vertical profiles
+- `lightning_nox_source.png` — Lightning source rate profiles at multiple times
+- `lightning_nox_photolysis.png` — j_NO2 cross-section with cloud attenuation
+
+---
+
 ## Notes
 
 1. **PnetCDF compatibility:** Use `io_type="netcdf"` in streams.atmosphere on macOS/LLVM builds

@@ -211,6 +211,15 @@ For the complete tables, plots, and pass/fail notes, see
 
 ## Current Limits And Follow-On Work
 
+- **No cloud shadows.** TUV-x runs as independent 1D columns (plane-parallel).
+  At SZA ~59° the `j_no2` cross-section shows purely vertical structure — a
+  cloud attenuates photolysis directly below it but has zero effect on
+  neighboring columns. In reality the solar beam enters at an angle, so clouds
+  should cast shadows to one side, reducing photolysis in adjacent clear-sky
+  columns. A slant-column approximation (trace the beam through neighboring
+  columns at the geometric SZA, accumulate their cloud OD as above-column
+  attenuation) would capture the dominant effect without full 3D radiative
+  transfer.
 - fallback SZA still uses namelist coordinates; grid-aware chemistry geometry is
   deferred
 - current TUV-x work targets `j_no2` in the tropospheric LNOx-O3 mechanism, not
