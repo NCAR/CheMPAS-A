@@ -5,16 +5,16 @@
 - `Historical Context:` Adapted from ancestor project plans — the TUV-x
   photolysis plan (`MPAS-Model-ACOM-dev/PLAN_TUVx.md`) and the DAVINCI
   lightning-NOx/O3 mechanism (`DAVINCI-MPAS/PLAN.md` Phase 6, `SCIENCE.md`).
-- `Current State:` Phase 0 complete. Phase 1 is partially implemented for the
-  idealized supercell path: fallback solar geometry (`mpas_solar_geometry.F`)
-  drives per-step scalar `j_NO2` updates in chemistry, and the chemistry-only
-  build path is in place. The broader `coszr` / mesh-coordinate path is
-  explicitly deferred because the needed mesh coordinates are not available in
-  the current workflow. Current Phase 1 validation only requires daytime at the
-  test coordinates from the namelist; DC3 calendar-time validation is deferred
-  until there is a proper grid with grid coordinates. Remaining Phase 1 work:
-  update stale metadata and add the planned analytical-SZA gate. Phase 2
-  (TUV-x coupling) is not implemented yet.
+- `Current State:` Phase 0 complete. Phase 1 is complete for the accepted
+  fallback-only idealized supercell path and is merged to `main`: fallback
+  solar geometry (`mpas_solar_geometry.F`) drives per-step scalar `j_NO2`
+  updates in chemistry, the build/run/plot workflow has been exercised, and
+  `j_no2` is part of the accepted Phase 1 diagnostic/output path. The broader
+  `coszr` / mesh-coordinate path remains explicitly deferred because the needed
+  mesh coordinates are not available in the current workflow. The DC3
+  calendar-time validation case is also deferred until there is a proper grid
+  with usable grid coordinates. Phase 2 (TUV-x coupling) is now the active
+  implementation target.
 - `Use This As:` Primary reference for post-ABBA chemistry development.
 
 ## Locked Decisions
@@ -65,6 +65,9 @@ us:
    absorption)
 3. Clear-sky illumination realism for DC3 validation — correct late-afternoon
    to evening geometry for the May 29 Kingfisher storm
+
+With Phase 1 accepted and merged on the fallback-only path, the active work
+now shifts to Phase 2 TUV-x coupling.
 
 ## Phase 0: LNOx-O3 with Fixed Rates — COMPLETE
 
@@ -147,13 +150,17 @@ drift) using `scripts/verify_ox_conservation.py`.
 
 ---
 
-## Phase 1: Solar Geometry and Day/Night Photolysis
+## Phase 1: Solar Geometry and Day/Night Photolysis — COMPLETE
 
 **Goal:** Compute per-cell solar zenith angle (SZA) from MPAS model time and
 geographic coordinates. Prefer the existing MPAS radiation `coszr` diagnostic
 when it is available; otherwise compute the same solar geometry in chemistry.
 Replace the constant j_NO2 with a SZA-dependent scaling:
 `j_NO2 = j_max * max(0, cos(SZA))`. Validate day/night behavior.
+
+**Status:** Complete and merged to `main` for the accepted fallback-only
+idealized path. This section remains as implementation/reference history;
+Phase 2 is the active target.
 
 **Rationale:** SZA computation is a prerequisite for TUV-x (Phase 2), which
 requires SZA as input. Testing with a simple cosine scaling first validates
@@ -180,7 +187,7 @@ coordinates. The DC3-specific timing reference (`2012-05-29 21:00 UTC`,
 `cos_sza ≈ 0.812`) remains useful later, but is deferred until grid-aware
 validation is in scope.
 
-Implementation status note (2026-03-06 review): the tracked idealized
+Implementation status note: the tracked idealized
 namelist currently uses `0000-01-01_18:00:00` for a deterministic daytime
 Phase 1 check. That is intentionally sufficient for fallback-SZA plumbing; the
 DC3 calendar timestamp is deferred to later grid-aware validation.
@@ -253,12 +260,15 @@ with SZA. This means:
 - For uniform-SZA (idealized, single lat/lon), all cells get the same value
 - Infrastructure supports per-cell SZA for future real-data cases
 
-Implementation status note (2026-03-06 review): the committed code currently
-implements only the fallback helper path. Reuse of MPAS `coszr` and real-data
-SZA from mesh `latCell/lonCell` is deferred until the required mesh-coordinate
-data is available in the chemistry workflow.
+Implementation status note: the accepted Phase 1 scope is the fallback helper
+path. Reuse of MPAS `coszr` and real-data SZA from mesh `latCell/lonCell`
+remains deferred until the required mesh-coordinate data is available in the
+chemistry workflow.
 
 ### Implementation Checklist
+
+Phase 1 is complete. Any remaining unchecked items below are deferred future
+cleanup, grid-aware extensions, or extra validation, not blockers for Phase 2.
 
 - [x] In `mpas_atm_core.F`, thread the current model time (`currTime`) into
   the chemistry call path for per-step SZA updates.
@@ -354,6 +364,9 @@ subpool argument, `mpas_atm_chemistry.F` gets a solar-geometry helper, and
 
 ### Exit Criteria
 
+Phase 1 is accepted complete on `main`. Any remaining unchecked items below are
+deferred follow-on validation, not gating items for Phase 2.
+
 - [x] Build passes with solar-geometry plumbing (fallback Spencer helper).
 - [x] Fallback-SZA computation matches the synthetic idealized check used by
   the tracked namelist (`0000-01-01 18:00 UTC`, cos_sza = 0.508 actual vs
@@ -372,7 +385,7 @@ subpool argument, `mpas_atm_chemistry.F` gets a solar-geometry helper, and
 
 ---
 
-## Phase 2: TUV-x Coupled Photolysis
+## Phase 2: TUV-x Coupled Photolysis — ACTIVE TARGET
 
 **Goal:** Replace the simple `j_max * cos(SZA)` scaling with TUV-x radiative
 transfer, giving clear-sky, in-domain j_NO2 as a function of altitude, SZA,
@@ -628,11 +641,12 @@ These scripts operate on MPAS NetCDF output and exit non-zero on failure.
 Adapted for LNOx-O3 species (qNO, qNO2, qO3) rather than ancestor Chapman
 species (qO, qO2, qO3).
 
-Status note (2026-03-06 update): both scripts have now been copied from the
+Status note: both scripts have now been copied from the
 ancestor repo into `scripts/` and adapted to the current CheMPAS species and
 phase matrix. Remaining gaps are narrower: the analytical-SZA Phase 1 check is
-still not implemented, and runtime use still depends on the Python `netCDF4`
-module plus whichever `j_*` diagnostics are written to output files.
+still a future enhancement rather than a Phase 2 blocker, and runtime use
+still depends on the Python `netCDF4` module plus whichever `j_*` diagnostics
+are written to output files.
 
 ### Phase Gate Matrix
 
