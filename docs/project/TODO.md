@@ -32,6 +32,22 @@
   away from the storm, a single representative column would give ~28,000x
   speedup with negligible accuracy loss. Significant runtime impact observed.
 - [x] Domain-integrated Ox conservation test for Case A verification
-- [ ] Cloud/aerosol opacity in TUV-x (Phase 3)
+- [x] Cloud opacity in TUV-x (Phase 3) — from-host radiator with LWC-based OD
+- [ ] **Slant-column cloud shadows in TUV-x** — Currently each column runs
+  independent 1D radiative transfer (plane-parallel). At SZA ~59° the j_NO2
+  cross-section shows purely vertical structure with no cloud shadow cast
+  sideways. In reality, the solar beam passes through neighboring columns at
+  an angle, so a cloud in one column should reduce actinic flux in adjacent
+  columns on the shadow side. Options:
+  - *Slant-column approximation:* trace the solar beam path at the geometric
+    SZA through neighboring columns, accumulate their cloud OD, and apply as
+    an above-cloud attenuation factor before the 1D TUV-x solve. Moderate
+    complexity, physically motivated.
+  - *3D radiative transfer:* full treatment (e.g., SHDOM). Accurate but very
+    expensive and likely impractical for online chemistry.
+  - *Effective cloud fraction:* parameterize shadow effects statistically
+    using cloud fraction and SZA without explicit ray tracing. Simplest but
+    least physical.
+- [ ] Aerosol opacity in TUV-x — extend from-host radiator with aerosol OD
 - [ ] Aerosol chemistry integration
 - [ ] Parallel processing optimization for MICM solver
