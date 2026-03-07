@@ -366,8 +366,9 @@ subpool argument, `mpas_atm_chemistry.F` gets a solar-geometry helper, and
 - [ ] Deferred: re-run the Phase 1 checks on the DC3-aligned May 29, 2012
   timestamp after grid-aware validation becomes meaningful.
 - [ ] Extended run (5+ hours) shows j_NO2 → 0 at sunset (deferred).
-- [ ] Add j_NO2 as diagnostic field in output.nc (deferred to Phase 2 when
-  it becomes per-cell; currently uniform and logged to stdout).
+- [x] Add j_NO2 as diagnostic field in output.nc (3D field in diag pool,
+  added to stream_list, verified in 30-min run: uniform 5.08–5.16e-3 s⁻¹).
+- [x] Add j_NO2 photolysis plot to `plot_lnox_o3.py` (`--photolysis` flag).
 
 ---
 

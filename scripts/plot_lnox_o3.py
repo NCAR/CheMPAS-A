@@ -109,6 +109,8 @@ def load_data(filename):
     if 'uReconstructZonal' in ds.variables:
         data['uZonal'] = ds['uReconstructZonal'][:]
         data['uMeridional'] = ds['uReconstructMeridional'][:]
+    if 'j_no2' in ds.variables:
+        data['j_no2'] = ds['j_no2'][:]              # (Time, nCells, nVertLevels)
     ds.close()
     return data
 
@@ -652,6 +654,61 @@ def plot_source_profiles(data, output_file, n_times=8, dt_seconds=60.0,
 
 
 # ---------------------------------------------------------------------------
+# Plot 7: j_NO2 photolysis rate
+# ---------------------------------------------------------------------------
+
+def plot_photolysis(data, output_file, dt_seconds=60.0):
+    """2-panel: j_NO2 time series (domain mean) and vertical cross-section."""
+    if 'j_no2' not in data:
+        print("  j_no2 not in output — skipping photolysis plot")
+        return
+
+    t_min = data['times'] * dt_seconds / 60.0
+    j = data['j_no2']  # (Time, nCells, nVertLevels)
+
+    # Domain-mean j_NO2 at each time (should be nearly uniform for scalar SZA)
+    j_mean = np.array([j[t].mean() * 1000 for t in range(data['nTimes'])])
+    j_max = np.array([j[t].max() * 1000 for t in range(data['nTimes'])])
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
+
+    # Time series
+    ax1.plot(t_min, j_mean, 'orangered', lw=2, label='domain mean')
+    ax1.plot(t_min, j_max, 'orangered', lw=1.5, ls='--', label='domain max')
+    ax1.set_xlabel('Time (min)')
+    ax1.set_ylabel(r'j$_{\rm NO_2}$ ($\times 10^{-3}$ s$^{-1}$)')
+    ax1.set_title(style.format_title('NO$_2$ Photolysis Rate'))
+    ax1.legend()
+    ax1.set_ylim(bottom=0)
+
+    # Vertical cross-section at final time
+    time_idx = data['nTimes'] - 1
+    y_slice = find_updraft_y(data, time_idx)
+    selected = select_cell_row(data, y_slice)
+    if len(selected) >= 3:
+        x_s = data['xCell'][selected]
+        nLev = data['nVertLevels']
+        z = np.array([get_level_height(data, k) for k in range(nLev)])
+        X, Z = np.meshgrid(x_s, z)
+        j_slice = j[time_idx, selected, :] * 1000  # -> 1e-3 s-1
+        j_levels = smart_levels(0, max(j_slice.max(), 0.001))
+        cf = ax2.contourf(X, Z, j_slice.T, levels=j_levels, cmap='magma')
+        rasterize_contours(cf)
+        add_colorbar(cf, ax2, label=r'$\times 10^{-3}$ s$^{-1}$')
+        ax2.set_xlabel('X (km)')
+        ax2.set_ylabel('Height (km)')
+        t_label = time_idx * dt_seconds / 60.0
+        ax2.set_title(style.format_title(
+            f'j$_{{NO_2}}$ cross-section at t = {t_label:.0f} min'))
+
+    plt.suptitle(style.format_title('NO$_2$ Photolysis Rate (Phase 1: SZA-scaled)'),
+                 fontsize=style.SUPTITLE_SIZE)
+    plt.tight_layout()
+    save_figure(output_file)
+    plt.close()
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -686,6 +743,8 @@ def main():
                         help='Vertical profiles at updraft core')
     parser.add_argument('--source', action='store_true',
                         help='Lightning source profiles at multiple times')
+    parser.add_argument('--photolysis', action='store_true',
+                        help='j_NO2 photolysis rate time series and cross-section')
     parser.add_argument('--wind', action='store_true',
                         help='Overlay wind barbs on horizontal plots')
     parser.add_argument('--w-threshold', type=float, default=0.3,
@@ -730,7 +789,7 @@ def main():
     base = args.output.removesuffix('.png').removesuffix('.pdf')
 
     if not any([args.all, args.vertical, args.evolution, args.horizontal,
-                args.comparison, args.profiles, args.source]):
+                args.comparison, args.profiles, args.source, args.photolysis]):
         args.all = True
 
     if args.vertical or args.all:
@@ -772,6 +831,10 @@ def main():
                              w_ref=args.w_ref,
                              z_min_m=args.z_min, z_max_m=args.z_max,
                              source_rate_ppbv=args.source_rate)
+
+    if args.photolysis or args.all:
+        print("Generating photolysis plot...")
+        plot_photolysis(data, f'{base}_photolysis.png', dt_seconds=args.dt)
 
     if args.show:
         plt.show()
