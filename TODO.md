@@ -26,7 +26,12 @@
   - https://uxarray.readthedocs.io/
 
 - [x] Solar geometry / day-night physics for j_NO2 (Phase 1)
-- [ ] TUV-x photolysis rate calculations (Phase 2-3)
+- [x] TUV-x photolysis rate calculations (Phase 2)
+- [ ] **TUV-x single-column optimization** — Currently solves TUV-x for all
+  28,080 cells every timestep. With fixed SZA and nearly identical profiles
+  away from the storm, a single representative column would give ~28,000x
+  speedup with negligible accuracy loss. Significant runtime impact observed.
 - [x] Domain-integrated Ox conservation test for Case A verification
+- [ ] Cloud/aerosol opacity in TUV-x (Phase 3)
 - [ ] Aerosol chemistry integration
 - [ ] Parallel processing optimization for MICM solver
