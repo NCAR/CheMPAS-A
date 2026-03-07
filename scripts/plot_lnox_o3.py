@@ -658,51 +658,38 @@ def plot_source_profiles(data, output_file, n_times=8, dt_seconds=60.0,
 # ---------------------------------------------------------------------------
 
 def plot_photolysis(data, output_file, dt_seconds=60.0):
-    """2-panel: j_NO2 time series (domain mean) and vertical cross-section."""
+    """Vertical cross-section of j_NO2 at the final time step."""
     if 'j_no2' not in data:
         print("  j_no2 not in output — skipping photolysis plot")
         return
 
-    t_min = data['times'] * dt_seconds / 60.0
     j = data['j_no2']  # (Time, nCells, nVertLevels)
-
-    # Domain-mean j_NO2 at each time (should be nearly uniform for scalar SZA)
-    j_mean = np.array([j[t].mean() * 1000 for t in range(data['nTimes'])])
-    j_max = np.array([j[t].max() * 1000 for t in range(data['nTimes'])])
-
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
-
-    # Time series
-    ax1.plot(t_min, j_mean, 'orangered', lw=2, label='domain mean')
-    ax1.plot(t_min, j_max, 'orangered', lw=1.5, ls='--', label='domain max')
-    ax1.set_xlabel('Time (min)')
-    ax1.set_ylabel(r'j$_{\rm NO_2}$ ($\times 10^{-3}$ s$^{-1}$)')
-    ax1.set_title(style.format_title('NO$_2$ Photolysis Rate'))
-    ax1.legend()
-    ax1.set_ylim(bottom=0)
 
     # Vertical cross-section at final time
     time_idx = data['nTimes'] - 1
     y_slice = find_updraft_y(data, time_idx)
     selected = select_cell_row(data, y_slice)
-    if len(selected) >= 3:
-        x_s = data['xCell'][selected]
-        nLev = data['nVertLevels']
-        z = np.array([get_level_height(data, k) for k in range(nLev)])
-        X, Z = np.meshgrid(x_s, z)
-        j_slice = j[time_idx, selected, :] * 1000  # -> 1e-3 s-1
-        j_levels = smart_levels(0, max(j_slice.max(), 0.001))
-        cf = ax2.contourf(X, Z, j_slice.T, levels=j_levels, cmap='magma')
-        rasterize_contours(cf)
-        add_colorbar(cf, ax2, label=r'$\times 10^{-3}$ s$^{-1}$')
-        ax2.set_xlabel('X (km)')
-        ax2.set_ylabel('Height (km)')
-        t_label = time_idx * dt_seconds / 60.0
-        ax2.set_title(style.format_title(
-            f'j$_{{NO_2}}$ cross-section at t = {t_label:.0f} min'))
+    if len(selected) < 3:
+        print("  too few cells in cross-section row — skipping photolysis plot")
+        return
 
-    plt.suptitle(style.format_title('NO$_2$ Photolysis Rate (Phase 1: SZA-scaled)'),
-                 fontsize=style.SUPTITLE_SIZE)
+    x_s = data['xCell'][selected]
+    nLev = data['nVertLevels']
+    z = np.array([get_level_height(data, k) for k in range(nLev)])
+    X, Z = np.meshgrid(x_s, z)
+    j_slice = j[time_idx, selected, :] * 1000  # -> 1e-3 s-1
+    j_levels = smart_levels(0, max(j_slice.max(), 0.001))
+
+    fig, ax = plt.subplots(1, 1, figsize=(8, 5))
+    cf = ax.contourf(X, Z, j_slice.T, levels=j_levels, cmap='magma')
+    rasterize_contours(cf)
+    add_colorbar(cf, ax, label=r'$\times 10^{-3}$ s$^{-1}$')
+    ax.set_xlabel('X (km)')
+    ax.set_ylabel('Height (km)')
+    t_label = time_idx * dt_seconds / 60.0
+    ax.set_title(style.format_title(
+        f'j$_{{NO_2}}$ (TUV-x) at t = {t_label:.0f} min'))
+
     plt.tight_layout()
     save_figure(output_file)
     plt.close()
