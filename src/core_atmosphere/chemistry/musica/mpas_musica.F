@@ -30,7 +30,7 @@ module mpas_musica
     public :: log_column_comparison, copy_state_to_ref
     public :: resolve_mpas_indices, n_chem_species, chem_species
     public :: musica_query_species
-    public :: musica_set_photolysis
+    public :: musica_set_photolysis, musica_set_photolysis_field
 
     type(micm_t),  pointer :: micm  => null ( )  ! Pointer to the MICM ODE solver instance
     type(state_t), pointer :: state => null ( )  ! Pointer to the state of the MICM solver (coupled to MPAS)
@@ -703,6 +703,65 @@ module mpas_musica
         call mpas_log_write(trim(msg))
 
     end subroutine musica_set_photolysis
+
+    !------------------------------------------------------------------------
+    !  subroutine musica_set_photolysis_field
+    !
+    !> \brief Updates NO2 photolysis rate parameter per cell/level from TUV-x
+    !> \details
+    !>  Writes the j_no2(level, cell) array into the MICM rate parameter
+    !>  array using the cached photo_no2_rp_index and stride-based indexing.
+    !>  Used by Phase 2 TUV-x path (per-cell/level values).
+    !------------------------------------------------------------------------
+    subroutine musica_set_photolysis_field(j_no2, nCells, nVertLevels, &
+                                           error_code, error_message)
+        use iso_fortran_env, only : real64
+        use mpas_kind_types, only : RKIND
+        use mpas_log, only : mpas_log_write
+
+        real(kind=RKIND), intent(in) :: j_no2(:,:)   ! (nVertLevels, nCells)
+        integer, intent(in)          :: nCells, nVertLevels
+        integer, intent(out)         :: error_code
+        character(len=:), allocatable, intent(out) :: error_message
+
+        integer :: cell_stride, var_stride, iCell, k, micm_cell, idx
+        character(len=256) :: msg
+
+        error_code = 0
+        error_message = ''
+
+        if (photo_no2_rp_index < 1) return
+        if (.not. associated(state)) return
+
+        cell_stride = state%rate_parameters_strides%grid_cell
+        var_stride  = state%rate_parameters_strides%variable
+
+        do iCell = 1, nCells
+            do k = 1, nVertLevels
+                micm_cell = (iCell - 1) * nVertLevels + k
+                idx = 1 + (micm_cell - 1) * cell_stride + (photo_no2_rp_index - 1) * var_stride
+                state%rate_parameters(idx) = real(j_no2(k, iCell), real64)
+            end do
+        end do
+
+        ! Also update reference state
+        if (associated(state_ref)) then
+            cell_stride = state_ref%rate_parameters_strides%grid_cell
+            var_stride  = state_ref%rate_parameters_strides%variable
+            do iCell = 1, nCells
+                do k = 1, nVertLevels
+                    micm_cell = (iCell - 1) * nVertLevels + k
+                    idx = 1 + (micm_cell - 1) * cell_stride + (photo_no2_rp_index - 1) * var_stride
+                    state_ref%rate_parameters(idx) = real(j_no2(k, iCell), real64)
+                end do
+            end do
+        end if
+
+        write(msg, '(A,ES10.3,A,ES10.3)') '[MUSICA] j_NO2 field: min=', &
+            minval(j_no2(1:nVertLevels, 1:nCells)), ' max=', maxval(j_no2(1:nVertLevels, 1:nCells))
+        call mpas_log_write(trim(msg))
+
+    end subroutine musica_set_photolysis_field
 
     subroutine set_species_profile(state, species_name, values, err)
         ! Write a 1-D profile into the contiguous concentrations array.

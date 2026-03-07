@@ -15,6 +15,7 @@ dummy:
 OBJS = \
 	mpas_solar_geometry.o \
 	mpas_lightning_nox.o \
+	mpas_tuvx.o \
 	mpas_atm_chemistry.o
 
 ifeq ($(MUSICA),true)
@@ -30,7 +31,7 @@ ifeq ($(MUSICA),true)
 	($(MAKE) -C ./musica mpas_musica_lib)
 endif
 
-mpas_atm_chemistry.o: mpas_lightning_nox.o mpas_solar_geometry.o
+mpas_atm_chemistry.o: mpas_lightning_nox.o mpas_solar_geometry.o mpas_tuvx.o
 
 chem_interface: $(OBJS)
 
