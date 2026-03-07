@@ -37,6 +37,10 @@ module mpas_atm_chemistry
     real(kind=RKIND), save :: chem_lon = 0.0_RKIND
     real(kind=RKIND), save :: chem_j_no2_max = 0.0_RKIND
 
+        ! TUV-x state
+        logical, save :: use_tuvx = .false.
+        integer, save :: idx_qO3 = -1
+
     contains
 
     !------------------------------------------------------------------------
@@ -53,6 +57,7 @@ module mpas_atm_chemistry
 
 #ifdef MPAS_USE_MUSICA
         use mpas_musica, only: musica_init, resolve_mpas_indices
+        use mpas_tuvx, only: tuvx_init, tuvx_is_enabled
 #endif
         use mpas_log, only : mpas_log_write
         use mpas_derived_types, only: mpas_pool_type, MPAS_LOG_CRIT
@@ -76,6 +81,8 @@ module mpas_atm_chemistry
         real(kind=RKIND), pointer       :: j_no2_ptr, nox_tau_ptr
         real(kind=RKIND)                :: j_no2_val, nox_tau_val
         real(kind=RKIND), pointer       :: lat_ptr, lon_ptr
+        character(len=StrKIND), pointer :: tuvx_filepath_ptr
+        integer, pointer                :: idx_qO3_ptr
 #endif
 
         call mpas_log_write('Initializing chemistry packages...')
@@ -142,6 +149,42 @@ module mpas_atm_chemistry
 
         ! Initialize lightning NOx source (no-op if qNO not in mechanism)
         call chemistry_lightning_nox_init(configs, statePool)
+
+        ! Initialize TUV-x if config file is specified
+        nullify(tuvx_filepath_ptr)
+        call mpas_pool_get_config(configs, 'config_tuvx_config_file', tuvx_filepath_ptr)
+        if (associated(tuvx_filepath_ptr) .and. len_trim(tuvx_filepath_ptr) > 0) then
+            call tuvx_init(tuvx_filepath_ptr, nVertLevels, error_code, error_message)
+            if (error_code /= 0) then
+                call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
+            end if
+            use_tuvx = tuvx_is_enabled()
+
+            ! Resolve qO3 index (required for TUV-x)
+            if (use_tuvx .and. associated(statePool)) then
+                nullify(idx_qO3_ptr)
+                call mpas_pool_get_dimension(statePool, 'index_qO3', idx_qO3_ptr)
+                if (associated(idx_qO3_ptr) .and. idx_qO3_ptr > 0) then
+                    idx_qO3 = idx_qO3_ptr
+                    call mpas_log_write('[Chemistry] Resolved index_qO3 = $i for TUV-x', &
+                        intArgs=[idx_qO3])
+                else
+                    use_tuvx = .false.
+                    idx_qO3 = -1
+                    call mpas_log_write('[Chemistry] qO3 tracer not found; TUV-x requires O3 and cannot continue.', &
+                        messageType=MPAS_LOG_CRIT)
+                    return
+                end if
+            else if (use_tuvx) then
+                use_tuvx = .false.
+                idx_qO3 = -1
+                call mpas_log_write('[Chemistry] State pool unavailable; cannot resolve qO3 for TUV-x.', &
+                    messageType=MPAS_LOG_CRIT)
+                return
+            end if
+        else
+            call mpas_log_write('[Chemistry] TUV-x disabled (no config_tuvx_config_file); using Phase 1 fallback.')
+        end if
 #endif
 
     end subroutine chemistry_init
@@ -163,9 +206,11 @@ module mpas_atm_chemistry
 #ifdef MPAS_USE_MUSICA
         use iso_fortran_env, only: real64
         use mpas_musica, only: musica_step, musica_step_ref, log_column_comparison, &
-                               copy_state_to_ref, musica_set_photolysis
+                               copy_state_to_ref, musica_set_photolysis, &
+                               musica_set_photolysis_field
         use mpas_lightning_nox, only: lightning_nox_inject
         use mpas_solar_geometry, only: solar_cos_sza
+        use mpas_tuvx, only: tuvx_compute_photolysis
 #endif
         use mpas_log, only : mpas_log_write
         use mpas_derived_types, only: mpas_pool_type, MPAS_LOG_CRIT
@@ -197,6 +242,14 @@ module mpas_atm_chemistry
         real(kind=RKIND), dimension(:,:,:), pointer :: scalars
         real(kind=RKIND), dimension(:,:), pointer :: w, zgrid
 
+        ! TUV-x variables
+        real(kind=RKIND), allocatable :: j_no2_field(:,:)
+        real(kind=RKIND), dimension(:,:), pointer :: rho_zz, theta_m, zz, exner
+        integer, pointer :: index_qv
+        real(kind=RKIND), allocatable :: rho_air_col(:), temperature_col(:)
+        real(kind=RKIND), parameter :: rvord = 461.5_RKIND / 287.0_RKIND
+        integer :: iCell, k
+
         time_step = dt
 
         ! Get dimensions
@@ -208,19 +261,74 @@ module mpas_atm_chemistry
         ! Probe cell near center of domain for advection diagnostics
         probe_cell = nCells / 2
 
-        ! Compute SZA and update photolysis rate
+        ! Compute SZA
         call mpas_get_time(currTime, DoY=DoY, H=hour, M=minute, S=second)
         hour_utc = real(hour, RKIND) + real(minute, RKIND) / 60.0_RKIND &
                  + real(second, RKIND) / 3600.0_RKIND
         cos_sza = solar_cos_sza(DoY, hour_utc, chem_lat, chem_lon)
-        j_no2_value = chem_j_no2_max * max(0.0_RKIND, cos_sza)
 
-        call musica_set_photolysis(j_no2_value, error_code, error_message)
-        if (error_code /= 0) then
-            call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
-            return
+        ! Update photolysis rates: TUV-x (Phase 2) or cos(SZA) fallback (Phase 1)
+        if (use_tuvx) then
+            if (idx_qO3 < 1) then
+                call mpas_log_write('[Chemistry] TUV-x enabled but index_qO3 is unresolved.', &
+                    messageType=MPAS_LOG_CRIT)
+                return
+            end if
+
+            allocate(j_no2_field(nVertLevels, nCells))
+            allocate(rho_air_col(nVertLevels))
+            allocate(temperature_col(nVertLevels))
+
+            call mpas_pool_get_array(state, 'scalars', scalars, time_lev)
+            call mpas_pool_get_array(state, 'rho_zz', rho_zz, time_lev)
+            call mpas_pool_get_array(state, 'theta_m', theta_m, time_lev)
+            call mpas_pool_get_array(mesh, 'zz', zz)
+            call mpas_pool_get_array(mesh, 'zgrid', zgrid)
+            call mpas_pool_get_array(diag, 'exner', exner)
+            call mpas_pool_get_dimension(state, 'index_qv', index_qv)
+
+            do iCell = 1, nCells
+                do k = 1, nVertLevels
+                    rho_air_col(k) = zz(k, iCell) * rho_zz(k, iCell) * &
+                                     (1.0_RKIND + scalars(index_qv, k, iCell))
+                    temperature_col(k) = (theta_m(k, iCell) / &
+                        (1.0_RKIND + rvord * scalars(index_qv, k, iCell))) * exner(k, iCell)
+                end do
+
+                call tuvx_compute_photolysis(cos_sza, zgrid(:, iCell), &
+                                             rho_air_col, temperature_col, &
+                                             scalars(idx_qO3, :, iCell), &
+                                             nVertLevels, &
+                                             j_no2_field(:, iCell), &
+                                             error_code, error_message)
+                if (error_code /= 0) then
+                    call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
+                    deallocate(j_no2_field, rho_air_col, temperature_col)
+                    return
+                end if
+            end do
+
+            call musica_set_photolysis_field(j_no2_field, nCells, nVertLevels, &
+                                             error_code, error_message)
+            if (error_code /= 0) then
+                call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
+                deallocate(j_no2_field, rho_air_col, temperature_col)
+                return
+            end if
+
+            ! Write per-cell/level j_no2 to diagnostic array
+            call chemistry_set_j_no2_diag_field(diag, j_no2_field, nCells, nVertLevels)
+
+            deallocate(j_no2_field, rho_air_col, temperature_col)
+        else
+            j_no2_value = chem_j_no2_max * max(0.0_RKIND, cos_sza)
+            call musica_set_photolysis(j_no2_value, error_code, error_message)
+            if (error_code /= 0) then
+                call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
+                return
+            end if
+            call chemistry_set_j_no2_diag(diag, j_no2_value)
         end if
-        call chemistry_set_j_no2_diag(diag, j_no2_value)
 
         call mpas_log_write('Stepping chemistry packages...')
 
@@ -290,11 +398,13 @@ module mpas_atm_chemistry
 
 #ifdef MPAS_USE_MUSICA
         use mpas_musica, only: musica_finalize
+        use mpas_tuvx, only: tuvx_finalize_sub => tuvx_finalize
 #endif
         use mpas_log, only : mpas_log_write
 
 #ifdef MPAS_USE_MUSICA
         call mpas_log_write('Finalizing chemistry packages...')
+        call tuvx_finalize_sub()
         call musica_finalize()
 #endif
 
@@ -323,6 +433,36 @@ module mpas_atm_chemistry
         j_no2_diag = j_no2_value
 
     end subroutine chemistry_set_j_no2_diag
+
+
+    !------------------------------------------------------------------------
+    !  routine chemistry_set_j_no2_diag_field
+    !
+    !> \brief Writes per-cell/level j_NO2 array into the diagnostic pool
+    !------------------------------------------------------------------------
+    subroutine chemistry_set_j_no2_diag_field(diag, j_no2_field, nCells, nVertLevels)
+
+        use mpas_pool_routines, only: mpas_pool_get_array
+        use mpas_derived_types, only: mpas_pool_type
+
+        type(mpas_pool_type), intent(inout) :: diag
+        real(kind=RKIND), intent(in) :: j_no2_field(:,:)  ! (nVertLevels, nCells)
+        integer, intent(in) :: nCells, nVertLevels
+
+        real(kind=RKIND), dimension(:,:), pointer :: j_no2_diag
+        integer :: k, iCell
+
+        nullify(j_no2_diag)
+        call mpas_pool_get_array(diag, 'j_no2', j_no2_diag)
+        if (.not. associated(j_no2_diag)) return
+
+        do iCell = 1, min(nCells, size(j_no2_diag, 2))
+            do k = 1, min(nVertLevels, size(j_no2_diag, 1))
+                j_no2_diag(k, iCell) = j_no2_field(k, iCell)
+            end do
+        end do
+
+    end subroutine chemistry_set_j_no2_diag_field
 
 
     !------------------------------------------------------------------------
