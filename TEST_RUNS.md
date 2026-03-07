@@ -198,6 +198,56 @@ python init_tracer_sine.py -t qAB --waves-x 2 --amplitude 0.4 --offset 0.6
 
 ---
 
+### 2026-03-06: Phase 2 — TUV-x clear-sky photolysis
+
+**Duration:** 15 minutes
+**Chemistry:** LNOx-O3 with TUV-x-computed j_NO2
+**Photolysis config:** `config_tuvx_config_file = 'tuvx_no2.json'`
+**Location / time:** Kingfisher, OK (35.86°N, 97.93°W), 18:00 UTC, SZA ≈ 59°
+**Source:** 0.5 ppbv/s when w - w_threshold = w_ref, w_threshold=5 m/s, w_ref=10 m/s, altitude 5–12 km
+**Sink:** Disabled (tau = 0)
+**Initial conditions:** NO=0, NO2=0, O3=50 ppbv
+
+**Key observations:**
+- j_NO2 is no longer uniform with height
+- j_NO2 increases from 7.2e-3 s^-1 at the surface to 1.2e-2 s^-1 at 20 km
+- surface/top j_NO2 ratio = 0.61
+- NO peak: 29.9 ppbv
+- NO2 peak: 6.5 ppbv
+- O3 minimum: 43.5 ppbv
+- O3 background remains 50.000 ppbv away from the storm
+- all tracers remain non-negative
+
+**Phase comparison (15-minute Case B):**
+- Phase 1 surface j_NO2: 5.1e-3 s^-1 (uniform with height)
+- Phase 2 surface j_NO2: 7.2e-3 s^-1
+- Phase 1 10 km j_NO2: 5.1e-3 s^-1
+- Phase 2 10 km j_NO2: 1.0e-2 s^-1
+- Phase 1 20 km j_NO2: 5.1e-3 s^-1
+- Phase 2 20 km j_NO2: 1.2e-2 s^-1
+- Phase 1 NO peak: 27.9 ppbv
+- Phase 2 NO peak: 29.9 ppbv
+- Phase 1 NO2 peak: 8.5 ppbv
+- Phase 2 NO2 peak: 6.5 ppbv
+- Phase 1 O3 minimum: 41.5 ppbv
+- Phase 2 O3 minimum: 43.5 ppbv
+
+**Verification passed:**
+- [x] Non-negativity for all species
+- [x] Nighttime shortcut sets j_NO2 = 0 when SZA >= 90 deg
+- [x] j_NO2 shows plausible clear-sky vertical structure
+- [x] Surface j_NO2 is in the expected clear-sky order of magnitude
+- [x] O3 background preserved at 50 ppbv
+- [x] 15-minute Case B remains stable with TUV-x photolysis
+- [x] Empty `config_tuvx_config_file` falls back to the Phase 1 path (manual comparison)
+
+**Deferred follow-up checks:**
+- [ ] transition-smooth for extended runs spanning sunset
+- [ ] decomposition compare across MPI decompositions
+- [ ] Ox conservation with transport/source disabled
+
+---
+
 ## Notes
 
 1. **PnetCDF compatibility:** Use `io_type="netcdf"` in streams.atmosphere on macOS/LLVM builds

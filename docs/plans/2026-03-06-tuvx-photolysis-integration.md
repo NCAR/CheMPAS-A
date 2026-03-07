@@ -10,8 +10,9 @@
   per-column, altitude-dependent j_NO2 from host atmospheric profiles via
   delta-Eddington radiative transfer. Surface j_NO2 = 7.2e-3 s⁻¹ at SZA≈59°
   (matches literature clear-sky). Phase 1 cos(SZA) fallback remains available
-  when `config_tuvx_config_file` is empty. Phase 3 (cloud/aerosol opacity,
-  earth-sun distance, extended validation) is the next target.
+  when `config_tuvx_config_file` is empty. Phase 3 cloud inputs to TUV-x are
+  the next target. Aerosols, earth-sun distance, and extended validation
+  remain later work.
 - `Use This As:` Primary reference for post-ABBA chemistry development.
 
 ## Locked Decisions
@@ -63,8 +64,8 @@ us:
 3. Clear-sky illumination realism for DC3 validation — correct late-afternoon
    to evening geometry for the May 29 Kingfisher storm
 
-With Phase 1 accepted and merged on the fallback-only path, the active work
-now shifts to Phase 2 TUV-x coupling.
+With Phases 1-2 complete, the active work now shifts to Phase 3 cloud inputs
+to TUV-x.
 
 ## Phase 0: LNOx-O3 with Fixed Rates — COMPLETE
 
@@ -157,7 +158,7 @@ Replace the constant j_NO2 with a SZA-dependent scaling:
 
 **Status:** Complete and merged to `main` for the accepted fallback-only
 idealized path. This section remains as implementation/reference history;
-Phase 2 is the active target.
+Phase 3 is the next target.
 
 **Rationale:** SZA computation is a prerequisite for TUV-x (Phase 2), which
 requires SZA as input. Testing with a simple cosine scaling first validates
@@ -394,6 +395,10 @@ captured by radiative transfer. TUV-x computes the full actinic flux →
 cross-section × quantum-yield integration. This phase is explicitly a
 clear-sky coupling milestone, not the final storm-radiation treatment.
 
+**Status note:** Phase 2 is complete for the validated LNOx-O3 supercell case
+and current runtime tracer set. Remaining open items are deferred robustness
+hardening and broader gate coverage, not Phase 2 functionality gaps.
+
 ### TUV-x Availability
 
 TUV-x is already compiled into MUSICA-Fortran v0.13.0 (132 `.mod` files in
@@ -613,13 +618,17 @@ physics data:
   unassociated and use the Phase 1 fallback branch.
 - [x] Resolve and cache `index_qO3` during chemistry initialization, and fail
   fast with a clear log message if the runtime tracer set does not include
-  `qO3`. Phase 2 assumes host O3 is present; it should not silently run with a
-  missing tracer.
+  `qO3`.
 - [ ] Refactor `chemistry_from_MPAS` so the environment-building loop
   (`rho_air`, `temperature`, `pressure`) is reusable by both MICM coupling and
   TUV-x, rather than recomputing those fields twice. **Deferred:** currently
   the TUV-x branch computes its own `rho_air` and `temperature` per column;
   works but duplicates effort.
+- [ ] Add explicit association/availability checks for the TUV-x branch inputs
+  (`scalars`, `rho_zz`, `theta_m`, `zz`, `zgrid`, `exner`, `index_qv`) before
+  dereferencing them in `chemistry_step`. **Deferred robustness hardening:**
+  the validated supercell path has these fields, but the current code assumes
+  they are present.
 - [x] Add a chemistry-side workspace for `j_no2(:,:)` with dimensions
   `(nVertLevels, nCells)` for the current block.
 - [x] In `mpas_tuvx.F`, query photolysis and heating orderings/counts during
@@ -819,43 +828,32 @@ keeps the Phase 2 fallback path cheap to maintain.
 |-------|-----------|--------|
 | Non-negativity | qNO, qNO2, qO3 >= 0 | **PASS** — all tracers non-negative |
 | Night j-zero | j_NO2 = 0 when SZA >= 90° | **PASS** — nighttime shortcut in `tuvx_compute_photolysis` |
-| Vertical structure | j_NO2 increases with altitude (less attenuation) | **PASS** — monotonic increase from 7.2e-3 (surface) to 1.2e-2 (20 km) |
+| Vertical structure | j_NO2 shows plausible, non-uniform clear-sky height dependence | **PASS** — the validated case is monotonic, rising from 7.2e-3 (surface) to 1.2e-2 (20 km) |
 | Magnitude sanity | Surface j_NO2 in clear-sky range (~0.005–0.01 s⁻¹) | **PASS** — 7.2e-3 s⁻¹ at SZA≈59° (literature ~0.008) |
 | Surface/top ratio | Ratio 0.5–0.8 for clear sky | **PASS** — 0.61 |
 | O3 background | O3 preserved at 50 ppbv away from storm | **PASS** — 50.000 ppbv at background cells |
 | Chemistry response | Stronger j_NO2 at altitude → less NO2 accumulation | **PASS** — NO2 peak 6.5 ppbv (vs 8.5 Phase 1) |
 | Build passes | MUSICA=true with TUV-x module linked | **PASS** |
-| Fallback compare | Empty config reproduces Phase 1 behavior | **PASS** — tested manually |
+| Fallback compare | Empty config reproduces Phase 1 behavior | **PASS** — tested manually for the validated case |
 | Transition smooth | Dawn/dusk j_NO2 varies smoothly | Deferred to extended run |
 | Ox conservation | Domain-integrated Ox conserved (source/sink off) | Deferred |
 | Decomp compare | Identical results across MPI decompositions | Deferred |
 
 ### Test Results (15-minute supercell, Case B)
 
-Configuration: `config_tuvx_config_file = 'tuvx_no2.json'`, SZA ≈ 59°
-(35.86°N, 97.93°W, 18:00 UTC), source = 0.5 ppbv/s, O3 init = 50 ppbv.
-
-| Metric | Phase 1 (cos SZA) | Phase 2 (TUV-x) |
-|--------|-------------------|-----------------|
-| j_NO2 surface | 5.1e-3 (uniform) | 7.2e-3 s⁻¹ |
-| j_NO2 10 km | 5.1e-3 (uniform) | 1.0e-2 s⁻¹ |
-| j_NO2 20 km | 5.1e-3 (uniform) | 1.2e-2 s⁻¹ |
-| NO peak | 27.9 ppbv | 29.9 ppbv |
-| NO2 peak | 8.5 ppbv | 6.5 ppbv |
-| O3 min | 41.5 ppbv | 43.5 ppbv |
-
-The chemistry responds correctly: stronger photolysis at altitude recycles
-NO2 → NO + O3 faster, reducing NO2 accumulation and O3 depletion.
+Detailed quantitative Phase 2 run results are recorded in `TEST_RUNS.md`.
 
 ### Exit Criteria
 
 - [x] Build passes with TUV-x module linked.
-- [x] j_NO2 profile shows plausible clear-sky vertical structure (monotonic
-  increase with altitude, ratio 0.61 surface-to-top).
+- [x] j_NO2 profile shows plausible clear-sky vertical structure; in the
+  validated case it increases monotonically with altitude and gives a 0.61
+  surface-to-top ratio.
 - [x] Surface j_NO2 = 7.2e-3 s⁻¹ at SZA≈59° matches literature clear-sky
   (caveats: 20 km domain top, no stratospheric O3 column, clear-sky only).
 - [x] 15-min Case B remains stable with TUV-x-provided j_NO2.
-- [x] Fallback: empty `config_tuvx_config_file` uses Phase 1 path.
+- [x] Fallback: empty `config_tuvx_config_file` uses Phase 1 path in the
+  validated manual comparison.
 - [ ] Deferred: `transition-smooth` for extended runs spanning sunset.
 - [ ] Deferred: `decomp-compare` across MPI decompositions.
 - [ ] Deferred: Ox conservation test with transport disabled.
@@ -914,12 +912,20 @@ TUV-x supports from-host radiators via `musica_tuvx_radiator`:
 use musica_tuvx_radiator, only: radiator_t
 use musica_tuvx_radiator_map, only: radiator_map_t
 
-! At init: create cloud radiator (needs both height and wavelength grids)
+! Phase 2 currently gets the wavelength grid from the constructed solver.
+! Since radiator_t(...) requires that grid at construction time, Phase 3
+! needs one of two valid init paths:
+!
+! Path A (preferred if supported): retrieve the solver-owned wavelength grid
+! and radiator map after tuvx_t(...) construction, then add the cloud radiator.
+radiators => tuvx_solver%get_radiators(err)
+wavelength_grid => grids%get("wavelength", "nm", err)
 cloud_radiator => radiator_t("clouds", height_grid, wavelength_grid, err)
 call radiators%add(cloud_radiator, err)
 
-! After TUV-x construction, retrieve updatable handle
-radiators => tuvx_solver%get_radiators(err)  ! if available, or use stored ptr
+! Path B (fallback if post-construction add is not supported): host-create and
+! register the wavelength grid before tuvx_t(...), then add the cloud radiator
+! to the construction-time radiator map before solver creation.
 cloud_radiator => radiators%get("clouds", err)
 
 ! Each timestep, per column: set optical properties
@@ -937,6 +943,13 @@ CAM wavelength grid (103 bins) and 40 vertical levels, each array is
 wavelength-independent in the visible/near-UV, each column in the array is
 identical (broadcast from a 1-D vertical profile).
 
+**Design note:** The current Phase 2 implementation retrieves the wavelength
+grid from the constructed solver. That makes the init sequence the first
+Phase 3 design decision: verify that `get_radiators()` returns a mutable
+solver-owned map that can accept `add(...)` after construction. If not, move
+the wavelength-grid creation to the host side and register it before
+constructing `tuvx_t(...)`.
+
 ### Performance: Per-Column Solves Required
 
 With cloud opacity, **the single-column optimization is not valid.** Cloud
@@ -944,7 +957,15 @@ fields vary spatially — the updraft core is optically thick while surrounding
 clear air has zero cloud OD. TUV-x must be solved per column wherever clouds
 are present.
 
-**Optimization strategy:** Two-tier approach:
+**Implementation order:** correctness first, optimization second.
+
+1. **First pass:** apply cloud attenuation with straightforward per-column
+   TUV-x solves everywhere. This keeps the first Phase 3 patch focused on
+   radiative correctness and chemistry response.
+2. **Second pass:** add a clear-sky/cloudy split only after the cloud
+   radiator path is validated.
+
+**Optimization strategy for the second pass:** Two-tier approach:
 1. **Clear-sky columns** (qc_max < threshold, e.g., 1e-6 kg/kg): Use a
    single precomputed clear-sky j_NO2 profile (one TUV-x solve per timestep).
 2. **Cloudy columns** (qc_max >= threshold): Full per-column TUV-x solve with
@@ -975,10 +996,11 @@ properties).
 
 Add cloud radiator support:
 - Module-level: `cloud_radiator` pointer, `wavelength_grid` pointer,
-  `n_wavelength_bins`, work arrays for cloud OD/SSA/g
-- `tuvx_init`: Create from-host `radiator_t("clouds", ...)`, register in
-  radiator map before TUV-x construction, retrieve updatable handle and
-  wavelength grid after construction
+  `radiators` pointer, `n_wavelength_bins`, work arrays for cloud OD/SSA/g
+- `tuvx_init`: either (a) retrieve the solver-owned wavelength grid and
+  radiator map after TUV-x construction and add the cloud radiator there, or
+  (b) if that path proves unsupported, refactor init so the wavelength grid is
+  host-created and registered before TUV-x construction
 - `tuvx_compute_photolysis`: Accept `qc` and `qr` arrays, compute cloud
   OD per layer, set radiator optical properties before `tuvx_solver%run()`
 - New helper: `compute_cloud_optical_depth(qc, qr, rho_air, dz, cloud_od)`
@@ -1024,14 +1046,319 @@ hardcoded constants appropriate for the Kessler scheme (no prognostic droplet
 size). If a more sophisticated microphysics scheme provides effective radius,
 this can be extended later.
 
+### High-Level Fortran Design
+
+The Phase 3 code should extend the current Phase 2 TUV-x path rather than
+introduce a second photolysis provider. The main changes stay in
+`mpas_tuvx.F`, with `mpas_atm_chemistry.F` responsible only for host-field
+extraction and provider selection.
+
+**`mpas_tuvx.F`: module state additions**
+
+```fortran
+#ifdef MPAS_USE_MUSICA
+    use musica_tuvx_radiator, only: radiator_t
+
+    type(grid_t),         pointer :: wavelength_grid => null()
+    type(radiator_map_t), pointer :: radiators       => null()
+    type(radiator_t),     pointer :: cloud_radiator  => null()
+
+    integer, save :: n_wavelength_bins = 0
+
+    real(dk), allocatable :: cloud_od(:,:)   ! (n_layers, n_wavelength_bins)
+    real(dk), allocatable :: cloud_ssa(:,:)  ! (n_layers, n_wavelength_bins)
+    real(dk), allocatable :: cloud_g(:,:,:)  ! (n_layers, n_wavelength_bins, 1)
+
+    real(dk), parameter :: CLOUD_SSA = 0.999999_dk
+    real(dk), parameter :: CLOUD_G   = 0.85_dk
+#endif
+```
+
+This keeps cloud-radiator ownership inside the TUV-x wrapper, which is where
+the wavelength-grid and radiator-map details already belong.
+
+**`tuvx_init`: preferred Path A sketch**
+
+```fortran
+subroutine tuvx_init(config_file, nVertLevels_in, error_code, error_message)
+    ...
+    tuvx_solver => tuvx_t(trim(config_file), grids, profiles, radiators, err)
+    if (tuvx_has_error(err, error_code, error_message)) return
+
+    grids     => tuvx_solver%get_grids(err)
+    profiles  => tuvx_solver%get_profiles(err)
+    radiators => tuvx_solver%get_radiators(err)
+    if (tuvx_has_error(err, error_code, error_message)) return
+
+    height_grid     => grids%get("height", "km", err)
+    wavelength_grid => grids%get("wavelength", "nm", err)
+    if (tuvx_has_error(err, error_code, error_message)) return
+
+    n_wavelength_bins = wavelength_grid%number_of_sections(err)
+    if (tuvx_has_error(err, error_code, error_message)) return
+
+    cloud_radiator => radiator_t("clouds", height_grid, wavelength_grid, err)
+    if (tuvx_has_error(err, error_code, error_message)) return
+    call radiators%add(cloud_radiator, err)
+    if (tuvx_has_error(err, error_code, error_message)) return
+
+    cloud_radiator => radiators%get("clouds", err)
+    if (tuvx_has_error(err, error_code, error_message)) return
+
+    allocate(cloud_od(n_layers, n_wavelength_bins))
+    allocate(cloud_ssa(n_layers, n_wavelength_bins))
+    allocate(cloud_g(n_layers, n_wavelength_bins, 1))
+
+    cloud_ssa = CLOUD_SSA
+    cloud_g(:,:,1) = CLOUD_G
+    ...
+end subroutine
+```
+
+If post-construction `radiators%add(...)` proves unsupported, this same design
+still applies; only the wavelength-grid / cloud-radiator creation moves earlier
+into the construction-time path.
+
+**`tuvx_compute_photolysis`: cloud-aware extension sketch**
+
+```fortran
+subroutine tuvx_compute_photolysis(cos_sza, z_edges_m, rho_air, temperature, &
+                                    qo3, qc, qr, nVertLevels_in,           &
+                                    j_no2_column, error_code, error_message)
+    real(kind=RKIND), intent(in)  :: qo3(:)
+    real(kind=RKIND), intent(in)  :: qc(:)
+    real(kind=RKIND), intent(in)  :: qr(:)
+    real(kind=RKIND), intent(out) :: j_no2_column(:)
+
+    real(dk) :: dz_m(nVertLevels_in)
+    real(dk) :: cloud_tau_1d(nVertLevels_in)
+    integer :: iWave
+
+    ...
+
+    dz_m = real(z_edges_m(2:nVertLevels_in+1) - z_edges_m(1:nVertLevels_in), dk)
+
+    call compute_cloud_optical_depth(real(qc, dk), real(qr, dk),             &
+                                     real(rho_air, dk), dz_m,                &
+                                     nVertLevels_in, cloud_tau_1d)
+
+    do iWave = 1, n_wavelength_bins
+        cloud_od(:, iWave) = cloud_tau_1d(:)
+    end do
+
+    call cloud_radiator%set_optical_depths(cloud_od, err)
+    if (tuvx_has_error(err, error_code, error_message)) return
+    call cloud_radiator%set_single_scattering_albedos(cloud_ssa, err)
+    if (tuvx_has_error(err, error_code, error_message)) return
+    call cloud_radiator%set_asymmetry_factors(cloud_g, err)
+    if (tuvx_has_error(err, error_code, error_message)) return
+
+    call tuvx_solver%run(photo_rates, heating_rates, cos_sza, sza_rad, esd, err)
+    if (tuvx_has_error(err, error_code, error_message)) return
+
+    ! Same Phase 2 extraction: average edge photolysis rates to layer midpoints.
+    ...
+end subroutine
+```
+
+For the first correctness pass, `qc` is required and `qr` can be passed as
+zero when rain is unavailable or intentionally omitted.
+
+**`compute_cloud_optical_depth`: narrow helper sketch**
+
+```fortran
+subroutine compute_cloud_optical_depth(qc, qr, rho_air, dz_m, nVertLevels, cloud_od)
+    real(dk), intent(in)  :: qc(:), qr(:), rho_air(:), dz_m(:)
+    real(dk), intent(out) :: cloud_od(:)
+    integer,  intent(in)  :: nVertLevels
+
+    real(dk), parameter :: R_EFF_CLOUD = 10.0e-6_dk
+    real(dk), parameter :: R_EFF_RAIN  = 500.0e-6_dk
+    real(dk), parameter :: RHO_WATER   = 1000.0_dk
+    integer :: k
+
+    do k = 1, nVertLevels
+        cloud_od(k) = (3.0_dk * max(qc(k), 0.0_dk) * rho_air(k) * dz_m(k)) / &
+                      (2.0_dk * R_EFF_CLOUD * RHO_WATER) +                    &
+                      (3.0_dk * max(qr(k), 0.0_dk) * rho_air(k) * dz_m(k)) / &
+                      (2.0_dk * R_EFF_RAIN  * RHO_WATER)
+    end do
+end subroutine
+```
+
+Keep this helper local to `mpas_tuvx.F`; it is physics glue for the TUV-x
+radiator, not a general chemistry utility.
+
+**`mpas_atm_chemistry.F`: correctness-first call-site sketch**
+
+```fortran
+! TUV-x variables
+real(kind=RKIND), allocatable :: j_no2_field(:,:)
+real(kind=RKIND), allocatable :: rho_air_col(:), temperature_col(:)
+integer :: idx_qc, idx_qr
+
+...
+
+if (use_tuvx) then
+    if (idx_qO3 < 1 .or. idx_qc < 1) then
+        call mpas_log_write('[Chemistry] TUV-x cloud path missing required tracer index.', &
+            messageType=MPAS_LOG_CRIT)
+        return
+    end if
+
+    do iCell = 1, nCells
+        ...
+        call tuvx_compute_photolysis(cos_sza, zgrid(:, iCell),             &
+                                     rho_air_col, temperature_col,         &
+                                     scalars(idx_qO3, :, iCell),           &
+                                     scalars(idx_qc,  :, iCell),           &
+                                     scalars(idx_qr,  :, iCell),           &
+                                     nVertLevels,                          &
+                                     j_no2_field(:, iCell),                &
+                                     error_code, error_message)
+        if (error_code /= 0) then
+            call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
+            return
+        end if
+    end do
+
+    call musica_set_photolysis_field(j_no2_field, nCells, nVertLevels, &
+                                     error_code, error_message)
+    ...
+end if
+```
+
+For Kessler, `idx_qc` should be required. `idx_qr` can either be required as
+well, or treated as optional with a pre-zeroed scratch column if the runtime
+state does not expose rain.
+
+**Second-pass optimization sketch**
+
+```fortran
+logical :: is_cloudy
+real(kind=RKIND), allocatable :: j_no2_clear(:)
+
+call tuvx_compute_photolysis(cos_sza, zgrid(:, probe_clear), rho_air_col, &
+                             temperature_col, qo3_clear, zero_qc, zero_qr, &
+                             nVertLevels, j_no2_clear, error_code, error_message)
+
+do iCell = 1, nCells
+    is_cloudy = maxval(scalars(idx_qc, :, iCell)) >= qc_threshold
+    if (is_cloudy) then
+        call tuvx_compute_photolysis(..., qc_col, qr_col, ..., j_no2_field(:, iCell), ...)
+    else
+        j_no2_field(:, iCell) = j_no2_clear(:)
+    end if
+end do
+```
+
+This optimization should not be part of the first Phase 3 patch. It belongs
+after the cloud-radiator path is already validated.
+
+### File-by-File Implementation Order
+
+**1. `src/core_atmosphere/chemistry/mpas_tuvx.F`**
+
+Implementation sequence:
+- [ ] Add the new MUSICA import for `radiator_t`.
+- [ ] Add module-level cloud-radiator state:
+  `wavelength_grid`, `radiators`, `cloud_radiator`,
+  `n_wavelength_bins`, `cloud_od`, `cloud_ssa`, `cloud_g`,
+  plus `CLOUD_SSA` / `CLOUD_G` constants.
+- [ ] Extend `tuvx_init` immediately after the existing Phase 2
+  `get_grids()` / `get_profiles()` calls:
+  retrieve `get_radiators()`, retrieve the `"wavelength"` grid,
+  determine `n_wavelength_bins`, then test the preferred
+  post-construction cloud-radiator registration path.
+- [ ] If post-construction `radiators%add(...)` fails, refactor the init
+  path so the wavelength grid is host-created and registered before
+  `tuvx_t(...)`, then add the cloud radiator on the construction-time map.
+- [ ] Allocate `cloud_od`, `cloud_ssa`, and `cloud_g` as persistent arrays
+  sized from `n_layers` and `n_wavelength_bins`.
+- [ ] Pre-fill `cloud_ssa` and `cloud_g` once at init since they are constant
+  across columns and wavelengths for the warm-cloud first pass.
+- [ ] Add `compute_cloud_optical_depth(...)` as a local helper near
+  `tuvx_compute_photolysis(...)`.
+- [ ] Extend `tuvx_compute_photolysis(...)` to accept `qc(:)` and `qr(:)`.
+- [ ] Inside `tuvx_compute_photolysis(...)`, preserve the current Phase 2
+  height/profile updates and `j_no2` extraction, then insert the new cloud
+  optical-depth update immediately before `tuvx_solver%run(...)`.
+- [ ] Broadcast the 1-D `cloud_tau_1d(:)` profile across
+  `cloud_od(:, :)`, then call
+  `set_optical_depths`, `set_single_scattering_albedos`, and
+  `set_asymmetry_factors` on `cloud_radiator`.
+- [ ] Extend `tuvx_finalize()` to deallocate the cloud work arrays and nullify
+  cloud-radiator pointers alongside the existing TUV-x state cleanup.
+
+Local acceptance checks:
+- [ ] Compile with the new `tuvx_compute_photolysis(...)` signature and
+  cloud-radiator imports.
+- [ ] Confirm the zero-cloud case (`qc=0`, `qr=0`) reproduces Phase 2
+  `j_no2` within roundoff.
+- [ ] Confirm init logging reports the chosen radiator-registration path and
+  the resolved number of wavelength bins.
+
+**2. `src/core_atmosphere/chemistry/mpas_atm_chemistry.F`**
+
+Implementation sequence:
+- [ ] Add saved tracer indices for the cloud path:
+  `idx_qc = -1` and `idx_qr = -1` next to the existing `idx_qO3`.
+- [ ] In `chemistry_init`, after the existing `qO3` resolution, resolve
+  `index_qc` and `index_qr` from the state pool when `use_tuvx` is true.
+- [ ] Decide and document the required/optional policy:
+  `qc` should be required for Phase 3;
+  `qr` may be optional with a zero-filled fallback column if the runtime state
+  does not expose rain.
+- [ ] Fail fast during init if `qc` is unavailable when TUV-x cloud attenuation
+  is enabled.
+- [ ] In `chemistry_step`, add scratch column arrays for `qc` and, if needed,
+  `qr`.
+- [ ] Strengthen the existing TUV-x branch guards before any dereference:
+  verify `scalars`, `rho_zz`, `theta_m`, `zz`, `zgrid`, `exner`, and
+  `index_qv` are associated, and that `idx_qO3` / `idx_qc` are valid.
+- [ ] Keep the current Phase 2 environment extraction (`rho_air_col`,
+  `temperature_col`) unchanged.
+- [ ] Pass `scalars(idx_qc, :, iCell)` and `scalars(idx_qr, :, iCell)` into the
+  extended `tuvx_compute_photolysis(...)` call.
+- [ ] Preserve the existing `musica_set_photolysis_field(...)` and
+  `chemistry_set_j_no2_diag_field(...)` path so Phase 3 only changes the
+  upstream `j_no2_field` calculation.
+- [ ] Leave the clear-sky/cloudy split out of the first patch.
+- [ ] After correctness validation, add the second-pass optimization using a
+  clear-sky reference column and `maxval(qc_col)` thresholding.
+
+Local acceptance checks:
+- [ ] Compile the driver with the new saved indices and extended
+  `tuvx_compute_photolysis(...)` call.
+- [ ] Confirm the zero-cloud run is bitwise or near-bitwise equivalent to the
+  existing Phase 2 path.
+- [ ] Confirm cloudy-core `j_no2` is strongly attenuated while clear-air
+  columns remain Phase 2-like.
+
+**Recommended patch split**
+
+1. `mpas_tuvx.F` only: prove the radiator init path, add cloud work arrays,
+   implement the cloud-aware `tuvx_compute_photolysis(...)`, compile.
+2. `mpas_atm_chemistry.F` only: resolve `qc/qr`, wire host fields into the
+   new signature, preserve diagnostics, compile.
+3. Follow-up patch: clear-sky/cloudy optimization after the correctness-first
+   cloud path has been validated.
+
 ### Implementation Checklist
 
-- [ ] In `tuvx_init`, retrieve and cache the wavelength grid handle after
-  TUV-x construction (`grids%get("wavelength", "nm", err)`). Needed for
-  creating the from-host cloud radiator.
-- [ ] Create from-host `radiator_t("clouds", height_grid, wavelength_grid)`
-  and register it in the radiator map before TUV-x construction.
-- [ ] After construction, retrieve the updatable cloud radiator handle.
+- [ ] First, resolve the init-sequence constraint: verify whether the
+  solver-owned radiator map returned by `tuvx_solver%get_radiators(err)` can
+  accept `radiators%add(cloud_radiator, err)` after construction.
+- [ ] If post-construction `add(...)` works, in `tuvx_init` retrieve and cache
+  both the wavelength grid handle (`grids%get("wavelength", "nm", err)`) and
+  the solver-owned radiator map after TUV-x construction, then create/add the
+  cloud radiator there.
+- [ ] If post-construction `add(...)` does not work, refactor `tuvx_init` so
+  the wavelength grid is host-created and registered before `tuvx_t(...)`,
+  then create the from-host `radiator_t("clouds", height_grid, wavelength_grid)`
+  and add it to the construction-time radiator map.
+- [ ] After the chosen init path is in place, retrieve and cache the
+  updatable cloud radiator handle.
 - [ ] Allocate work arrays for cloud optical properties:
   `cloud_od(nVertLevels, n_wavelength_bins)`,
   `cloud_ssa(nVertLevels, n_wavelength_bins)`,
@@ -1042,10 +1369,16 @@ this can be extended later.
   and g=0.85, call `set_optical_depths` / `set_single_scattering_albedos` /
   `set_asymmetry_factors` before `tuvx_solver%run()`.
 - [ ] In `chemistry_step`, pass `scalars(index_qc, :, iCell)` (and `qr`) to
-  the TUV-x per-column call. Resolve `index_qc` at init.
-- [ ] Implement clear-sky/cloudy column split: compute clear-sky j_NO2 once
-  per timestep, apply to all clear-sky columns, only call TUV-x per-column
-  for cloudy cells.
+  the TUV-x per-column call. Resolve `index_qc` and `index_qr` at init with
+  explicit fail-fast or fallback-to-zero handling documented in code.
+- [ ] Add the same robustness hardening used in Phase 2: verify the required
+  hydrometeor indices and input arrays are associated before dereferencing
+  them in the TUV-x path.
+- [ ] First validate the correctness-first implementation with per-column TUV-x
+  solves everywhere.
+- [ ] Only after the cloud attenuation path is validated, implement the
+  clear-sky/cloudy column split: compute clear-sky j_NO2 once per timestep,
+  apply to all clear-sky columns, only call TUV-x per-column for cloudy cells.
 - [ ] Verify: j_NO2 near zero inside optically thick cloud, unchanged in
   clear air.
 - [ ] Verify: NO2 accumulates inside cloud (no photolysis recycling), O3
@@ -1062,7 +1395,7 @@ this can be extended later.
 | Non-negativity | All tracers non-negative |
 | Chemistry response | NO2 higher inside cloud vs Phase 2 (less recycling) |
 | O3 response | O3 lower inside cloud vs Phase 2 (less photolytic recovery) |
-| Performance | Runtime comparable to Phase 2 with clear-sky optimization |
+| Performance | Follow-on check after clear-sky/cloudy split is implemented |
 | Fallback | Empty config still uses Phase 1 cos(SZA) path |
 
 ### Exit Criteria
@@ -1071,8 +1404,22 @@ this can be extended later.
 - j_NO2 reduced by >100x inside optically thick cloud (OD > 100).
 - Clear-sky j_NO2 unchanged from Phase 2.
 - 15-min Case B stable with cloud-attenuated photolysis.
-- Clear-sky/cloudy column optimization implemented and tested.
+- Correctness-first cloud attenuation validated before optimization.
+- Clear-sky/cloudy column optimization implemented and tested, or explicitly
+  deferred to later performance work.
 - Phase 2 vs Phase 3 comparison documented.
+
+### Next Steps
+
+1. Resolve the cloud-radiator initialization path against the real MUSICA API:
+   determine whether post-construction `radiators%add(...)` is supported on the
+   solver-owned map returned by `get_radiators()`.
+2. Implement the correctness-first cloud attenuation path in
+   `mpas_tuvx.F` and `mpas_atm_chemistry.F` without the clear-sky split.
+3. Add hydrometeor index and pointer guards (`qc` required, `qr` handled
+   explicitly) so Phase 3 does not repeat the earlier Phase 2 robustness gap.
+4. Once the chemistry response is validated, add the clear-sky/cloudy split
+   and fold the performance check back into the Phase 3 gate.
 
 ---
 
@@ -1103,7 +1450,7 @@ are written to output files.
 | Phase 0 | `nonnegative`, `verify_ox_conservation.py` |
 | Phase 1 | Phase 0 + `night-jzero` |
 | Phase 2 | Phase 1 + `transition-smooth`, `decomp-compare`, `fallback-compare` |
-| Phase 3 | Phase 2 + cloud attenuation, clear-sky unchanged, performance |
+| Phase 3 | Phase 2 + cloud attenuation, clear-sky unchanged, chemistry response (performance after optimization pass) |
 
 ---
 

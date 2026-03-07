@@ -37,9 +37,9 @@ module mpas_atm_chemistry
     real(kind=RKIND), save :: chem_lon = 0.0_RKIND
     real(kind=RKIND), save :: chem_j_no2_max = 0.0_RKIND
 
-    ! TUV-x state
-    logical, save :: use_tuvx = .false.
-    integer, save :: idx_qO3 = -1
+        ! TUV-x state
+        logical, save :: use_tuvx = .false.
+        integer, save :: idx_qO3 = -1
 
     contains
 
@@ -169,9 +169,18 @@ module mpas_atm_chemistry
                     call mpas_log_write('[Chemistry] Resolved index_qO3 = $i for TUV-x', &
                         intArgs=[idx_qO3])
                 else
-                    call mpas_log_write('[Chemistry] qO3 tracer not found; TUV-x requires O3', &
+                    use_tuvx = .false.
+                    idx_qO3 = -1
+                    call mpas_log_write('[Chemistry] qO3 tracer not found; TUV-x requires O3 and cannot continue.', &
                         messageType=MPAS_LOG_CRIT)
+                    return
                 end if
+            else if (use_tuvx) then
+                use_tuvx = .false.
+                idx_qO3 = -1
+                call mpas_log_write('[Chemistry] State pool unavailable; cannot resolve qO3 for TUV-x.', &
+                    messageType=MPAS_LOG_CRIT)
+                return
             end if
         else
             call mpas_log_write('[Chemistry] TUV-x disabled (no config_tuvx_config_file); using Phase 1 fallback.')
@@ -260,6 +269,12 @@ module mpas_atm_chemistry
 
         ! Update photolysis rates: TUV-x (Phase 2) or cos(SZA) fallback (Phase 1)
         if (use_tuvx) then
+            if (idx_qO3 < 1) then
+                call mpas_log_write('[Chemistry] TUV-x enabled but index_qO3 is unresolved.', &
+                    messageType=MPAS_LOG_CRIT)
+                return
+            end if
+
             allocate(j_no2_field(nVertLevels, nCells))
             allocate(rho_air_col(nVertLevels))
             allocate(temperature_col(nVertLevels))
