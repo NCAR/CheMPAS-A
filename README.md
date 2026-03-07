@@ -12,12 +12,12 @@ CheMPAS is derived from
 (a fork of [MPAS-Dev/MPAS-Model](https://github.com/MPAS-Dev/MPAS-Model)).
 It is an independent project and does not sync with the upstream repositories.
 
-## Agent-Driven Development
+## Development Workflow
 
-CheMPAS uses an agent-driven development model. AI agents handle code
-development, review, and CI, with human oversight reserved for scientific
-correctness, architectural decisions, and physical validation. See
-[PURPOSE.md](PURPOSE.md) for the full rationale and
+CheMPAS development uses coding agents (Claude, Codex, Gemini) as tools for
+implementation, review, and analysis. Humans set priorities, make scientific
+and architectural decisions, and review validation results. See
+[PURPOSE.md](PURPOSE.md) for the workflow and
 [AGENTS.md](AGENTS.md) for operational details.
 
 ## Building
