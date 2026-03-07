@@ -1,8 +1,8 @@
-# CheMPAS Agent-Driven Development
+# CheMPAS Coding-Agent-Assisted Development
 
 ## Motivation
 
-The upstream MPAS-Dev repositories rely on human PR review, which creates bottlenecks that limit development velocity. CheMPAS removes that constraint by making AI agents first-class participants in the development lifecycle — writing code, reviewing PRs, and running CI — with human oversight reserved for where it matters most.
+The upstream MPAS-Dev repositories rely on human PR review, which creates bottlenecks that limit development velocity. CheMPAS addresses that by using coding agents as first-class collaborators in the development lifecycle — drafting code, reviewing changes, and supporting CI — while keeping human oversight where it matters most.
 
 ## Agent Roles
 
@@ -23,7 +23,7 @@ The review agent evaluates PRs for correctness, style, performance, and scientif
 
 ### Deep Research Agent
 
-The deep research agent operates at a different scale than the development and review agents. With a 1M+ token context window, it can ingest the full CheMPAS source tree, scientific literature, and design documents simultaneously. It does not write or review PRs — it informs the agents and humans that do.
+The deep research agent operates at a different scale than the development and review agents. With a 1M+ token context window, it can ingest the full CheMPAS source tree, scientific literature, and design documents simultaneously. It does not write or review PRs — it informs the agents and humans who do.
 
 Responsibilities:
 
@@ -47,7 +47,7 @@ A dedicated CI role (agent or automation) that builds the code, runs test cases,
 4. **CI agent** runs on the PR: builds with and without MUSICA, runs test cases, reports pass/fail.
 5. **Review agent** evaluates the PR: code quality, architectural fit, correctness, and whether the change requires human review.
 6. **Merge** proceeds once the review agent approves, unless the change is flagged for human review.
-7. **Human oversight** is retained for the categories listed below.
+7. **Human oversight** remains the decision layer for the categories listed below.
 
 ## Human Review Gates
 
@@ -64,8 +64,8 @@ Certain categories of changes must always be flagged for human review, regardles
 - **Agents do not merge to `main` without review.** The development agent and review agent must be different models/vendors.
 - **Scientific correctness is non-negotiable.** Changes to physics, chemistry, or numerical methods are always flagged for human review.
 - **Minimal, focused changes.** One PR, one purpose. Resist scope creep and over-engineering.
-- **The codebase is the source of truth.** Agents read before writing, understand before modifying.
-- **Context matters.** Review agents must have access to project documentation (CLAUDE.md, ARCHITECTURE.md, etc.) to provide meaningful reviews.
+- **The codebase is the source of truth.** Agents read before writing, understand before modifying, and humans decide what to accept.
+- **Context matters.** Review agents must have access to project documentation (CLAUDE.md, docs/architecture/ARCHITECTURE.md, etc.) to provide meaningful reviews.
 
 ## Build Environment
 

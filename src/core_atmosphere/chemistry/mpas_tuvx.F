@@ -47,6 +47,7 @@ module mpas_tuvx
     ! Module-level state (initialized once, updated per column)
     type(tuvx_t),       pointer :: tuvx_solver   => null()
     type(grid_t),       pointer :: height_grid   => null()
+    type(grid_t),       pointer :: cloud_wavelength_grid => null()
     type(profile_t),    pointer :: air_profile   => null()
     type(profile_t),    pointer :: temp_profile  => null()
     type(profile_t),    pointer :: o3_profile    => null()
@@ -166,26 +167,19 @@ contains
         ! Create from-host cloud radiator (Phase 3)
         ! The cloud radiator needs a wavelength grid for array sizing.
         ! The CAM wavelength grid (cam.csv) has 103 edges = 102 sections.
-        ! We create a standalone from-host wavelength grid here, used only
-        ! to dimension the radiator arrays. The solver's actual wavelength
-        ! grid is loaded from the JSON config's CSV file.
-        block
-            type(grid_t), pointer :: wl_grid => null()
+        ! Keep this construction-time grid alive for the lifetime of the
+        ! cloud radiator; freeing it during init leaves the radiator built
+        ! on a deleted grid object.
+        n_wavelength_bins = 102  ! CAM wavelength grid: 103 edges - 1
 
-            n_wavelength_bins = 102  ! CAM wavelength grid: 103 edges - 1
+        cloud_wavelength_grid => grid_t("wavelength", "nm", n_wavelength_bins, err)
+        if (tuvx_has_error(err, error_code, error_message)) return
 
-            wl_grid => grid_t("wavelength", "nm", n_wavelength_bins, err)
-            if (tuvx_has_error(err, error_code, error_message)) return
+        cloud_radiator => radiator_t("clouds", height_grid, cloud_wavelength_grid, err)
+        if (tuvx_has_error(err, error_code, error_message)) return
 
-            cloud_radiator => radiator_t("clouds", height_grid, wl_grid, err)
-            if (tuvx_has_error(err, error_code, error_message)) return
-
-            write(msg, '(A,I0)') '[TUV-x] Cloud radiator created with n_wavelength_bins = ', n_wavelength_bins
-            call mpas_log_write(trim(msg))
-
-            ! wl_grid is not added to the grid map — it's only used for sizing
-            deallocate(wl_grid)
-        end block
+        write(msg, '(A,I0)') '[TUV-x] Cloud radiator created with n_wavelength_bins = ', n_wavelength_bins
+        call mpas_log_write(trim(msg))
 
         ! Create radiator map with the cloud radiator
         radiators => radiator_map_t(err)
@@ -471,6 +465,11 @@ contains
         if (associated(tuvx_solver)) then
             deallocate(tuvx_solver)
             nullify(tuvx_solver)
+        end if
+
+        if (associated(cloud_wavelength_grid)) then
+            deallocate(cloud_wavelength_grid)
+            nullify(cloud_wavelength_grid)
         end if
 
         nullify(height_grid)

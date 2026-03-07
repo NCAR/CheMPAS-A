@@ -69,12 +69,17 @@ CheMPAS/
 |----------|-------------|
 | [PURPOSE.md](PURPOSE.md) | Project motivation and development philosophy |
 | [AGENTS.md](AGENTS.md) | Agent roles, workflow, and review gates |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture |
+| [docs/README.md](docs/README.md) | Documentation index by topic |
+| [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) | System architecture |
 | [BUILD.md](BUILD.md) | Build instructions |
 | [RUN.md](RUN.md) | Running test cases |
-| [MUSICA_INTEGRATION.md](MUSICA_INTEGRATION.md) | MUSICA/MICM coupling details |
-| [MUSICA_API.md](MUSICA_API.md) | MUSICA Fortran API reference |
-| [VISUALIZE.md](VISUALIZE.md) | Chemistry visualization tools |
+| [MUSICA_INTEGRATION.md](docs/musica/MUSICA_INTEGRATION.md) | MUSICA/MICM coupling details |
+| [MUSICA_API.md](docs/musica/MUSICA_API.md) | MUSICA Fortran API reference |
+| [TEST_RUNS.md](docs/results/TEST_RUNS.md) | Recorded run outcomes and validation notes |
+| [BENCHMARKS.md](docs/results/BENCHMARKS.md) | Agent and model benchmark comparison |
+| [TUVX_INTEGRATION.md](docs/guides/TUVX_INTEGRATION.md) | TUV-x integration summary and development test case |
+| [VISUALIZE.md](docs/guides/VISUALIZE.md) | Chemistry visualization tools |
+| [User Guide](docs/users-guide/00-foreword.md) | Imported user guide chapters |
 
 ## License
 

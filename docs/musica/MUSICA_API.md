@@ -727,6 +727,6 @@ state%conditions(i)%air_density = rho_air_kg_m3 / M_AIR
 
 ## Related Documentation
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) - MPAS system architecture
+- [ARCHITECTURE.md](../architecture/ARCHITECTURE.md) - MPAS system architecture
 - [MUSICA_INTEGRATION.md](MUSICA_INTEGRATION.md) - MPAS-MUSICA integration details
 - [MUSICA-LLVM Source](~/EarthSystem/MUSICA-LLVM) - Full library source code

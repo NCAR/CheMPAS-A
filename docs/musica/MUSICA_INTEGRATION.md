@@ -242,6 +242,6 @@ Planned enhancements:
 
 ## Related Documentation
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Overall system architecture
-- [BUILD.md](BUILD.md) - Build configuration for MUSICA
-- [COMPONENTS.md](COMPONENTS.md) - Atmosphere component details
+- [ARCHITECTURE.md](../architecture/ARCHITECTURE.md) - Overall system architecture
+- [BUILD.md](../../BUILD.md) - Build configuration for MUSICA
+- [COMPONENTS.md](../architecture/COMPONENTS.md) - Atmosphere component details
