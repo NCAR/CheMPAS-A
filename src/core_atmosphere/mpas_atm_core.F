@@ -1050,7 +1050,8 @@ module atm_core
          call mpas_pool_get_subpool(block_chem % structs, 'diag', diag_chem)
 
          time_lev_chem = 1
-         call chemistry_step(dt, mesh_chem, state_chem, diag_chem, &
+         call chemistry_step(dt, currTime, &
+                             mesh_chem, state_chem, diag_chem, &
                              block_chem % dimensions, time_lev_chem)
 
          block_chem => block_chem % next

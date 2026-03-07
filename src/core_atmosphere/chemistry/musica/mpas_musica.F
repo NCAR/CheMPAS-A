@@ -30,10 +30,13 @@ module mpas_musica
     public :: log_column_comparison, copy_state_to_ref
     public :: resolve_mpas_indices, n_chem_species, chem_species
     public :: musica_query_species
+    public :: musica_set_photolysis
 
     type(micm_t),  pointer :: micm  => null ( )  ! Pointer to the MICM ODE solver instance
     type(state_t), pointer :: state => null ( )  ! Pointer to the state of the MICM solver (coupled to MPAS)
     type(state_t), pointer :: state_ref => null ( )  ! Reference state (uncoupled, chemistry only)
+
+    integer, save :: photo_no2_rp_index = -1   ! cached rate-parameter index for PHOTO.no2_photolysis
 
     type :: species_entry_t
         character(len=64) :: micm_name    ! e.g. 'AB'
@@ -64,7 +67,7 @@ module mpas_musica
     !------------------------------------------------------------------------
     subroutine musica_init(filename_of_micm_configuration, &
             number_of_grid_cells, &
-            j_no2_prescribed, nox_tau, &
+            nox_tau, &
             error_code, error_message)
 
         use iso_fortran_env, only: real64
@@ -77,7 +80,6 @@ module mpas_musica
 
         character(len=*),              intent(in)  :: filename_of_micm_configuration
         integer,                       intent(in)  :: number_of_grid_cells
-        real(kind=RKIND),              intent(in)  :: j_no2_prescribed  ! [s-1] constant NO2 photolysis rate
         real(kind=RKIND),              intent(in)  :: nox_tau           ! [s] NOx sink timescale (0 = disabled)
         integer,                       intent(out) :: error_code
         character(len=:), allocatable, intent(out) :: error_message
@@ -115,8 +117,8 @@ module mpas_musica
             call mpas_log_write('[MUSICA] MICM species: ' // state%species_ordering%name(i_species))
         end do
 
-        call assign_rate_parameters(state, number_of_grid_cells, j_no2_prescribed, nox_tau)
-        call assign_rate_parameters(state_ref, number_of_grid_cells, j_no2_prescribed, nox_tau)
+        call assign_rate_parameters(state, number_of_grid_cells, nox_tau)
+        call assign_rate_parameters(state_ref, number_of_grid_cells, nox_tau)
 
         ! Build species table from MICM config
         n_chem_species = state%species_ordering%size()
@@ -152,6 +154,9 @@ module mpas_musica
             call set_species_profile(state_ref, sp_name, init_conc, error)
             if (has_error_occurred(error, error_message, error_code)) return
         end do
+
+        ! Cache photolysis rate parameter index for per-step updates
+        call cache_photo_rp_index()
 
         deallocate(init_conc)
 
@@ -573,14 +578,13 @@ module mpas_musica
 
     end subroutine MICM_to_chemistry
 
-    subroutine assign_rate_parameters(state, number_of_grid_cells, j_no2_val, nox_tau)
+    subroutine assign_rate_parameters(state, number_of_grid_cells, nox_tau)
         use iso_fortran_env, only : real64
         use mpas_kind_types, only : RKIND
         use mpas_log, only : mpas_log_write
 
         type(state_t), intent(inout) :: state
         integer, intent(in)          :: number_of_grid_cells
-        real(kind=RKIND), intent(in) :: j_no2_val  ! [s-1] prescribed NO2 photolysis rate
         real(kind=RKIND), intent(in) :: nox_tau     ! [s] NOx sink timescale (0 = disabled)
 
         integer :: cell_stride, var_stride, rp_index, cell, idx, n_rp
@@ -599,9 +603,7 @@ module mpas_musica
 
             ! Set rate based on parameter name
             rate_val = 0.0_real64
-            if (rp_name == 'PHOTO.no2_photolysis') then
-                rate_val = real(j_no2_val, real64)
-            else if (rp_name == 'LOSS.no_loss' .or. rp_name == 'LOSS.no2_loss') then
+            if (rp_name == 'LOSS.no_loss' .or. rp_name == 'LOSS.no2_loss') then
                 if (nox_tau > 0.0_RKIND) then
                     rate_val = 1.0_real64 / real(nox_tau, real64)
                 end if
@@ -617,6 +619,90 @@ module mpas_musica
         end do
 
     end subroutine assign_rate_parameters
+
+    !------------------------------------------------------------------------
+    !  subroutine cache_photo_rp_index
+    !
+    !> \brief Cache the rate parameter index for PHOTO.no2_photolysis
+    !> \details
+    !>  Scans the rate_parameters_ordering to find the index for
+    !>  PHOTO.no2_photolysis and caches it in the module variable
+    !>  photo_no2_rp_index for use by musica_set_photolysis.
+    !------------------------------------------------------------------------
+    subroutine cache_photo_rp_index()
+        use mpas_log, only : mpas_log_write
+        integer :: i, n_rp
+        character(len=:), allocatable :: rp_name
+
+        if (.not. associated(state)) return
+        if (state%number_of_rate_parameters == 0) return
+
+        n_rp = state%rate_parameters_ordering%size()
+        do i = 1, n_rp
+            rp_name = trim(state%rate_parameters_ordering%name(i))
+            if (rp_name == 'PHOTO.no2_photolysis') then
+                photo_no2_rp_index = i
+                call mpas_log_write('[MUSICA] Cached PHOTO.no2_photolysis rate param index = $i', &
+                    intArgs=[i])
+                return
+            end if
+        end do
+
+        call mpas_log_write('[MUSICA] PHOTO.no2_photolysis not found in rate parameters (SZA scaling disabled)')
+
+    end subroutine cache_photo_rp_index
+
+    !------------------------------------------------------------------------
+    !  subroutine musica_set_photolysis
+    !
+    !> \brief Updates the active NO2 photolysis rate parameter
+    !> \details
+    !>  Sets the PHOTO.no2_photolysis rate parameter for every grid cell
+    !>  to the value computed by the chemistry driver for the current timestep.
+    !------------------------------------------------------------------------
+    subroutine musica_set_photolysis(j_no2_value, error_code, error_message)
+        use iso_fortran_env, only : real64
+        use mpas_kind_types, only : RKIND
+        use mpas_log, only : mpas_log_write
+
+        real(kind=RKIND), intent(in) :: j_no2_value
+        integer, intent(out) :: error_code
+        character(len=:), allocatable, intent(out) :: error_message
+
+        real(real64) :: j_val
+        integer :: cell_stride, var_stride, cell, idx
+        character(len=256) :: msg
+
+        error_code = 0
+        error_message = ''
+
+        if (photo_no2_rp_index < 1) return
+        if (.not. associated(state)) return
+
+        j_val = real(j_no2_value, real64)
+
+        cell_stride = state%rate_parameters_strides%grid_cell
+        var_stride  = state%rate_parameters_strides%variable
+
+        do cell = 1, state%number_of_grid_cells
+            idx = 1 + (cell - 1) * cell_stride + (photo_no2_rp_index - 1) * var_stride
+            state%rate_parameters(idx) = j_val
+        end do
+
+        ! Also update reference state
+        if (associated(state_ref)) then
+            cell_stride = state_ref%rate_parameters_strides%grid_cell
+            var_stride  = state_ref%rate_parameters_strides%variable
+            do cell = 1, state_ref%number_of_grid_cells
+                idx = 1 + (cell - 1) * cell_stride + (photo_no2_rp_index - 1) * var_stride
+                state_ref%rate_parameters(idx) = j_val
+            end do
+        end if
+
+        write(msg, '(A,ES10.3)') '[MUSICA] j_NO2=', j_val
+        call mpas_log_write(trim(msg))
+
+    end subroutine musica_set_photolysis
 
     subroutine set_species_profile(state, species_name, values, err)
         ! Write a 1-D profile into the contiguous concentrations array.

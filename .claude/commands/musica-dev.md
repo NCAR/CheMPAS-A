@@ -13,13 +13,12 @@ Work on MUSICA/MICM atmospheric chemistry integration with MPAS.
 ## Build with MUSICA
 
 ```bash
-export PKG_CONFIG_PATH="$HOME/software/lib/pkgconfig:$PKG_CONFIG_PATH"
-
-make -j8 llvm \
+scripts/check_build_env.sh
+eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
   CORE=atmosphere \
-  PIO=$HOME/software \
-  NETCDF=/opt/homebrew \
-  PNETCDF=$HOME/software \
+  PIO="$PIO" \
+  NETCDF="$NETCDF" \
+  PNETCDF="$PNETCDF" \
   PRECISION=double \
   MUSICA=true
 ```
@@ -27,8 +26,12 @@ make -j8 llvm \
 ## MUSICA Requirements
 
 - MUSICA-Fortran must be built with flang (not gfortran)
-- The `musica-fortran.pc` file may need yaml-cpp path: `-L/opt/homebrew/opt/yaml-cpp/lib`
+- Use `scripts/check_build_env.sh` before building
+- The preferred pkg-config file is `/Users/fillmore/software/lib/pkgconfig/musica-fortran.pc`
+- `make` must inherit `PKG_CONFIG_PATH` in the same shell invocation
 - Current version: MUSICA-Fortran 0.13.0, MICM 3.10.0
+- Full atmosphere builds may still stop later if `physics_mmm` tries to fetch `MMM-physics`
+  and network access is unavailable
 
 ## State Coupling
 

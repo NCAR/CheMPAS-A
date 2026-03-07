@@ -25,7 +25,8 @@ correctness, architectural decisions, and physical validation. See
 CheMPAS builds with LLVM compilers (flang/clang) on macOS:
 
 ```bash
-export PKG_CONFIG_PATH="$HOME/software/lib/pkgconfig:$PKG_CONFIG_PATH"
+scripts/check_build_env.sh
+eval "$(scripts/check_build_env.sh --export)"
 
 make -j8 llvm \
   CORE=atmosphere \
@@ -36,7 +37,7 @@ make -j8 llvm \
   MUSICA=true
 ```
 
-See [BUILD.md](BUILD.md) for full build documentation and
+See [BUILD.md](BUILD.md) for the MUSICA/pkg-config preflight notes and
 [RUN.md](RUN.md) for test case execution.
 
 ## Code Layout

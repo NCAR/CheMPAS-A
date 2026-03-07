@@ -60,6 +60,10 @@ namelist.*
 streams.*
 stream_list.*
 
+# But track reference configs for test cases
+!test_cases/**/namelist.*
+!test_cases/**/streams.*
+
 # Intermediate files that may be produced by Intel compilers
 *.i
 *.i90

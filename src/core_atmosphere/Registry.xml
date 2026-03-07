@@ -422,12 +422,20 @@
                      possible_values="Any non-negative real"/>
                 <nml_option name="config_lnox_j_no2" type="real" default_value="0.0"
                      units="s^{-1}"
-                     description="Prescribed NO2 photolysis rate (0 = disabled, ~0.01 for daytime)"
+                     description="Maximum daytime NO2 photolysis rate used in j = j_max * max(0, cos(SZA))"
                      possible_values="Any non-negative real"/>
                 <nml_option name="config_lnox_nox_tau" type="real" default_value="0.0"
                      units="s"
                      description="NOx sink timescale in seconds (0 = no sink). Rate = 1/tau."
                      possible_values="Any non-negative real"/>
+                <nml_option name="config_chemistry_latitude" type="real" default_value="0.0"
+                     units="degrees"
+                     description="Latitude for solar geometry in idealized cases (degrees N)"
+                     possible_values="Any real between -90 and 90"/>
+                <nml_option name="config_chemistry_longitude" type="real" default_value="0.0"
+                     units="degrees"
+                     description="Longitude for solar geometry in idealized cases (degrees E)"
+                     possible_values="Any real between -180 and 360"/>
         </nml_record>
 #endif
 
@@ -1803,6 +1811,9 @@
 
                 <var name="relhum" type="real" dimensions="nVertLevels nCells Time" units="percent"
                      description="Relative humidity"/>
+
+                <var name="j_no2" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
+                     description="NO2 photolysis rate used by chemistry"/>
 
                 <var name="spechum" type="real" dimensions="nVertLevels nCells Time" units="kg kg^{-1}"
                      description="Specific humidity"

@@ -30,29 +30,56 @@ CheMPAS (Chemistry for MPAS) is a standalone project derived from [NCAR/MPAS-Mod
 
 ## Build Configuration (macOS with LLVM)
 
-This project is configured to build with LLVM compilers (flang/clang) via Homebrew:
+This project is configured to build with LLVM compilers (flang/clang) via Homebrew.
+Before any LLVM/MUSICA build, run the repo preflight:
 
 ```bash
-export PKG_CONFIG_PATH="$HOME/software/lib/pkgconfig:$PKG_CONFIG_PATH"
+scripts/check_build_env.sh
+eval "$(scripts/check_build_env.sh --export)"
+```
 
-# Build atmosphere core
-make -j8 llvm \
+That script currently resolves the working local environment on this machine to:
+- `NETCDF=/opt/homebrew`
+- `PNETCDF=/Users/fillmore/software`
+- `PIO=/Users/fillmore/software`
+- `PKG_CONFIG_PATH=/Users/fillmore/software/lib/pkgconfig`
+
+The installed MUSICA package in `/Users/fillmore/software/lib/pkgconfig/musica-fortran.pc`
+is the preferred source of truth. It already carries the working yaml-cpp and
+`-lstdc++` link flags. Do not prefer the sibling `~/EarthSystem/MUSICA-LLVM/build`
+tree unless the installed package is missing or broken.
+
+This project builds successfully only when `make` sees the correct environment
+in the same shell invocation. The Makefile uses `$(shell pkg-config ...)` during
+parse, so exporting `PKG_CONFIG_PATH` in one shell and invoking `make` in another
+will fail.
+
+Build with the preflight exports in the same shell:
+
+```bash
+eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
   CORE=atmosphere \
-  PIO=$HOME/software \
-  NETCDF=/opt/homebrew \
-  PNETCDF=$HOME/software \
-  PRECISION=double
+  PIO="$PIO" \
+  NETCDF="$NETCDF" \
+  PNETCDF="$PNETCDF" \
+  PRECISION=double \
+  MUSICA=true
 
-# Build init_atmosphere core
-make -j8 llvm \
+eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
   CORE=init_atmosphere \
-  PIO=$HOME/software \
-  NETCDF=/opt/homebrew \
-  PNETCDF=$HOME/software \
+  PIO="$PIO" \
+  NETCDF="$NETCDF" \
+  PNETCDF="$PNETCDF" \
   PRECISION=double
 ```
 
-**Important:** Always use `-j8` for parallel compilation.
+**Important:**
+- Always use `-j8` for parallel compilation.
+- MUSICA-Fortran must be built with flang, not gfortran.
+- LLVM/flang `.mod` files are incompatible with gfortran `.mod` files.
+- `PNETCDF` is required for the normal top-level build.
+- A full atmosphere build may still stop later if `src/core_atmosphere/physics/physics_mmm`
+  tries to `git fetch` `MMM-physics` and network access is unavailable.
 
 ## Key Source Locations
 
@@ -117,8 +144,9 @@ CheMPAS uses three agents from three vendors (see `AGENTS.md`). Codex 5.3 review
 4. **MPI**: Uses `include 'mpif.h'` via `NOMPIMOD` flag (not `use mpi` module)
 5. **Registry System**: Most variable definitions are in `Registry.xml` (build-time), but MUSICA chemistry tracers are injected at runtime from the MICM config
 6. **Physics**: Many physics schemes from WRF, NoahMP, and other sources
-7. **MUSICA**: MUSICA-Fortran must be built with flang; `musica-fortran.pc` may need yaml-cpp path fix. See `BUILD.md` for details.
-8. **Testing**: Always run with 8 MPI ranks (`mpiexec -n 8`). A mismatched rank count with no matching partition file causes segfaults in the dynamics solver. See `RUN.md` for details.
+7. **MUSICA**: Use `scripts/check_build_env.sh` before MUSICA builds. The working pkg-config file is `/Users/fillmore/software/lib/pkgconfig/musica-fortran.pc`.
+8. **Build Environment**: `PKG_CONFIG_PATH` must be present in the same shell invocation as `make`; otherwise the Makefile's parse-time `pkg-config` checks fail.
+9. **Testing**: Always run with 8 MPI ranks (`mpiexec -n 8`). A mismatched rank count with no matching partition file causes segfaults in the dynamics solver. See `RUN.md` for details.
 
 ## Common Tasks
 
@@ -127,23 +155,23 @@ CheMPAS uses three agents from three vendors (see `AGENTS.md`). Codex 5.3 review
 make clean CORE=atmosphere
 find . -name "*.mod" -delete
 find . -name "*.o" -delete
-make -j8 llvm CORE=atmosphere PIO=$HOME/software NETCDF=/opt/homebrew PNETCDF=$HOME/software PRECISION=double
+eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm CORE=atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double
 ```
 
 ### Build with MUSICA
 ```bash
-export PKG_CONFIG_PATH="$HOME/software/lib/pkgconfig:$PKG_CONFIG_PATH"
-
-make -j8 llvm \
+eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
   CORE=atmosphere \
-  PIO=$HOME/software \
-  NETCDF=/opt/homebrew \
-  PNETCDF=$HOME/software \
+  PIO="$PIO" \
+  NETCDF="$NETCDF" \
+  PNETCDF="$PNETCDF" \
   PRECISION=double \
   MUSICA=true
 ```
 
-**Note:** The `PKG_CONFIG_PATH` export is required for MUSICA builds.
+**Notes:**
+- Keep the `eval ... && make ...` in a single shell command.
+- If the build fails after chemistry compiles, check whether `physics_mmm` attempted a network fetch.
 
 ### Check Build Status
 ```bash
