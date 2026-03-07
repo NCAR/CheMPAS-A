@@ -67,6 +67,40 @@ Certain categories of changes must always be flagged for human review, regardles
 - **The codebase is the source of truth.** Agents read before writing, understand before modifying.
 - **Context matters.** Review agents must have access to project documentation (CLAUDE.md, ARCHITECTURE.md, etc.) to provide meaningful reviews.
 
+## Build Environment
+
+For macOS/LLVM builds in this repo, agents should use the checked-in preflight:
+
+```bash
+scripts/check_build_env.sh
+eval "$(scripts/check_build_env.sh --export)"
+```
+
+Current working defaults on this machine:
+- `NETCDF=/opt/homebrew`
+- `PNETCDF=/Users/fillmore/software`
+- `PIO=/Users/fillmore/software`
+- `PKG_CONFIG_PATH=/Users/fillmore/software/lib/pkgconfig`
+
+Important build facts:
+- The preferred MUSICA pkg-config file is `/Users/fillmore/software/lib/pkgconfig/musica-fortran.pc`.
+- `make` must inherit `PKG_CONFIG_PATH` in the same shell invocation because the Makefile runs `pkg-config` at parse time with `$(shell ...)`.
+- MUSICA-Fortran must be built with flang. Do not mix flang and gfortran `.mod` files.
+- `PNETCDF` is required for the normal top-level build.
+- A full atmosphere build may still fail later in `src/core_atmosphere/physics/physics_mmm` if the build tries to `git fetch` `MMM-physics` and network access is unavailable.
+
+Canonical LLVM/MUSICA build command:
+
+```bash
+eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
+  CORE=atmosphere \
+  PIO="$PIO" \
+  NETCDF="$NETCDF" \
+  PNETCDF="$PNETCDF" \
+  PRECISION=double \
+  MUSICA=true
+```
+
 ## Considerations
 
 ### Cross-Model Review Independence

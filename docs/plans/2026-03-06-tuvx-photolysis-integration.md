@@ -5,9 +5,16 @@
 - `Historical Context:` Adapted from ancestor project plans — the TUV-x
   photolysis plan (`MPAS-Model-ACOM-dev/PLAN_TUVx.md`) and the DAVINCI
   lightning-NOx/O3 mechanism (`DAVINCI-MPAS/PLAN.md` Phase 6, `SCIENCE.md`).
-- `Current State:` Phase 0 complete (2026-03-06). LNOx-O3 mechanism runs
-  end-to-end. Domain-integrated Ox/NOx conservation verified to machine
-  precision. Ready for Phase 1 (solar geometry) and Phase 2 (TUV-x coupling).
+- `Current State:` Phase 0 complete. Phase 1 is partially implemented for the
+  idealized supercell path: fallback solar geometry (`mpas_solar_geometry.F`)
+  drives per-step scalar `j_NO2` updates in chemistry, and the chemistry-only
+  build path is in place. The broader `coszr` / mesh-coordinate path is
+  explicitly deferred because the needed mesh coordinates are not available in
+  the current workflow. Current Phase 1 validation only requires daytime at the
+  test coordinates from the namelist; DC3 calendar-time validation is deferred
+  until there is a proper grid with grid coordinates. Remaining Phase 1 work:
+  update stale metadata and add the planned analytical-SZA gate. Phase 2
+  (TUV-x coupling) is not implemented yet.
 - `Use This As:` Primary reference for post-ABBA chemistry development.
 
 ## Locked Decisions
@@ -31,9 +38,12 @@
    targets Chapman oxygen photolysis (stratospheric), but our supercell domain
    is tropospheric (0–20 km). j_NO2 is the only photolysis rate we need now.
    Chapman can be added as a later phase.
-7. **DC3 reference case:** Use the May 29, 2012 Kingfisher, Oklahoma supercell
-   (35.86°N, 97.93°W) as the idealized test case reference. Set
-   `config_start_time = '2012-05-29_21:00:00'` for realistic SZA.
+7. **Phase 1 timing:** Use the Kingfisher test coordinates
+   (35.86°N, 97.93°W) from the namelist for fallback SZA. For current Phase 1
+   validation, any UTC start time that yields daytime at those coordinates is
+   acceptable; the tracked namelist uses `0000-01-01_18:00:00`. Defer the
+   DC3-specific timestamp (`2012-05-29_21:00:00`) to later validation once a
+   proper grid with grid coordinates is available.
 8. **TUV-x runs every chemistry timestep.** No caching or interval — keep it
    simple, optimize later if needed. Our runs are short (≤30 min).
 
@@ -152,22 +162,28 @@ and keeps chemistry aligned with MPAS radiation geometry.
 
 ### Test Case Configuration
 
-The idealized supercell uses the DC3 May 29, 2012 Kingfisher, Oklahoma storm
-as its reference case:
+The idealized supercell uses the Kingfisher, Oklahoma test coordinates for
+Phase 1 fallback-SZA validation:
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
 | Latitude | 35.86°N | Kingfisher, OK |
 | Longitude | 97.93°W | |
-| Start time | 2012-05-29 21:00 UTC | ~4 PM CDT, convection initiation |
-| Duration | 30 min (Case B) | SZA changes ~6° over this window |
+| Start time | Any daytime UTC at the test coordinates | Tracked namelist currently uses `0000-01-01 18:00 UTC` |
+| Duration | 30 min (Case B) | SZA changes modestly over this window |
 | j_NO2 max | ~0.01 s⁻¹ | Daytime peak (surface, clear sky) |
 
-At 21:00 UTC on May 29 at Kingfisher, the SZA ≈ 35.7° and
-`cos_sza ≈ 0.812` (late afternoon). Over a 30-minute run, SZA increases by
-about 6°. Sunset (`SZA = 90°`) occurs near 01:36 UTC on May 30
-(~8:36 PM CDT), so any sunset gate test should run at least 5 hours from the
-21:00 UTC start time.
+For the currently tracked synthetic daytime case (`0000-01-01 18:00 UTC`) at
+Kingfisher, `cos_sza ≈ 0.508`. That is sufficient for Phase 1 plumbing because
+the fallback path only needs a reproducible daytime solar angle at the test
+coordinates. The DC3-specific timing reference (`2012-05-29 21:00 UTC`,
+`cos_sza ≈ 0.812`) remains useful later, but is deferred until grid-aware
+validation is in scope.
+
+Implementation status note (2026-03-06 review): the tracked idealized
+namelist currently uses `0000-01-01_18:00:00` for a deterministic daytime
+Phase 1 check. That is intentionally sufficient for fallback-SZA plumbing; the
+DC3 calendar timestamp is deferred to later grid-aware validation.
 
 ### New Namelist Parameters
 
@@ -221,7 +237,7 @@ The Spencer (1971) algorithm computes:
 | `mpas_atm_chemistry.F` | Prefer `coszr` from MPAS diagnostics when available; otherwise call fallback solar geometry each step; pass cos_sza to musica |
 | `mpas_musica.F` | Modify `assign_rate_parameters` → per-cell j_NO2 = j_max * max(0, cos_sza); update rate params each step (not just init) |
 | `chemistry/Makefile` | Add `mpas_solar_geometry.o` only if the fallback helper is kept |
-| `test_cases/supercell/namelist.atmosphere` | Add lat/lon, change start time to `2012-05-29_21:00:00` |
+| `test_cases/supercell/namelist.atmosphere` | Add fallback lat/lon; current tracked Phase 1 namelist uses temporary `0000-01-01_18:00:00` start while DC3 timestamp revalidation remains pending |
 
 ### Key Architecture Change
 
@@ -237,11 +253,19 @@ with SZA. This means:
 - For uniform-SZA (idealized, single lat/lon), all cells get the same value
 - Infrastructure supports per-cell SZA for future real-data cases
 
+Implementation status note (2026-03-06 review): the committed code currently
+implements only the fallback helper path. Reuse of MPAS `coszr` and real-data
+SZA from mesh `latCell/lonCell` is deferred until the required mesh-coordinate
+data is available in the chemistry workflow.
+
 ### Implementation Checklist
 
 - [x] In `mpas_atm_core.F`, thread the current model time (`currTime`) into
-  the chemistry call path. (Simplified: no `diag_physics` needed — using
-  fallback solar geometry for idealized case.)
+  the chemistry call path for per-step SZA updates.
+- [ ] Deferred: thread `diag_physics` and/or mesh `latCell/lonCell` into
+  chemistry so Phase 1 can use existing MPAS solar geometry for real-data
+  cases instead of relying only on fallback namelist coordinates. Blocked on
+  mesh-coordinate availability.
 - [x] Create `mpas_solar_geometry.F` with Spencer (1971) algorithm:
   `solar_cos_sza(DoY, hour_utc, lat_deg, lon_deg)` → cos(SZA).
 - [x] In `chemistry_init`, cache `config_chemistry_latitude`,
@@ -251,12 +275,32 @@ with SZA. This means:
   updates `PHOTO.no2_photolysis` rate parameter every timestep.
 - [x] Cache the MICM rate-parameter index for `PHOTO.no2_photolysis` at init
   (`cache_photo_rp_index`) so per-step update is a direct array fill.
+- [ ] Remove init-time `PHOTO.no2_photolysis` setup from `musica_init` /
+  `assign_rate_parameters`; current implementation still carries the old
+  constant-photolysis initialization path and then overwrites it per step.
 - [x] Phase 1 uses scalar `j_NO2` update (uniform SZA across all cells).
-- [x] Update supercell test namelist with lat/lon and 18:00 UTC start.
-- [ ] Extend `check_tuvx_phase.py` with analytical SZA check and night-jzero
-  gate (deferred to Phase 2 — manual verification passed for Phase 1).
+- [x] Update supercell test namelist with fallback lat/lon and a temporary
+  `0000-01-01_18:00:00` start for deterministic daytime verification.
+- [ ] Deferred: restore the tracked Phase 1 reference case to the
+  DC3-aligned `2012-05-29_21:00:00` timestamp only after there is a proper
+  grid with usable grid coordinates for location-aware validation.
+- [ ] Update `Registry.xml` metadata for `config_lnox_j_no2` to describe it as
+  daytime `j_max`, not a constant prescribed photolysis rate.
+- [ ] Add the analytical SZA check to the adapted `check_tuvx_phase.py`.
+  The imported gate scripts are now wired to CheMPAS defaults
+  (`qNO,qNO2,qO3`, `j_no2`) and include `night-jzero`, but this specific
+  analytical-SZA gate is still missing.
 
 ### High-Level Fortran Design
+
+Current committed path (implemented and accepted for now):
+
+1. Thread `currTime` into `chemistry_step`.
+2. Compute `cos_sza` from cached fallback lat/lon via `solar_cos_sza(...)`.
+3. Call `musica_set_photolysis(...)` before `musica_step(...)`.
+
+The broader Phase 1 target below remains deferred future work once
+`diag_physics` / mesh-coordinate support is available.
 
 The least disruptive Phase 1 path is:
 
@@ -311,13 +355,16 @@ subpool argument, `mpas_atm_chemistry.F` gets a solar-geometry helper, and
 ### Exit Criteria
 
 - [x] Build passes with solar-geometry plumbing (fallback Spencer helper).
-- [x] SZA computation matches expected value for Kingfisher, OK at 18:00 UTC
-  Jan 1 (cos_sza = 0.508 actual vs 0.508 predicted).
+- [x] Fallback-SZA computation matches the synthetic idealized check used by
+  the tracked namelist (`0000-01-01 18:00 UTC`, cos_sza = 0.508 actual vs
+  0.508 predicted).
 - [x] 30-min Case B run produces physically plausible results with SZA-scaled
   j_NO2 (j = 0.00508 at start, evolves to 0.00516 over 30 min).
 - [x] Night test: j_NO2 = 0 when cos_sza < 0 (verified at midnight UTC,
   cos_sza = -0.9198).
 - [x] All tracers non-negative throughout run.
+- [ ] Deferred: re-run the Phase 1 checks on the DC3-aligned May 29, 2012
+  timestamp after grid-aware validation becomes meaningful.
 - [ ] Extended run (5+ hours) shows j_NO2 → 0 at sunset (deferred).
 - [ ] Add j_NO2 as diagnostic field in output.nc (deferred to Phase 2 when
   it becomes per-cell; currently uniform and logged to stdout).
@@ -460,8 +507,9 @@ Minimal TUV-x configuration for NO2 photolysis only:
   rate-parameter slice.
 - [ ] Keep the fallback behavior in the same driver path so Phase 1 and Phase 2
   both use the same `musica_set_photolysis_*` routines.
-- [ ] Extend the phase-gate scripts with `fallback-compare`,
-  `transition-smooth`, and decomposition checks before treating Phase 2 as done.
+- [x] Extend the phase-gate scripts with `fallback-compare`,
+  `transition-smooth`, and decomposition checks. The imported ancestor scripts
+  are now adapted to the CheMPAS Phase 0/1/2 matrix.
 
 ### High-Level Fortran Design
 
@@ -572,12 +620,18 @@ Adapted from ancestor project (`MPAS-Model-ACOM-dev/scripts/`):
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/check_tuvx_phase.py` | Suite of physics-based checks (nonnegative, night-jzero, transition-smooth, decomp-compare, fallback-compare) |
-| `scripts/run_tuvx_phase_gate.sh` | Phase orchestrator — runs correct combination of checks per phase |
+| `scripts/check_tuvx_phase.py` | Imported ancestor phase-gate checker, now adapted to CheMPAS defaults (`qNO,qNO2,qO3`, `j_no2`) and extended with `fallback-compare` |
+| `scripts/run_tuvx_phase_gate.sh` | Phase wrapper adapted to the current CheMPAS Phase 0/1/2 matrix (`nonnegative`, `verify_ox_conservation.py`, `night-jzero`, `transition-smooth`, `decomp-compare`, `fallback-compare`) |
 
 These scripts operate on MPAS NetCDF output and exit non-zero on failure.
 Adapted for LNOx-O3 species (qNO, qNO2, qO3) rather than ancestor Chapman
 species (qO, qO2, qO3).
+
+Status note (2026-03-06 update): both scripts have now been copied from the
+ancestor repo into `scripts/` and adapted to the current CheMPAS species and
+phase matrix. Remaining gaps are narrower: the analytical-SZA Phase 1 check is
+still not implemented, and runtime use still depends on the Python `netCDF4`
+module plus whichever `j_*` diagnostics are written to output files.
 
 ### Phase Gate Matrix
 
@@ -642,8 +696,10 @@ The DAVINCI project (`~/EarthSystem/DAVINCI-MPAS/`) contains:
 - Phase gate runbook (namelist, runtime settings, pass/fail scripts)
 - Fortran implementation sketches
 - Photolysis-to-MICM rate parameter mapping
-- `scripts/check_tuvx_phase.py` — phase gate check script (to be adapted)
-- `scripts/run_tuvx_phase_gate.sh` — phase gate orchestrator (to be adapted)
+- `scripts/check_tuvx_phase.py` — copied into this repo from the ancestor and
+  adapted for CheMPAS species defaults and `fallback-compare`
+- `scripts/run_tuvx_phase_gate.sh` — copied into this repo from the ancestor
+  and adapted to the current CheMPAS phase matrix
 
 ## Dependencies
 

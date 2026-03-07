@@ -61,7 +61,7 @@ module mpas_atm_chemistry
 
         type (mpas_pool_type), intent(in) :: configs
         type (mpas_pool_type), intent(in) :: dimensions
-        type (mpas_pool_type), intent(in) :: structs
+        type (mpas_pool_type), intent(inout) :: structs
 
 #ifdef MPAS_USE_MUSICA
         character(len=StrKIND), pointer :: filepath_ptr
@@ -72,6 +72,7 @@ module mpas_atm_chemistry
         integer, pointer                :: nCells_ptr
         integer, pointer                :: nVertLevels_ptr
         type (mpas_pool_type), pointer  :: statePool
+        type (mpas_pool_type), pointer  :: diagPool
         real(kind=RKIND), pointer       :: j_no2_ptr, nox_tau_ptr
         real(kind=RKIND)                :: j_no2_val, nox_tau_val
         real(kind=RKIND), pointer       :: lat_ptr, lon_ptr
@@ -113,7 +114,7 @@ module mpas_atm_chemistry
 
         ! Initialize MICM (species already injected into scalars by atm_setup_block)
         call musica_init(filepath_ptr, nCells * nVertLevels, &
-                         j_no2_val, nox_tau_val, error_code, error_message)
+                         nox_tau_val, error_code, error_message)
 
         if (error_code /= 0) then
             call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
@@ -131,6 +132,13 @@ module mpas_atm_chemistry
 
         ! Seed MPAS tracers from MICM initial state (both time levels)
         call chemistry_seed_chem(dimensions, structs)
+
+        ! Initialize photolysis diagnostics before any initial history write.
+        nullify(diagPool)
+        call mpas_pool_get_subpool(structs, 'diag', diagPool)
+        if (associated(diagPool)) then
+            call chemistry_set_j_no2_diag(diagPool, 0.0_RKIND)
+        end if
 
         ! Initialize lightning NOx source (no-op if qNO not in mechanism)
         call chemistry_lightning_nox_init(configs, statePool)
@@ -168,7 +176,7 @@ module mpas_atm_chemistry
         type (MPAS_Time_type), intent(in) :: currTime
         type (mpas_pool_type), intent(in) :: mesh
         type (mpas_pool_type), intent(inout) :: state
-        type (mpas_pool_type), intent(in) :: diag
+        type (mpas_pool_type), intent(inout) :: diag
         type (mpas_pool_type), intent(in) :: dimensions
         integer, intent(in) :: time_lev
 
@@ -183,7 +191,7 @@ module mpas_atm_chemistry
 
         ! Solar geometry variables
         integer :: DoY, hour, minute, second
-        real(kind=RKIND) :: hour_utc, cos_sza
+        real(kind=RKIND) :: hour_utc, cos_sza, j_no2_value
 
         ! Lightning NOx injection arrays
         real(kind=RKIND), dimension(:,:,:), pointer :: scalars
@@ -205,12 +213,14 @@ module mpas_atm_chemistry
         hour_utc = real(hour, RKIND) + real(minute, RKIND) / 60.0_RKIND &
                  + real(second, RKIND) / 3600.0_RKIND
         cos_sza = solar_cos_sza(DoY, hour_utc, chem_lat, chem_lon)
+        j_no2_value = chem_j_no2_max * max(0.0_RKIND, cos_sza)
 
-        call musica_set_photolysis(chem_j_no2_max, cos_sza, error_code, error_message)
+        call musica_set_photolysis(j_no2_value, error_code, error_message)
         if (error_code /= 0) then
             call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
             return
         end if
+        call chemistry_set_j_no2_diag(diag, j_no2_value)
 
         call mpas_log_write('Stepping chemistry packages...')
 
@@ -289,6 +299,30 @@ module mpas_atm_chemistry
 #endif
 
     end subroutine chemistry_finalize
+
+
+    !------------------------------------------------------------------------
+    !  routine chemistry_set_j_no2_diag
+    !
+    !> \brief Writes the current NO2 photolysis rate into the diagnostic pool
+    !------------------------------------------------------------------------
+    subroutine chemistry_set_j_no2_diag(diag, j_no2_value)
+
+        use mpas_pool_routines, only: mpas_pool_get_array
+        use mpas_derived_types, only: mpas_pool_type
+
+        type(mpas_pool_type), intent(inout) :: diag
+        real(kind=RKIND), intent(in) :: j_no2_value
+
+        real(kind=RKIND), dimension(:,:), pointer :: j_no2_diag
+
+        nullify(j_no2_diag)
+        call mpas_pool_get_array(diag, 'j_no2', j_no2_diag)
+        if (.not. associated(j_no2_diag)) return
+
+        j_no2_diag = j_no2_value
+
+    end subroutine chemistry_set_j_no2_diag
 
 
     !------------------------------------------------------------------------

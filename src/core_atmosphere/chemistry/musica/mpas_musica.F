@@ -67,7 +67,7 @@ module mpas_musica
     !------------------------------------------------------------------------
     subroutine musica_init(filename_of_micm_configuration, &
             number_of_grid_cells, &
-            j_no2_prescribed, nox_tau, &
+            nox_tau, &
             error_code, error_message)
 
         use iso_fortran_env, only: real64
@@ -80,7 +80,6 @@ module mpas_musica
 
         character(len=*),              intent(in)  :: filename_of_micm_configuration
         integer,                       intent(in)  :: number_of_grid_cells
-        real(kind=RKIND),              intent(in)  :: j_no2_prescribed  ! [s-1] constant NO2 photolysis rate
         real(kind=RKIND),              intent(in)  :: nox_tau           ! [s] NOx sink timescale (0 = disabled)
         integer,                       intent(out) :: error_code
         character(len=:), allocatable, intent(out) :: error_message
@@ -118,8 +117,8 @@ module mpas_musica
             call mpas_log_write('[MUSICA] MICM species: ' // state%species_ordering%name(i_species))
         end do
 
-        call assign_rate_parameters(state, number_of_grid_cells, j_no2_prescribed, nox_tau)
-        call assign_rate_parameters(state_ref, number_of_grid_cells, j_no2_prescribed, nox_tau)
+        call assign_rate_parameters(state, number_of_grid_cells, nox_tau)
+        call assign_rate_parameters(state_ref, number_of_grid_cells, nox_tau)
 
         ! Build species table from MICM config
         n_chem_species = state%species_ordering%size()
@@ -579,14 +578,13 @@ module mpas_musica
 
     end subroutine MICM_to_chemistry
 
-    subroutine assign_rate_parameters(state, number_of_grid_cells, j_no2_val, nox_tau)
+    subroutine assign_rate_parameters(state, number_of_grid_cells, nox_tau)
         use iso_fortran_env, only : real64
         use mpas_kind_types, only : RKIND
         use mpas_log, only : mpas_log_write
 
         type(state_t), intent(inout) :: state
         integer, intent(in)          :: number_of_grid_cells
-        real(kind=RKIND), intent(in) :: j_no2_val  ! [s-1] prescribed NO2 photolysis rate
         real(kind=RKIND), intent(in) :: nox_tau     ! [s] NOx sink timescale (0 = disabled)
 
         integer :: cell_stride, var_stride, rp_index, cell, idx, n_rp
@@ -605,9 +603,7 @@ module mpas_musica
 
             ! Set rate based on parameter name
             rate_val = 0.0_real64
-            if (rp_name == 'PHOTO.no2_photolysis') then
-                rate_val = real(j_no2_val, real64)
-            else if (rp_name == 'LOSS.no_loss' .or. rp_name == 'LOSS.no2_loss') then
+            if (rp_name == 'LOSS.no_loss' .or. rp_name == 'LOSS.no2_loss') then
                 if (nox_tau > 0.0_RKIND) then
                     rate_val = 1.0_real64 / real(nox_tau, real64)
                 end if
@@ -659,18 +655,17 @@ module mpas_musica
     !------------------------------------------------------------------------
     !  subroutine musica_set_photolysis
     !
-    !> \brief Updates NO2 photolysis rate parameter based on cos(SZA)
+    !> \brief Updates the active NO2 photolysis rate parameter
     !> \details
     !>  Sets the PHOTO.no2_photolysis rate parameter for every grid cell
-    !>  to j_no2_max * max(0, cos_sza). Called every chemistry timestep.
+    !>  to the value computed by the chemistry driver for the current timestep.
     !------------------------------------------------------------------------
-    subroutine musica_set_photolysis(j_no2_max, cos_sza, error_code, error_message)
+    subroutine musica_set_photolysis(j_no2_value, error_code, error_message)
         use iso_fortran_env, only : real64
         use mpas_kind_types, only : RKIND
         use mpas_log, only : mpas_log_write
 
-        real(kind=RKIND), intent(in) :: j_no2_max
-        real(kind=RKIND), intent(in) :: cos_sza
+        real(kind=RKIND), intent(in) :: j_no2_value
         integer, intent(out) :: error_code
         character(len=:), allocatable, intent(out) :: error_message
 
@@ -684,7 +679,7 @@ module mpas_musica
         if (photo_no2_rp_index < 1) return
         if (.not. associated(state)) return
 
-        j_val = real(j_no2_max, real64) * max(0.0_real64, real(cos_sza, real64))
+        j_val = real(j_no2_value, real64)
 
         cell_stride = state%rate_parameters_strides%grid_cell
         var_stride  = state%rate_parameters_strides%variable
@@ -704,7 +699,7 @@ module mpas_musica
             end do
         end if
 
-        write(msg, '(A,F8.4,A,ES10.3)') '[MUSICA] cos_sza=', cos_sza, ' j_NO2=', j_val
+        write(msg, '(A,ES10.3)') '[MUSICA] j_NO2=', j_val
         call mpas_log_write(trim(msg))
 
     end subroutine musica_set_photolysis

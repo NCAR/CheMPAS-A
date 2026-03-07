@@ -22,7 +22,6 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from netCDF4 import Dataset
 
 # Add scripts dir to path for style module
 sys.path.insert(0, str(Path(__file__).parent))
@@ -81,11 +80,23 @@ def main():
                         help='Save a time-series plot')
     parser.add_argument('-o', '--output', default='ox_conservation',
                         help='Output filename stem (default: ox_conservation)')
+    parser.add_argument('--max-drift-pct', type=float, default=0.01,
+                        help='Maximum allowed absolute Ox drift percentage for PASS')
+    parser.add_argument('--warn-drift-pct', type=float, default=0.1,
+                        help='Warning threshold used for report text when PASS is not met')
     args = parser.parse_args()
 
     filepath = Path(args.input)
     if not filepath.exists():
         raise SystemExit(f"File not found: {filepath}")
+
+    try:
+        from netCDF4 import Dataset  # type: ignore
+    except Exception as exc:
+        raise SystemExit(
+            "Python module 'netCDF4' is required for verify_ox_conservation.py. "
+            "Install with: pip install netCDF4"
+        ) from exc
 
     print(f"Reading {filepath} ...")
     with Dataset(filepath) as ds:
@@ -118,12 +129,18 @@ def main():
 
     # Pass/fail
     max_drift_pct = np.max(np.abs(ox_rel))
-    if max_drift_pct < 0.01:
+    status = 0
+    if max_drift_pct <= args.max_drift_pct:
         print(f"\n*** PASS: Ox conserved to {max_drift_pct:.4f}% ***")
-    elif max_drift_pct < 0.1:
-        print(f"\n*** MARGINAL: Ox drift {max_drift_pct:.4f}% (< 0.1%) ***")
+    elif max_drift_pct <= args.warn_drift_pct:
+        print(f"\n*** FAIL: Ox drift {max_drift_pct:.4f}% exceeds PASS threshold "
+              f"{args.max_drift_pct:.4f}% but is below warning threshold "
+              f"{args.warn_drift_pct:.4f}% ***")
+        status = 2
     else:
-        print(f"\n*** FAIL: Ox drift {max_drift_pct:.4f}% exceeds 0.1% ***")
+        print(f"\n*** FAIL: Ox drift {max_drift_pct:.4f}% exceeds warning threshold "
+              f"{args.warn_drift_pct:.4f}% ***")
+        status = 2
 
     if args.plot:
         try:
@@ -159,6 +176,8 @@ def main():
             print(f"Saved {args.output}.{ext}")
         plt.close()
 
+    return status
+
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

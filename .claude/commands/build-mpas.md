@@ -6,29 +6,27 @@ Build MPAS-Atmosphere with LLVM compilers on macOS. See BUILD.md for full detail
 
 1. Check if a clean build is needed by looking for stale `.mod` files or build option mismatches.
 
-2. Build the requested core (default: atmosphere). **Critical:** `PKG_CONFIG_PATH` must be
-   exported in the shell environment before invoking `make`, because GNU Make `$(shell ...)`
-   directives are evaluated at parse time and inherit the parent process environment.
+2. Run the repo build preflight first. It detects the working local LLVM/MUSICA/PNetCDF
+   environment and prints the exports needed by `make`.
 
    ```bash
-   export PKG_CONFIG_PATH="/Users/fillmore/software/lib/pkgconfig:$PKG_CONFIG_PATH"
-   make -j8 llvm \
+   scripts/check_build_env.sh
+   eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
      CORE=atmosphere \
-     PIO=/Users/fillmore/software \
-     NETCDF=/opt/homebrew \
-     PNETCDF=/Users/fillmore/software \
+     PIO="$PIO" \
+     NETCDF="$NETCDF" \
+     PNETCDF="$PNETCDF" \
      PRECISION=double
    ```
 
 3. To enable MUSICA chemistry, add `MUSICA=true`:
 
    ```bash
-   export PKG_CONFIG_PATH="/Users/fillmore/software/lib/pkgconfig:$PKG_CONFIG_PATH"
-   make -j8 llvm \
+   eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
      CORE=atmosphere \
-     PIO=/Users/fillmore/software \
-     NETCDF=/opt/homebrew \
-     PNETCDF=/Users/fillmore/software \
+     PIO="$PIO" \
+     NETCDF="$NETCDF" \
+     PNETCDF="$PNETCDF" \
      PRECISION=double \
      MUSICA=true
    ```
@@ -38,15 +36,25 @@ Build MPAS-Atmosphere with LLVM compilers on macOS. See BUILD.md for full detail
    ls -la atmosphere_model
    ```
 
-## Important: PKG_CONFIG_PATH
+## Important: Build Environment
 
-The `export` and `make` **must be in the same shell invocation** (same Bash tool call,
-joined with `&&`). If they are separate Bash calls, the export is lost because each
-Bash tool call runs in a fresh shell.
+The preflight script currently resolves the working local environment to:
+- `NETCDF=/opt/homebrew`
+- `PNETCDF=/Users/fillmore/software`
+- `PIO=/Users/fillmore/software`
+- `PKG_CONFIG_PATH=/Users/fillmore/software/lib/pkgconfig`
+
+The `eval ... && make ...` **must be in the same shell invocation**. GNU Make evaluates
+`$(shell pkg-config ...)` while parsing the Makefile, so `make` must inherit the correct
+`PKG_CONFIG_PATH` directly.
 
 ```bash
-export PKG_CONFIG_PATH="/Users/fillmore/software/lib/pkgconfig:$PKG_CONFIG_PATH" && make -j8 llvm CORE=atmosphere PIO=/Users/fillmore/software NETCDF=/opt/homebrew PNETCDF=/Users/fillmore/software PRECISION=double MUSICA=true
+eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm CORE=atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double MUSICA=true
 ```
+
+Use the installed MUSICA package in `/Users/fillmore/software/lib/pkgconfig/musica-fortran.pc`.
+Do not prefer the sibling `~/EarthSystem/MUSICA-LLVM/build` tree unless the installed package
+is missing or broken.
 
 ## Options
 
@@ -62,4 +70,5 @@ If needed, perform a full clean:
 make clean CORE=atmosphere
 find . -name "*.mod" -delete
 find . -name "*.o" -delete
+eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm CORE=atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double
 ```
