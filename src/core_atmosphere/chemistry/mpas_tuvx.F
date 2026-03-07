@@ -31,6 +31,7 @@ module mpas_tuvx
     use musica_tuvx_grid_map, only: grid_map_t
     use musica_tuvx_profile, only: profile_t
     use musica_tuvx_profile_map, only: profile_map_t
+    use musica_tuvx_radiator, only: radiator_t
     use musica_tuvx_radiator_map, only: radiator_map_t
 #endif
 
@@ -46,10 +47,28 @@ module mpas_tuvx
     ! Module-level state (initialized once, updated per column)
     type(tuvx_t),       pointer :: tuvx_solver   => null()
     type(grid_t),       pointer :: height_grid   => null()
+    type(grid_t),       pointer :: cloud_wavelength_grid => null()
     type(profile_t),    pointer :: air_profile   => null()
     type(profile_t),    pointer :: temp_profile  => null()
     type(profile_t),    pointer :: o3_profile    => null()
     type(profile_t),    pointer :: o2_profile    => null()
+
+    ! Cloud radiator (Phase 3)
+    type(radiator_t),   pointer :: cloud_radiator => null()
+    integer, save :: n_wavelength_bins = 0
+
+    real(dk), allocatable :: cloud_od(:,:)   ! (n_layers, n_wavelength_bins)
+    real(dk), allocatable :: cloud_ssa(:,:)  ! (n_layers, n_wavelength_bins)
+    real(dk), allocatable :: cloud_g(:,:,:)  ! (n_layers, n_wavelength_bins, 1)
+
+    ! Cloud optical property constants (warm cloud, wavelength-independent)
+    real(dk), parameter :: CLOUD_SSA_VAL = 0.999999_dk  ! pure scattering
+    real(dk), parameter :: CLOUD_G_VAL   = 0.85_dk      ! strong forward scattering
+
+    ! Cloud microphysics constants
+    real(dk), parameter :: R_EFF_CLOUD = 10.0e-6_dk   ! cloud droplet r_eff [m]
+    real(dk), parameter :: R_EFF_RAIN  = 500.0e-6_dk  ! rain drop r_eff [m]
+    real(dk), parameter :: RHO_WATER   = 1000.0_dk    ! water density [kg/m^3]
 
     integer, save :: j_no2_index     = -1  ! index in photolysis rate constants
     integer, save :: n_photo_rates   = 0
@@ -145,8 +164,27 @@ contains
         call profiles%add(o2_profile, err)
         if (tuvx_has_error(err, error_code, error_message)) return
 
-        ! Create empty radiator map (radiators defined in JSON config)
+        ! Create from-host cloud radiator (Phase 3)
+        ! The cloud radiator needs a wavelength grid for array sizing.
+        ! The CAM wavelength grid (cam.csv) has 103 edges = 102 sections.
+        ! Keep this construction-time grid alive for the lifetime of the
+        ! cloud radiator; freeing it during init leaves the radiator built
+        ! on a deleted grid object.
+        n_wavelength_bins = 102  ! CAM wavelength grid: 103 edges - 1
+
+        cloud_wavelength_grid => grid_t("wavelength", "nm", n_wavelength_bins, err)
+        if (tuvx_has_error(err, error_code, error_message)) return
+
+        cloud_radiator => radiator_t("clouds", height_grid, cloud_wavelength_grid, err)
+        if (tuvx_has_error(err, error_code, error_message)) return
+
+        write(msg, '(A,I0)') '[TUV-x] Cloud radiator created with n_wavelength_bins = ', n_wavelength_bins
+        call mpas_log_write(trim(msg))
+
+        ! Create radiator map with the cloud radiator
         radiators => radiator_map_t(err)
+        if (tuvx_has_error(err, error_code, error_message)) return
+        call radiators%add(cloud_radiator, err)
         if (tuvx_has_error(err, error_code, error_message)) return
 
         ! Construct TUV-x solver
@@ -157,6 +195,8 @@ contains
         grids    => tuvx_solver%get_grids(err)
         if (tuvx_has_error(err, error_code, error_message)) return
         profiles => tuvx_solver%get_profiles(err)
+        if (tuvx_has_error(err, error_code, error_message)) return
+        radiators => tuvx_solver%get_radiators(err)
         if (tuvx_has_error(err, error_code, error_message)) return
 
         height_grid  => grids%get("height", "km", err)
@@ -169,6 +209,20 @@ contains
         if (tuvx_has_error(err, error_code, error_message)) return
         o2_profile   => profiles%get("O2", "molecule cm-3", err)
         if (tuvx_has_error(err, error_code, error_message)) return
+
+        ! Retrieve solver-owned cloud radiator handle
+        cloud_radiator => radiators%get("clouds", err)
+        if (tuvx_has_error(err, error_code, error_message)) return
+        call mpas_log_write('[TUV-x] Cloud radiator registered and retrieved from solver.')
+
+        ! Allocate persistent cloud optical property arrays
+        allocate(cloud_od(n_layers, n_wavelength_bins))
+        allocate(cloud_ssa(n_layers, n_wavelength_bins))
+        allocate(cloud_g(n_layers, n_wavelength_bins, 1))
+
+        cloud_od  = 0.0_dk
+        cloud_ssa = CLOUD_SSA_VAL
+        cloud_g(:,:,1) = CLOUD_G_VAL
 
         ! Query photolysis ordering to find j_NO2 index
         photo_ordering => tuvx_solver%get_photolysis_rate_constants_ordering(err)
@@ -226,7 +280,7 @@ contains
     !>  midpoints).
     !------------------------------------------------------------------------
     subroutine tuvx_compute_photolysis(cos_sza, z_edges_m, rho_air, temperature, &
-                                        qo3, nVertLevels_in, &
+                                        qo3, qc, qr, nVertLevels_in, &
                                         j_no2_column, error_code, error_message)
 
 #ifdef MPAS_USE_MUSICA
@@ -238,6 +292,8 @@ contains
         real(kind=RKIND), intent(in)  :: rho_air(:)          ! nVertLevels midpoints [kg/m³]
         real(kind=RKIND), intent(in)  :: temperature(:)      ! nVertLevels midpoints [K]
         real(kind=RKIND), intent(in)  :: qo3(:)              ! nVertLevels [kg/kg]
+        real(kind=RKIND), intent(in)  :: qc(:)               ! nVertLevels cloud water [kg/kg]
+        real(kind=RKIND), intent(in)  :: qr(:)               ! nVertLevels rain water [kg/kg]
         integer, intent(in)           :: nVertLevels_in
         real(kind=RKIND), intent(out) :: j_no2_column(:)     ! nVertLevels
         integer, intent(out)          :: error_code
@@ -249,10 +305,11 @@ contains
         real(dk) :: temp_mid(nVertLevels_in), temp_edges(nVertLevels_in + 1)
         real(dk) :: o3_nd(nVertLevels_in), o2_nd(nVertLevels_in)
         real(dk) :: air_ld(nVertLevels_in), o3_ld(nVertLevels_in), o2_ld(nVertLevels_in)
-        real(dk) :: dz_cm(nVertLevels_in)
+        real(dk) :: dz_cm(nVertLevels_in), dz_m(nVertLevels_in)
+        real(dk) :: cloud_tau_1d(nVertLevels_in)
         real(dk) :: sza_rad, esd
         type(error_t) :: err
-        integer :: k
+        integer :: k, iWave
 
         error_code = 0
         error_message = ''
@@ -296,6 +353,10 @@ contains
             temp_edges(k) = 0.5_dk * (temp_mid(k-1) + temp_mid(k))
         end do
 
+        ! Layer thickness in metres (for cloud OD)
+        dz_m = z_km(2:nVertLevels_in + 1) - z_km(1:nVertLevels_in)
+        dz_m = dz_m * 1.0e3_dk  ! km -> m
+
         ! Layer densities [molecule/cm²] = number_density × thickness [cm]
         air_ld = air_nd * dz_cm
         o3_ld  = o3_nd  * dz_cm
@@ -328,6 +389,23 @@ contains
         call o2_profile%set_midpoint_values(o2_nd, err)
         if (tuvx_has_error(err, error_code, error_message)) return
         call o2_profile%set_layer_densities(o2_ld, err)
+        if (tuvx_has_error(err, error_code, error_message)) return
+
+        ! Compute cloud optical depth per layer and update cloud radiator
+        call compute_cloud_optical_depth( &
+            real(qc(1:nVertLevels_in), dk), real(qr(1:nVertLevels_in), dk), &
+            real(rho_air(1:nVertLevels_in), dk), dz_m, nVertLevels_in, cloud_tau_1d)
+
+        ! Broadcast 1-D cloud OD to all wavelength bins
+        do iWave = 1, n_wavelength_bins
+            cloud_od(:, iWave) = cloud_tau_1d(:)
+        end do
+
+        call cloud_radiator%set_optical_depths(cloud_od, err)
+        if (tuvx_has_error(err, error_code, error_message)) return
+        call cloud_radiator%set_single_scattering_albedos(cloud_ssa, err)
+        if (tuvx_has_error(err, error_code, error_message)) return
+        call cloud_radiator%set_asymmetry_factors(cloud_g, err)
         if (tuvx_has_error(err, error_code, error_message)) return
 
         ! SZA in radians; earth-sun distance ~1 AU
@@ -380,10 +458,18 @@ contains
 
         if (allocated(photo_rates))   deallocate(photo_rates)
         if (allocated(heating_rates)) deallocate(heating_rates)
+        if (allocated(cloud_od))      deallocate(cloud_od)
+        if (allocated(cloud_ssa))     deallocate(cloud_ssa)
+        if (allocated(cloud_g))       deallocate(cloud_g)
 
         if (associated(tuvx_solver)) then
             deallocate(tuvx_solver)
             nullify(tuvx_solver)
+        end if
+
+        if (associated(cloud_wavelength_grid)) then
+            deallocate(cloud_wavelength_grid)
+            nullify(cloud_wavelength_grid)
         end if
 
         nullify(height_grid)
@@ -391,6 +477,7 @@ contains
         nullify(temp_profile)
         nullify(o3_profile)
         nullify(o2_profile)
+        nullify(cloud_radiator)
 
         call mpas_log_write('[TUV-x] Finalized.')
 #endif
@@ -398,6 +485,36 @@ contains
     end subroutine tuvx_finalize
 
 #ifdef MPAS_USE_MUSICA
+    !------------------------------------------------------------------------
+    !  subroutine compute_cloud_optical_depth
+    !
+    !> \brief Compute cloud optical depth per layer from cloud/rain water
+    !> \details
+    !>  tau = 3 * LWC * dz / (2 * r_eff * rho_water)
+    !>  Cloud droplets (r_eff ~10 um) dominate; rain drops (r_eff ~500 um)
+    !>  contribute ~50x less per unit mass.
+    !------------------------------------------------------------------------
+    subroutine compute_cloud_optical_depth(qc, qr, rho_air, dz_m, nLev, cloud_od_1d)
+
+        real(dk), intent(in)  :: qc(:), qr(:), rho_air(:), dz_m(:)
+        integer,  intent(in)  :: nLev
+        real(dk), intent(out) :: cloud_od_1d(:)
+
+        real(dk) :: lwc_cloud, lwc_rain
+        integer :: k
+
+        do k = 1, nLev
+            lwc_cloud = max(qc(k), 0.0_dk) * rho_air(k)  ! [kg/m^3]
+            lwc_rain  = max(qr(k), 0.0_dk) * rho_air(k)  ! [kg/m^3]
+
+            cloud_od_1d(k) = (3.0_dk * lwc_cloud * dz_m(k)) / &
+                             (2.0_dk * R_EFF_CLOUD * RHO_WATER) + &
+                             (3.0_dk * lwc_rain  * dz_m(k)) / &
+                             (2.0_dk * R_EFF_RAIN  * RHO_WATER)
+        end do
+
+    end subroutine compute_cloud_optical_depth
+
     !------------------------------------------------------------------------
     !  function tuvx_has_error (private helper)
     !------------------------------------------------------------------------

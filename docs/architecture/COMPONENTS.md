@@ -1,16 +1,18 @@
-# MPAS Components
+# CheMPAS Components
 
-This document provides detailed information about the major components of MPAS, with focus on the atmosphere core.
+This document provides detailed information about the major components of
+CheMPAS, with focus on the atmosphere core and the chemistry extensions in this
+repository.
 
 ## Core Atmosphere (`src/core_atmosphere/`)
 
-The atmosphere core is the primary component of this ACOM development branch.
+The atmosphere core is the primary component of this repository.
 
 ### Directory Structure
 
 ```
 src/core_atmosphere/
-├── Registry.xml                    # Main metadata (3947 lines)
+├── Registry.xml                    # Main metadata and code-generation source
 ├── mpas_atm_core.F                 # Core main module
 ├── mpas_atm_core_interface.F       # Core interface (driver integration)
 ├── mpas_atm_dimensions.F           # Dimension definitions
@@ -19,7 +21,7 @@ src/core_atmosphere/
 ├── CMakeLists.txt                  # Build configuration
 ├── dynamics/                       # Time stepping & dynamics
 ├── physics/                        # Physics parameterizations
-├── chemistry/                      # Chemistry (MUSICA/MICM)
+├── chemistry/                      # Chemistry driver, MUSICA/MICM, TUV-x
 ├── diagnostics/                    # Post-processing diagnostics
 └── utils/                          # Utility programs
 ```
@@ -97,17 +99,56 @@ Physics parameterizations from multiple sources (~50 modules).
 
 ### Chemistry (`chemistry/`)
 
-New in this ACOM branch - MUSICA/MICM integration.
+CheMPAS chemistry is integrated directly into the atmosphere core. The
+chemistry layer manages:
+
+- runtime tracer discovery from the MICM configuration
+- MPAS <-> MICM state transfer
+- operator-split lightning NOx source injection
+- fallback `cos(SZA)` photolysis and TUV-x photolysis
+- chemistry diagnostics such as `j_no2`
 
 ```
 chemistry/
-├── mpas_atm_chemistry.F           # Generic chemistry interface
+├── Makefile                        # Chemistry build integration
+├── mpas_atm_chemistry.F            # Top-level chemistry manager and MPAS coupling
+├── mpas_lightning_nox.F            # Operator-split lightning NOx source
+├── mpas_solar_geometry.F           # Fallback solar zenith-angle calculation
+├── mpas_tuvx.F                     # TUV-x photolysis wrapper
 └── musica/
-    ├── mpas_musica.F              # MUSICA/MICM coupler (38KB)
-    └── mpas_musica.F90            # Symlink to .F
+    └── mpas_musica.F               # MUSICA/MICM coupler and rate-parameter updates
 ```
 
-See [MUSICA_INTEGRATION.md](MUSICA_INTEGRATION.md) for details.
+See [MUSICA_INTEGRATION.md](../musica/MUSICA_INTEGRATION.md) for details.
+
+#### Chemistry Responsibilities
+
+| File | Purpose |
+|------|---------|
+| `mpas_atm_chemistry.F` | Initializes chemistry, resolves tracer indices, updates photolysis, runs source/solver coupling |
+| `musica/mpas_musica.F` | Owns MICM state, species mapping, and photolysis-rate updates into MUSICA |
+| `mpas_lightning_nox.F` | Applies the altitude- and updraft-dependent NO source before the chemistry solve |
+| `mpas_solar_geometry.F` | Computes fallback solar geometry for Phase 1-style photolysis |
+| `mpas_tuvx.F` | Computes profile-dependent `j_no2` with TUV-x, including cloud-opacity support |
+
+#### Chemistry Call Path
+
+At runtime, the chemistry-specific flow is:
+
+```
+chemistry_init
+  |-> musica_init()
+  |-> resolve_mpas_indices()
+  |-> chemistry_lightning_nox_init()
+  |-> tuvx_init()                  # when config_tuvx_config_file is set
+
+chemistry_step
+  |-> update photolysis (TUV-x or fallback cos(SZA))
+  |-> lightning_nox_inject()
+  |-> chemistry_from_MPAS()
+  |-> musica_step()
+  |-> chemistry_to_MPAS()
+```
 
 ### Diagnostics (`diagnostics/`)
 
@@ -267,5 +308,6 @@ Each core has a `Registry.xml` file defining:
 ## Related Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) - High-level architecture
-- [BUILD.md](BUILD.md) - Build system
-- [MUSICA_INTEGRATION.md](MUSICA_INTEGRATION.md) - Chemistry integration
+- [BUILD.md](../../BUILD.md) - Build system
+- [MUSICA_INTEGRATION.md](../musica/MUSICA_INTEGRATION.md) - Chemistry integration
+- [TEST_RUNS.md](../results/TEST_RUNS.md) - Runtime validation notes and case summaries

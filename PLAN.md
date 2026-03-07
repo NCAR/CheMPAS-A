@@ -3,19 +3,23 @@
 ## Document Status
 
 - `Historical Context:` Top-level index for active and historical planning docs.
-- `Current State:` Runtime MICM tracer support is complete and merged (as of
-  March 6, 2026).
+- `Current State:` TUV-x integration now extends through Phase 3 cloud
+  attenuation on the idealized supercell development case. The active planning
+  focus is Phase 3 hardening, result consolidation, and later photolysis
+  realism work.
 - `Use This As:` Navigation entry point. Detailed implementation plans live
   under `docs/plans/`.
 
 ## Current Focus
 
-1. Follow-on runtime tracer work tracked in [TODO.md](TODO.md).
+1. Phase 3 follow-up: rebuild/retest after the recent TUV-x wavelength-grid
+   ownership fix, tighten remaining cloud-path guards, and finish the deferred
+   chemistry-response documentation.
 2. Keep new plan execution details in dated files under `docs/plans/`.
 
 ## Active Plans
 
-- [Photolysis and Tropospheric Chemistry](docs/plans/2026-03-06-tuvx-photolysis-integration.md) — LNOx-O3 mechanism for supercell domain, then TUV-x integration (Phase 0 in progress; verification/corrections pending)
+- [Photolysis and Tropospheric Chemistry](docs/plans/2026-03-06-tuvx-photolysis-integration.md) — LNOx-O3 mechanism and TUV-x integration through Phase 3 cloud attenuation; active work is Phase 3 hardening and later-scope follow-up
 
 ## Historical Plans
 

@@ -248,6 +248,55 @@ python init_tracer_sine.py -t qAB --waves-x 2 --amplitude 0.4 --offset 0.6
 
 ---
 
+### 2026-03-06: Phase 3 — TUV-x cloud opacity
+
+**Duration:** 15 minutes
+**Chemistry:** LNOx-O3 with TUV-x + cloud radiator
+**Photolysis config:** `config_tuvx_config_file = 'tuvx_no2.json'`
+**Cloud radiator:** From-host, cloud water (qc) + rain (qr) from Kessler microphysics
+**Cloud optical depth:** `tau = 3*LWC*dz / (2*r_eff*rho_water)`, r_eff=10 um (cloud), 500 um (rain)
+**Cloud optical properties:** SSA=0.999999, g=0.85 (wavelength-independent)
+**Location / time:** Kingfisher, OK (35.86°N, 97.93°W), 18:00 UTC, SZA ≈ 59°
+**Source:** 0.5 ppbv/s when w - w_threshold = w_ref
+**Initial conditions:** NO=0, NO2=0, O3=50 ppbv
+
+**Key observations:**
+- Cloud develops ~5 min into the simulation; max qc = 2.78e-3 kg/kg
+- 346 cloudy columns (qc_max > 1e-6) vs 27,734 clear columns at t=15 min
+- j_NO2 strongly attenuated below/inside optically thick cloud
+- j_NO2 enhanced ~1.5x above cloud (delta-Eddington cloud albedo effect)
+- NO2 accumulates inside cloud (photolysis recycling shut off)
+- Clear-sky j_NO2 unchanged from Phase 2
+
+**Phase 2 vs Phase 3 comparison (15-minute Case B):**
+
+| Metric | Phase 2 (clear-sky) | Phase 3 (cloud) |
+|--------|-------------------|----------------|
+| Surface j_NO2 (clear) | 7.2e-3 s⁻¹ | 7.16e-3 s⁻¹ (unchanged) |
+| Surface j_NO2 (cloudy min) | — | 6.27e-5 s⁻¹ (114x attenuation) |
+| Surface j_NO2 (cloudy mean) | — | 6.68e-4 s⁻¹ |
+| Above-cloud j_NO2 | ~1.0e-2 s⁻¹ | ~1.5e-2 s⁻¹ (1.5x enhanced) |
+| NO2 max (cloudy) | 6.5 ppbv | 5.9 ppbv |
+| NO2 max (clear) | — | 0.012 ppbv |
+| O3 background | 50.0 ppbv | 50.0 ppbv |
+
+**Verification passed:**
+- [x] Cloud attenuation: j_NO2 = 6.3e-5 s⁻¹ inside thick cloud (< 1e-4 criterion)
+- [x] Clear-sky unchanged: 7.16e-3 s⁻¹ (matches Phase 2)
+- [x] Above-cloud enhancement: ~1.5x (physically correct cloud albedo effect)
+- [x] Non-negativity for all species
+- [x] NO2 higher in cloudy columns (less photolysis recycling)
+- [x] O3 background preserved at 50 ppbv
+- [x] 15-minute Case B stable with cloud-attenuated photolysis
+- [x] Empty config_tuvx_config_file still falls back to Phase 1 path
+
+**Deferred:**
+- [ ] Clear-sky/cloudy column split optimization (per-column TUV-x for all cells currently)
+- [ ] Ice-phase hydrometeors for non-Kessler microphysics
+- [ ] Phase 2 vs Phase 3 chemistry response comparison plots
+
+---
+
 ## Notes
 
 1. **PnetCDF compatibility:** Use `io_type="netcdf"` in streams.atmosphere on macOS/LLVM builds

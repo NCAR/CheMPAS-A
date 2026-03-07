@@ -6,18 +6,18 @@ CheMPAS (Chemistry for MPAS) is a standalone project derived from [NCAR/MPAS-Mod
 
 ## Key Documentation
 
-- `ARCHITECTURE.md` - High-level system architecture
+- `docs/architecture/ARCHITECTURE.md` - High-level system architecture
 - `BUILD.md` - Build system documentation (includes LLVM/macOS instructions)
 - `RUN.md` - Test case execution instructions
-- `VISUALIZE.md` - Chemistry visualization tools and workflows
-- `COMPONENTS.md` - Detailed component descriptions
-- `MUSICA_INTEGRATION.md` - MUSICA/MICM coupling details
-- `MUSICA_API.md` - MUSICA Fortran API reference
+- `docs/guides/VISUALIZE.md` - Chemistry visualization tools and workflows
+- `docs/architecture/COMPONENTS.md` - Detailed component descriptions
+- `docs/musica/MUSICA_INTEGRATION.md` - MUSICA/MICM coupling details
+- `docs/musica/MUSICA_API.md` - MUSICA Fortran API reference
 - `AGENTS.md` - Agent roles, workflow, and operational details
-- `BENCHMARKS.md` - Agent model benchmark comparison
+- `docs/results/BENCHMARKS.md` - Agent model benchmark comparison
 - `PURPOSE.md` - Project motivation and goals
-- `TEST_RUNS.md` - Test run documentation
-- `TODO.md` - Development task list
+- `docs/results/TEST_RUNS.md` - Test run documentation
+- `docs/project/TODO.md` - Development task list
 
 ## Sister Project Reference
 
@@ -123,11 +123,11 @@ Skills are defined in `.claude/commands/` and can be invoked with `/skillname`:
 
 ## Development Approach
 
-CheMPAS is an agent-driven development project. See `AGENTS.md` for the full workflow, agent roles, and human review gates.
+CheMPAS uses a coding-agent-assisted development model. Agents are used for implementation, review support, and verification, while humans retain responsibility for scientific judgment and final technical direction. See `AGENTS.md` for the full workflow, agent roles, and human review gates.
 
 ## Multi-Agent Workflow
 
-CheMPAS uses three agents from three vendors (see `AGENTS.md`). Codex 5.4 reviews Claude's work and may push doc edits or review findings directly to the repo.
+CheMPAS uses three agents from three vendors (see `AGENTS.md`). Codex 5.4 reviews Claude's work and may push doc edits or review findings directly to the repo, but that review remains part of a human-directed workflow rather than a fully automated merge path.
 
 **Convention for cross-agent communication:**
 - Codex writes review findings to `CODEX_REVIEW.md` and pushes to `develop`

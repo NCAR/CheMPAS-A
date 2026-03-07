@@ -40,6 +40,8 @@ module mpas_atm_chemistry
         ! TUV-x state
         logical, save :: use_tuvx = .false.
         integer, save :: idx_qO3 = -1
+        integer, save :: idx_qc  = -1
+        integer, save :: idx_qr  = -1
 
     contains
 
@@ -83,6 +85,7 @@ module mpas_atm_chemistry
         real(kind=RKIND), pointer       :: lat_ptr, lon_ptr
         character(len=StrKIND), pointer :: tuvx_filepath_ptr
         integer, pointer                :: idx_qO3_ptr
+        integer, pointer                :: idx_qc_ptr, idx_qr_ptr
 #endif
 
         call mpas_log_write('Initializing chemistry packages...')
@@ -175,6 +178,29 @@ module mpas_atm_chemistry
                         messageType=MPAS_LOG_CRIT)
                     return
                 end if
+                ! Resolve cloud water index (required for Phase 3 cloud opacity)
+                nullify(idx_qc_ptr)
+                call mpas_pool_get_dimension(statePool, 'index_qc', idx_qc_ptr)
+                if (associated(idx_qc_ptr) .and. idx_qc_ptr > 0) then
+                    idx_qc = idx_qc_ptr
+                    call mpas_log_write('[Chemistry] Resolved index_qc = $i for TUV-x cloud opacity', &
+                        intArgs=[idx_qc])
+                else
+                    idx_qc = -1
+                    call mpas_log_write('[Chemistry] qc tracer not found; TUV-x will use clear-sky only.')
+                end if
+
+                ! Resolve rain water index (optional — zero fallback if absent)
+                nullify(idx_qr_ptr)
+                call mpas_pool_get_dimension(statePool, 'index_qr', idx_qr_ptr)
+                if (associated(idx_qr_ptr) .and. idx_qr_ptr > 0) then
+                    idx_qr = idx_qr_ptr
+                    call mpas_log_write('[Chemistry] Resolved index_qr = $i for TUV-x cloud opacity', &
+                        intArgs=[idx_qr])
+                else
+                    idx_qr = -1
+                    call mpas_log_write('[Chemistry] qr tracer not found; rain opacity will be zero.')
+                end if
             else if (use_tuvx) then
                 use_tuvx = .false.
                 idx_qO3 = -1
@@ -247,6 +273,7 @@ module mpas_atm_chemistry
         real(kind=RKIND), dimension(:,:), pointer :: rho_zz, theta_m, zz, exner
         integer, pointer :: index_qv
         real(kind=RKIND), allocatable :: rho_air_col(:), temperature_col(:)
+        real(kind=RKIND), allocatable :: qc_col(:), qr_col(:)
         real(kind=RKIND), parameter :: rvord = 461.5_RKIND / 287.0_RKIND
         integer :: iCell, k
 
@@ -278,6 +305,8 @@ module mpas_atm_chemistry
             allocate(j_no2_field(nVertLevels, nCells))
             allocate(rho_air_col(nVertLevels))
             allocate(temperature_col(nVertLevels))
+            allocate(qc_col(nVertLevels))
+            allocate(qr_col(nVertLevels))
 
             call mpas_pool_get_array(state, 'scalars', scalars, time_lev)
             call mpas_pool_get_array(state, 'rho_zz', rho_zz, time_lev)
@@ -295,15 +324,28 @@ module mpas_atm_chemistry
                         (1.0_RKIND + rvord * scalars(index_qv, k, iCell))) * exner(k, iCell)
                 end do
 
+                ! Extract cloud/rain water columns (zero if tracer not available)
+                if (idx_qc > 0) then
+                    qc_col(:) = scalars(idx_qc, :, iCell)
+                else
+                    qc_col(:) = 0.0_RKIND
+                end if
+                if (idx_qr > 0) then
+                    qr_col(:) = scalars(idx_qr, :, iCell)
+                else
+                    qr_col(:) = 0.0_RKIND
+                end if
+
                 call tuvx_compute_photolysis(cos_sza, zgrid(:, iCell), &
                                              rho_air_col, temperature_col, &
                                              scalars(idx_qO3, :, iCell), &
+                                             qc_col, qr_col, &
                                              nVertLevels, &
                                              j_no2_field(:, iCell), &
                                              error_code, error_message)
                 if (error_code /= 0) then
                     call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
-                    deallocate(j_no2_field, rho_air_col, temperature_col)
+                    deallocate(j_no2_field, rho_air_col, temperature_col, qc_col, qr_col)
                     return
                 end if
             end do
@@ -312,14 +354,14 @@ module mpas_atm_chemistry
                                              error_code, error_message)
             if (error_code /= 0) then
                 call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
-                deallocate(j_no2_field, rho_air_col, temperature_col)
+                deallocate(j_no2_field, rho_air_col, temperature_col, qc_col, qr_col)
                 return
             end if
 
             ! Write per-cell/level j_no2 to diagnostic array
             call chemistry_set_j_no2_diag_field(diag, j_no2_field, nCells, nVertLevels)
 
-            deallocate(j_no2_field, rho_air_col, temperature_col)
+            deallocate(j_no2_field, rho_air_col, temperature_col, qc_col, qr_col)
         else
             j_no2_value = chem_j_no2_max * max(0.0_RKIND, cos_sza)
             call musica_set_photolysis(j_no2_value, error_code, error_message)

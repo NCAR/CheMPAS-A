@@ -1,6 +1,8 @@
-# MPAS-Model Architecture
+# CheMPAS Architecture
 
-This document describes the high-level architecture of the MPAS (Model for Prediction Across Scales) framework and its components.
+This document describes the high-level architecture of CheMPAS: the MPAS
+(Model for Prediction Across Scales) framework plus the chemistry extensions in
+this repository.
 
 ## Overview
 
@@ -27,11 +29,13 @@ MPAS is a modular, unstructured mesh framework for Earth system modeling. It sup
     +-----------+-----------+
     |           |           |
  Dynamics    Physics    Chemistry
-  (SRK3)  (Convection,  (MUSICA/MICM)
-           Radiation,        |
-           Microphysics, Runtime tracer
-           LSM)          discovery from
-                         MICM config
+  (SRK3)  (Convection,  (MPAS driver +
+           Radiation,   MUSICA/MICM +
+           Microphysics, TUV-x)
+           LSM)               |
+                       Runtime tracer
+                       discovery from
+                       MICM config
 
    ====================================================
         MPAS Framework (Shared)
@@ -66,6 +70,28 @@ chemistry_init
 Switching chemistry mechanisms requires only changing the MICM config file —
 no Fortran source or registry edits.
 
+### Chemistry Timestep Flow
+
+Once initialized, chemistry is stepped through the MPAS chemistry driver:
+
+```
+chemistry_step
+  |-> solar_cos_sza() or TUV-x input preparation
+  |-> tuvx_compute_photolysis() / fallback j = j_max * max(0, cos_sza)
+  |-> lightning_nox_inject()                  # Operator-split NO source
+  |-> chemistry_from_MPAS()                   # MPAS state -> MICM state
+  |-> musica_step()                           # MICM chemistry solve
+  |-> chemistry_to_MPAS()                     # MICM state -> MPAS state
+```
+
+Current chemistry-specific modules under `src/core_atmosphere/chemistry/` are:
+
+- `mpas_atm_chemistry.F` - top-level chemistry manager and MPAS coupling
+- `musica/mpas_musica.F` - MUSICA/MICM coupler and state/rate-parameter updates
+- `mpas_lightning_nox.F` - operator-split lightning NOx source
+- `mpas_solar_geometry.F` - fallback solar zenith-angle calculation
+- `mpas_tuvx.F` - TUV-x photolysis wrapper, including cloud-radiator support
+
 ## Directory Structure
 
 ```
@@ -73,21 +99,30 @@ CheMPAS/
 ├── CMakeLists.txt          # Main CMake build configuration
 ├── Makefile                # Legacy Makefile build system
 ├── cmake/                  # CMake modules and functions
-├── docs/                   # Sphinx-based documentation (RST format)
+├── docs/                   # Markdown documentation by topic
+│   ├── architecture/       # System and component architecture
+│   ├── guides/             # User/developer guides
+│   ├── musica/             # MUSICA/MICM integration notes
+│   ├── plans/              # Dated implementation plans
+│   ├── project/            # Project-management docs
+│   └── results/            # Run results and benchmarks
+├── micm_configs/           # MICM and TUV-x chemistry configuration files
+├── scripts/                # Analysis, plotting, and helper scripts
 ├── src/                    # Main source code
 │   ├── driver/             # Main execution entry points
-│   ├── framework/          # Shared infrastructure (~65 files)
+│   ├── framework/          # Shared infrastructure
 │   ├── operators/          # Mathematical operations
 │   ├── tools/              # Code generation tools
 │   ├── external/           # External libraries (ezxml, SMIOL, ESMF)
-│   ├── core_atmosphere/    # Atmosphere modeling (~254 files)
+│   ├── core_atmosphere/    # Atmosphere modeling
 │   ├── core_init_atmosphere/
 │   ├── core_ocean/
 │   ├── core_seaice/
 │   ├── core_landice/
 │   ├── core_sw/
 │   └── core_test/
-└── testing_and_setup/      # Test configurations
+├── test_cases/             # Tracked runtime test cases and namelists
+└── testing_and_setup/      # Upstream/legacy test configuration support
 ```
 
 ## Core Components
@@ -147,7 +182,7 @@ The registry is processed by tools in `src/tools/registry/` to generate Fortran 
 
 1. **Initialization**: Driver reads configuration, initializes framework
 2. **Domain Decomposition**: Mesh partitioned across MPI ranks
-3. **Time Integration**: Core-specific dynamics/physics stepping
+3. **Time Integration**: Core-specific dynamics, physics, and chemistry stepping
 4. **Halo Exchange**: Framework handles inter-processor communication
 5. **I/O**: Stream manager handles checkpointing and output
 
@@ -164,24 +199,28 @@ The registry is processed by tools in `src/tools/registry/` to generate Fortran 
 - ESMF
 - MUSICA/MICM (chemistry, this branch)
 
-## Code Statistics
+## Selected Source Counts
+
+Approximate Fortran/C source counts in the current tree:
 
 | Component | Files | Description |
 |-----------|-------|-------------|
-| Framework | 65 | Core infrastructure |
-| Operators | 12 | Mathematical kernels |
-| Atmosphere | 254 | Dynamics + physics |
-| Init Atmosphere | 33 | Preprocessing |
-| Chemistry | 2 | MUSICA/MICM interface |
-| Ocean | 50+ | Ocean modeling |
+| Framework | 35 | Core infrastructure |
+| Operators | 10 | Mathematical kernels |
+| Atmosphere | 276 | Dynamics, physics, and chemistry |
+| Init Atmosphere | 22 | Preprocessing |
+| Chemistry | 5 | Driver, source, solar geometry, TUV-x, MUSICA coupler |
+| Ocean | 153 | Ocean modeling |
 
-Total: ~600+ Fortran/C source files
+These are current source counts for orientation, not architectural limits.
 
 ## Related Documentation
 
-- [BUILD.md](BUILD.md) - Build system documentation
+- [BUILD.md](../../BUILD.md) - Build system documentation
 - [COMPONENTS.md](COMPONENTS.md) - Detailed component documentation
-- [MUSICA_INTEGRATION.md](MUSICA_INTEGRATION.md) - Chemistry integration details
+- [MUSICA_INTEGRATION.md](../musica/MUSICA_INTEGRATION.md) - Chemistry integration details
+- [TEST_RUNS.md](../results/TEST_RUNS.md) - Recorded runtime validation results
+- [PLAN.md](../../PLAN.md) - Current focus and active plan index
 
 ## External Resources
 

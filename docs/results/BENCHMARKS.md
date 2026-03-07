@@ -46,7 +46,7 @@ but Fortran-specific validation remains an open gap for all three models.
 No model has been validated on MPAS-specific patterns: Registry.xml
 conventions, pool/field data structures, MPAS operator stencils, or
 coupled physics-chemistry tendencies. The human review gates defined in
-[AGENTS.md](AGENTS.md) exist specifically to cover this gap.
+[AGENTS.md](../../AGENTS.md) exist specifically to cover this gap.
 
 ## Role Suitability Summary
 

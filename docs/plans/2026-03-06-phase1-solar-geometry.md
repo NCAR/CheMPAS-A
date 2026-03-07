@@ -483,7 +483,7 @@ Expected: All min values >= 0.
 
 Mark Phase 1 checklist items as complete in `docs/plans/2026-03-06-tuvx-photolysis-integration.md`.
 
-**Step 2: Update TODO.md**
+**Step 2: Update docs/project/TODO.md**
 
 Mark "Solar geometry / day-night physics for j_NO2 (Phase 1)" as complete.
 

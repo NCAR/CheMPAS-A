@@ -372,6 +372,6 @@ cmake -DCMAKE_SYSTEM_NAME=Linux \
 
 ## Related Documentation
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture
-- [COMPONENTS.md](COMPONENTS.md) - Component details
+- [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) - System architecture
+- [COMPONENTS.md](docs/architecture/COMPONENTS.md) - Component details
 - `INSTALL` - Installation instructions
