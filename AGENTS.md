@@ -9,7 +9,7 @@ The upstream MPAS-Dev repositories rely on human PR review, which creates bottle
 | Role | Agent | Responsibility |
 |------|-------|----------------|
 | Development | Claude Opus 4.6 (Max) | Feature implementation, bug fixes, refactoring, test writing |
-| Review | Codex 5.3 (Extra High) | Merge reviews, planning review |
+| Review | Codex 5.4 (Extra High) | Merge reviews, planning review |
 | Deep Research | Gemini 3 Pro (Deep Think) | Codebase-wide analysis, scientific review, architecture planning |
 | CI Verification | TBD | Build validation, test execution, result reporting on PRs |
 

@@ -1,4 +1,4 @@
-# CheMPAS Manifesto
+# CheMPAS Approach
 
 ## The CheMPAS Response
 
@@ -13,7 +13,7 @@ The core insight: **if agents are generating the code, agents should be reviewin
 | Role | Agent | Responsibility |
 |------|-------|----------------|
 | Development | Claude Opus 4.6 (Max) | Feature implementation, bug fixes, refactoring, test writing |
-| Review | Codex 5.3 (Extra High) | Merge reviews, planning review |
+| Review | Codex 5.4 (Extra High) | Merge reviews, planning review |
 | Deep Research | Gemini 3 Pro (Deep Think) | Codebase-wide analysis, scientific review, architecture planning |
 | CI Verification | TBD | Build validation, test execution, result reporting |
 
@@ -21,7 +21,7 @@ The core insight: **if agents are generating the code, agents should be reviewin
 
 The development, review, and research agents are deliberately different models from different vendors (Anthropic, OpenAI, Google DeepMind). A single model reviewing its own output has correlated blind spots — it will be confident about the same things it got wrong. Three-vendor independence ensures no single architectural bias, training artifact, or failure mode can pass through unchallenged.
 
-Each model is assigned to the role that matches its strengths: Claude Opus 4.6's debugging accuracy and SWE-bench performance for development, Codex 5.3's methodical code review at xhigh reasoning for PR review, and Gemini 3 Pro's 1M+ token context and graduate-level science reasoning (GPQA Diamond 93.8%) for deep research and scientific validation. See [BENCHMARKS.md](BENCHMARKS.md) for the full comparison.
+Each model is assigned to the role that matches its strengths: Claude Opus 4.6's debugging accuracy and SWE-bench performance for development, Codex 5.4's methodical code review at Extra High reasoning for PR review, and Gemini 3 Pro's 1M+ token context and graduate-level science reasoning (GPQA Diamond 93.8%) for deep research and scientific validation. See [BENCHMARKS.md](BENCHMARKS.md) for the full comparison.
 
 ### What Humans Do
 
