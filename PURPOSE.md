@@ -1,52 +1,49 @@
-# CheMPAS Approach
+# CheMPAS Development Workflow
 
-## The CheMPAS Response
+CheMPAS is a fork of
+[NCAR/MPAS-Model-ACOM-dev](https://github.com/NCAR/MPAS-Model-ACOM-dev),
+itself a fork of [MPAS-Dev/MPAS-Model](https://github.com/MPAS-Dev/MPAS-Model).
+It is maintained independently for coupled atmospheric chemistry work on MPAS
+meshes and is not intended to track upstream development closely.
 
-CheMPAS was created as a clean fork from [NCAR/MPAS-Model-ACOM-dev](https://github.com/NCAR/MPAS-Model-ACOM-dev) (itself a fork of [MPAS-Dev/MPAS-Model](https://github.com/MPAS-Dev/MPAS-Model)) with no intent to sync back. This deliberate divergence allows CheMPAS to adopt a coding-agent-assisted development model that would be difficult to fit inside the upstream governance structure.
+## Tools In Use
 
-The core insight: **coding agents are useful collaborators, not replacements for scientific and engineering judgment**. If agents are writing substantial portions of the code, they should also participate in review, testing, and CI, while humans retain responsibility for priorities, scientific interpretation, and final technical direction.
+| Function | Tool | Current use |
+|----------|------|-------------|
+| Development | Claude Opus 4.6 (Max) | Feature work, bug fixes, refactoring, test scaffolding, doc edits |
+| Review | Codex 5.4 (Extra High) | Code review, plan review, design checks |
+| Deep analysis | Gemini 3 Pro (Deep Think) | Full-tree analysis, scientific literature review, architecture work |
+| Build and run | Local shell tools | Compile MPAS, run test cases, inspect logs and outputs |
+| Verification scripts | Repo `scripts/` | Initialization, diagnostics, plotting, gate checks |
 
-## Coding-Agent-Assisted Development
+The tool mix can change over time. The repo documentation should reflect the
+tools currently in use rather than treat them as fixed policy.
 
-### Roles
+## Workflow
 
-| Role | Agent | Responsibility |
-|------|-------|----------------|
-| Development | Claude Opus 4.6 (Max) | Feature implementation, bug fixes, refactoring, test writing |
-| Review | Codex 5.4 (Extra High) | Merge reviews, planning review |
-| Deep Research | Gemini 3 Pro (Deep Think) | Codebase-wide analysis, scientific review, architecture planning |
-| CI Verification | TBD | Build validation, test execution, result reporting |
+1. Define the task or issue.
+2. Gather local code and documentation context before editing.
+3. Implement the change in a focused patch.
+4. Build and run the relevant case when the change affects code behavior.
+5. Review the change with a different model/vendor than the one used for
+   implementation.
+6. Keep plans, run notes, and architecture docs in sync with the code.
+7. Escalate to human review for scientific, architectural, Registry, or
+   external-interface changes.
 
-### Why Three Models from Three Vendors
+## Human Review Gates
 
-The development, review, and research agents are deliberately different models from different vendors (Anthropic, OpenAI, Google DeepMind). A single model reviewing its own output has correlated blind spots — it will be confident about the same things it got wrong. Three-vendor independence ensures no single architectural bias, training artifact, or failure mode can pass through unchallenged.
+Human review is required for:
 
-Each model is assigned to the role that matches its strengths: Claude Opus 4.6's debugging accuracy and SWE-bench performance for development, Codex 5.4's methodical code review at Extra High reasoning for PR review, and Gemini 3 Pro's 1M+ token context and graduate-level science reasoning (GPQA Diamond 93.8%) for deep research and scientific validation. See [BENCHMARKS.md](docs/results/BENCHMARKS.md) for the full comparison.
+- physics, chemistry, and numerical-method changes
+- `Registry.xml` edits
+- new modules, major refactors, or build-system changes
+- MUSICA, MPI, and I/O interface changes
 
-### What Humans Do
+## Working Norms
 
-Agents accelerate implementation, review, and verification. Humans retain judgment. Specifically, human review is required for:
-
-- **Scientific correctness**: Physics parameterizations, chemistry solvers, numerical methods, tendency calculations. An agent can write code that compiles, runs, and produces plausible-looking output while being physically wrong. Unit errors, sign flips in tendencies, incorrect operator stencils — these require domain expertise to catch.
-- **Architectural decisions**: New modules, major refactors, dependency changes, build system modifications.
-- **Registry changes**: The MPAS Registry.xml is the metadata backbone of the model. Bad edits break the build through code generation in non-obvious ways.
-- **External interfaces**: MUSICA-Fortran coupling, MPI communication patterns, I/O format changes.
-
-The deep research agent adds a layer that neither the development nor review agent can provide: full-codebase comprehension in a single context. Before major changes, it can ingest the entire source tree alongside scientific literature to identify coupling risks, unit inconsistencies, and deviations from published methods. Its role is to inform decisions, not to substitute for them.
-
-Many other tasks — style, correctness of straightforward logic, test coverage, documentation, build fixes, and repetitive integration work — can often be handled faster and more consistently with agent assistance than by human review alone.
-
-## Principles
-
-1. **Agents build and test before committing.** No exceptions. Every PR includes evidence of compilation and test results.
-2. **No self-review.** The development agent and review agent are always different models from different vendors.
-3. **Scientific correctness is non-negotiable.** Physics and chemistry changes are always flagged for human review.
-4. **One PR, one purpose.** Minimal, focused changes. Resist scope creep and over-engineering.
-5. **Read before writing.** The codebase is the source of truth. Agents understand existing code before modifying it, and humans frame the work before accepting it.
-6. **Continuous flow over batch releases.** The point of reducing the review bottleneck is to enable continuous integration, not to accumulate a different kind of backlog.
-
-## On Divergence
-
-CheMPAS will diverge from upstream MPAS. This is intentional. The upstream project serves a broad community with conservative governance appropriate to its role. CheMPAS serves a focused research objective — coupled atmospheric chemistry on MPAS meshes — and can move at the pace that objective demands.
-
-The two projects share a common ancestor. They do not need to share a future.
+- build and test before committing
+- keep changes small and specific
+- treat the codebase as the source of truth
+- record nontrivial validation results in the repo
+- prefer explicit review evidence over informal confidence
