@@ -8,7 +8,8 @@ Usage:
   scripts/check_build_env.sh
   eval "$(scripts/check_build_env.sh --export)"
 
-Checks the local LLVM/MUSICA/PNetCDF build prerequisites used by CheMPAS.
+Checks the local build prerequisites used by CheMPAS.
+Auto-detects the Fortran compiler toolchain (LLVM/flang or GCC/gfortran).
 
 Options:
   --export   Print shell exports for the detected working environment.
@@ -43,6 +44,24 @@ pnetcdf_root=""
 pio_root=""
 musica_status=""
 preferred_pkgconfig_dir="${HOME}/software/lib/pkgconfig"
+
+# Auto-detect compiler toolchain
+fc_compiler=""
+cc_compiler=""
+cxx_compiler=""
+make_target=""
+
+if command -v flang >/dev/null 2>&1; then
+    fc_compiler="flang"
+    cc_compiler="clang"
+    cxx_compiler="clang++"
+    make_target="llvm"
+elif command -v gfortran >/dev/null 2>&1; then
+    fc_compiler="gfortran"
+    cc_compiler="gcc"
+    cxx_compiler="g++"
+    make_target="gfortran"
+fi
 
 report() {
     if [[ "${mode}" == "report" ]]; then
@@ -98,8 +117,8 @@ pkg_config_has_valid_musica() {
 
     [[ -f "${includedir}/musica_micm.mod" ]] || return 1
 
-    if [[ -e "${libdir}/libmusica-fortran.a" || -e "${libdir}/libmusica-fortran.dylib" ]]; then
-        if [[ -e "${libdir}/libmusica.a" || -e "${libdir}/libmusica.dylib" ]]; then
+    if [[ -e "${libdir}/libmusica-fortran.a" || -e "${libdir}/libmusica-fortran.dylib" || -e "${libdir}/libmusica-fortran.so" ]]; then
+        if [[ -e "${libdir}/libmusica.a" || -e "${libdir}/libmusica.dylib" || -e "${libdir}/libmusica.so" ]]; then
             return 0
         fi
     fi
@@ -165,7 +184,7 @@ program test_musica_fortran
 end program test_musica_fortran
 EOF
 
-    if OMPI_FC=flang mpifort "${cflags_array[@]}" "${tmp_src}" -o "${tmp_exe}" "${libs_array[@]}" >/dev/null 2>&1; then
+    if OMPI_FC="${fc_compiler}" mpifort "${cflags_array[@]}" "${tmp_src}" -o "${tmp_exe}" "${libs_array[@]}" -lstdc++ >/dev/null 2>&1; then
         rm -f "${tmp_src}" "${tmp_exe}"
         return 0
     fi
@@ -176,10 +195,11 @@ EOF
 
 report "CheMPAS build environment preflight"
 
-if command -v flang >/dev/null 2>&1; then
-    pass "flang: $(command -v flang)"
+if [[ -n "${fc_compiler}" ]]; then
+    pass "Fortran compiler: ${fc_compiler} ($(command -v ${fc_compiler}))"
+    pass "Make target: ${make_target}"
 else
-    fail "flang not found in PATH"
+    fail "No Fortran compiler found (expected flang or gfortran in PATH)"
 fi
 
 if command -v mpifort >/dev/null 2>&1; then
@@ -194,16 +214,26 @@ else
     fail "pkg-config not found in PATH"
 fi
 
-if netcdf_root="$(resolve_root "include/netcdf.mod" "lib/libnetcdff.dylib" "${NETCDF:-}" "/opt/homebrew")"; then
+# NetCDF: check for .dylib (macOS) or .so (Linux) or .a
+netcdf_lib_pattern=""
+if netcdf_root="$(resolve_root "include/netcdf.mod" "lib/libnetcdff.dylib" "${NETCDF:-}" "/opt/homebrew" "${CONDA_PREFIX:-}")"; then
+    netcdf_lib_pattern="dylib"
+elif netcdf_root="$(resolve_root "include/netcdf.mod" "lib/libnetcdff.so" "${NETCDF:-}" "${CONDA_PREFIX:-}")"; then
+    netcdf_lib_pattern="so"
+elif netcdf_root="$(resolve_root "include/netcdf.mod" "lib/libnetcdff.a" "${NETCDF:-}" "${CONDA_PREFIX:-}")"; then
+    netcdf_lib_pattern="a"
+fi
+if [[ -n "${netcdf_root}" ]]; then
     pass "NETCDF=${netcdf_root}"
 else
     fail "NETCDF not found; expected include/netcdf.mod and lib/libnetcdff.*"
 fi
 
-if pnetcdf_root="$(resolve_root "include/pnetcdf.h" "lib/libpnetcdf.a" "${PNETCDF:-}" "${HOME}/software")"; then
+if pnetcdf_root="$(resolve_root "include/pnetcdf.h" "lib/libpnetcdf.a" "${PNETCDF:-}" "${HOME}/software" "${CONDA_PREFIX:-}")" || \
+   pnetcdf_root="$(resolve_root "include/pnetcdf.h" "lib/libpnetcdf.so" "${PNETCDF:-}" "${HOME}/software" "${CONDA_PREFIX:-}")"; then
     pass "PNETCDF=${pnetcdf_root}"
 else
-    fail "PNETCDF not found; expected include/pnetcdf.h and lib/libpnetcdf.a"
+    fail "PNETCDF not found; expected include/pnetcdf.h and lib/libpnetcdf.*"
 fi
 
 if pio_root="$(resolve_root "include/pio.mod" "lib/libpiof.a" "${PIO:-}" "${HOME}/software")"; then
@@ -212,7 +242,13 @@ else
     fail "PIO not found; expected include/pio.mod and lib/libpiof.a"
 fi
 
-musica_build_root="$(resolve_root "mod_fortran/musica_micm.mod" "lib/libmusica-fortran.a" "${MUSICA_BUILD_DIR:-}" "${repo_root}/../MUSICA-LLVM/build" "${HOME}/EarthSystem/MUSICA-LLVM/build" || true)"
+# MUSICA detection: check installed pkg-config first, then fall back to build trees
+musica_build_root=""
+if [[ "${fc_compiler}" == "flang" ]]; then
+    musica_build_root="$(resolve_root "mod_fortran/musica_micm.mod" "lib/libmusica-fortran.a" "${MUSICA_BUILD_DIR:-}" "${repo_root}/../MUSICA-LLVM/build" "${HOME}/EarthSystem/MUSICA-LLVM/build" || true)"
+elif [[ "${fc_compiler}" == "gfortran" ]]; then
+    musica_build_root="$(resolve_root "mod_fortran/musica_micm.mod" "lib/libmusica-fortran.a" "${MUSICA_BUILD_DIR:-}" "${repo_root}/../MUSICA/build" "${HOME}/EarthSystem/MUSICA/build" || true)"
+fi
 
 if command -v pkg-config >/dev/null 2>&1; then
     if [[ -f "${preferred_pkgconfig_dir}/musica-fortran.pc" ]]; then
@@ -242,7 +278,7 @@ fi
 
 if [[ ${status} -eq 0 && -n "${musica_status}" ]]; then
     if probe_musica_link; then
-        pass "MUSICA link probe succeeded with OMPI_FC=flang mpifort"
+        pass "MUSICA link probe succeeded with OMPI_FC=${fc_compiler} mpifort"
     else
         fail "MUSICA link probe failed; check yaml-cpp and the musica-fortran.pc library paths"
     fi
@@ -257,9 +293,9 @@ if [[ "${mode}" == "export" ]]; then
     printf 'export PNETCDF=%q\n' "${pnetcdf_root}"
     printf 'export PIO=%q\n' "${pio_root}"
     printf 'export PKG_CONFIG_PATH=%q\n' "${pkg_config_path_value}"
-    printf 'export OMPI_FC=%q\n' "flang"
-    printf 'export OMPI_CC=%q\n' "clang"
-    printf 'export OMPI_CXX=%q\n' "clang++"
+    printf 'export OMPI_FC=%q\n' "${fc_compiler}"
+    printf 'export OMPI_CC=%q\n' "${cc_compiler}"
+    printf 'export OMPI_CXX=%q\n' "${cxx_compiler}"
     exit 0
 fi
 
@@ -267,7 +303,7 @@ if [[ ${status} -eq 0 ]]; then
     report ""
     report "Suggested next command:"
     report "  eval \"\$(scripts/check_build_env.sh --export)\""
-    report "  make -j8 llvm CORE=atmosphere PIO=${pio_root} NETCDF=${netcdf_root} PNETCDF=${pnetcdf_root} PRECISION=double MUSICA=true"
+    report "  make -j8 ${make_target} CORE=atmosphere PIO=${pio_root} NETCDF=${netcdf_root} PNETCDF=${pnetcdf_root} PRECISION=double MUSICA=true"
 fi
 
 exit ${status}

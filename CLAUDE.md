@@ -28,55 +28,69 @@ CheMPAS (Chemistry for MPAS) is a standalone project derived from [NCAR/MPAS-Mod
   - `SCIENCE.md` (physics assumptions and validation framing)
   - `DC3.md` (observational context and targets)
 
-## Build Configuration (macOS with LLVM)
+## Build Configuration
 
-This project is configured to build with LLVM compilers (flang/clang) via Homebrew.
-Before any LLVM/MUSICA build, run the repo preflight:
+CheMPAS builds on two platforms. The preflight script auto-detects the
+compiler toolchain (flang or gfortran) and sets paths accordingly:
 
 ```bash
-scripts/check_build_env.sh
-eval "$(scripts/check_build_env.sh --export)"
+scripts/check_build_env.sh          # report mode — shows what it found
+eval "$(scripts/check_build_env.sh --export)"   # export mode — sets env vars
 ```
 
-That script currently resolves the working local environment on this machine to:
+`PKG_CONFIG_PATH` must be present in the same shell invocation as `make`.
+The Makefile uses `$(shell pkg-config ...)` during parse, so exporting it
+in a separate shell and then invoking `make` later is not sufficient.
+
+### macOS (LLVM/flang)
+
+Resolved environment:
 - `NETCDF=/opt/homebrew`
 - `PNETCDF=/Users/fillmore/software`
 - `PIO=/Users/fillmore/software`
 - `PKG_CONFIG_PATH=/Users/fillmore/software/lib/pkgconfig`
-
-The installed MUSICA package in `/Users/fillmore/software/lib/pkgconfig/musica-fortran.pc`
-is the preferred source of truth. It already carries the working yaml-cpp and
-`-lstdc++` link flags. Do not prefer the sibling `~/EarthSystem/MUSICA-LLVM/build`
-tree unless the installed package is missing or broken.
-
-This project builds successfully only when `make` sees the correct environment
-in the same shell invocation. The Makefile uses `$(shell pkg-config ...)` during
-parse, so exporting `PKG_CONFIG_PATH` in one shell and invoking `make` in another
-will fail.
-
-Build with the preflight exports in the same shell:
+- Make target: `llvm`
 
 ```bash
 eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
-  CORE=atmosphere \
-  PIO="$PIO" \
-  NETCDF="$NETCDF" \
-  PNETCDF="$PNETCDF" \
-  PRECISION=double \
-  MUSICA=true
+  CORE=atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" \
+  PRECISION=double MUSICA=true
 
 eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
-  CORE=init_atmosphere \
-  PIO="$PIO" \
-  NETCDF="$NETCDF" \
-  PNETCDF="$PNETCDF" \
+  CORE=init_atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" \
   PRECISION=double
 ```
 
-**Important:**
+### Ubuntu (GCC/gfortran via conda)
+
+Requires the `mpas` conda environment (`conda activate mpas`).
+
+Resolved environment:
+- `NETCDF=$CONDA_PREFIX` (miniconda3/envs/mpas)
+- `PNETCDF=$CONDA_PREFIX`
+- `PIO=$HOME/software`
+- `PKG_CONFIG_PATH=$HOME/software/lib/pkgconfig`
+- Make target: `gfortran`
+
+```bash
+eval "$(scripts/check_build_env.sh --export)" && make -j8 gfortran \
+  CORE=atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" \
+  PRECISION=double MUSICA=true
+
+eval "$(scripts/check_build_env.sh --export)" && make -j8 gfortran \
+  CORE=init_atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" \
+  PRECISION=double
+```
+
+Dependencies installed via conda-forge: `gcc gxx gfortran cmake openmpi
+libnetcdf netcdf-fortran libpnetcdf libblas liblapack pkg-config make`.
+PIO and MUSICA built from source into `~/software`.
+
+### Important (both platforms)
+
 - Always use `-j8` for parallel compilation.
-- MUSICA-Fortran must be built with flang, not gfortran.
-- LLVM/flang `.mod` files are incompatible with gfortran `.mod` files.
+- MUSICA-Fortran must be built with the same Fortran compiler as CheMPAS.
+  Mixing flang and gfortran `.mod` files causes link failures.
 - `PNETCDF` is required for the normal top-level build.
 - A full atmosphere build may still stop later if `src/core_atmosphere/physics/physics_mmm`
   tries to `git fetch` `MMM-physics` and network access is unavailable.
@@ -116,7 +130,7 @@ Skills are defined in `.claude/commands/` and can be invoked with `/skillname`:
 
 | Skill | Command | Description |
 |-------|---------|-------------|
-| Build MPAS | `/build-mpas` | Build atmosphere or init_atmosphere with LLVM |
+| Build MPAS | `/build-mpas` | Build atmosphere or init_atmosphere |
 | Test MPAS | `/test-mpas` | Run a test case and verify output |
 | Plot Chemistry | `/plot-chemistry` | Generate and open chemistry visualization plots |
 | MUSICA Dev | `/musica-dev` | Work on MUSICA/MICM chemistry integration |
@@ -139,28 +153,34 @@ CheMPAS uses three agents from three vendors (see `AGENTS.md`). Codex 5.4 review
 ## Notes for AI Assistants
 
 1. **Fortran Standards**: This is a Fortran 2008 codebase using MPI for parallelism
-2. **Build System**: Uses legacy Makefile (not CMake) with `make llvm` target for LLVM compilers
-3. **Module Files**: LLVM flang `.mod` files are incompatible with gfortran - don't mix compilers
-4. **MPI**: Uses `include 'mpif.h'` via `NOMPIMOD` flag (not `use mpi` module)
+2. **Build System**: Uses legacy Makefile (not CMake) with `make llvm` (macOS) or `make gfortran` (Ubuntu)
+3. **Module Files**: flang and gfortran `.mod` files are incompatible - don't mix compilers
+4. **MPI**: macOS/LLVM uses `include 'mpif.h'` via `NOMPIMOD` flag; Ubuntu/gfortran uses `mpi_f08` module natively
 5. **Registry System**: Most variable definitions are in `Registry.xml` (build-time), but MUSICA chemistry tracers are injected at runtime from the MICM config
 6. **Physics**: Many physics schemes from WRF, NoahMP, and other sources
-7. **MUSICA**: Use `scripts/check_build_env.sh` before MUSICA builds. The working pkg-config file is `/Users/fillmore/software/lib/pkgconfig/musica-fortran.pc`.
+7. **MUSICA**: Use `scripts/check_build_env.sh` before MUSICA builds. The working pkg-config file is `~/software/lib/pkgconfig/musica-fortran.pc` on both platforms.
 8. **Build Environment**: `PKG_CONFIG_PATH` must be present in the same shell invocation as `make`; otherwise the Makefile's parse-time `pkg-config` checks fail.
 9. **Testing**: Always run with 8 MPI ranks (`mpiexec -n 8`). A mismatched rank count with no matching partition file causes segfaults in the dynamics solver. See `RUN.md` for details.
 
 ## Common Tasks
 
 ### Full Rebuild
+
+The preflight script auto-detects the make target (`llvm` or `gfortran`):
+
 ```bash
 make clean CORE=atmosphere
 find . -name "*.mod" -delete
 find . -name "*.o" -delete
-eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm CORE=atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double
+eval "$(scripts/check_build_env.sh --export)" && make -j8 TARGET CORE=atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double
 ```
+
+Replace `TARGET` with `llvm` (macOS) or `gfortran` (Ubuntu), or read it from
+the preflight output.
 
 ### Build with MUSICA
 ```bash
-eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
+eval "$(scripts/check_build_env.sh --export)" && make -j8 TARGET \
   CORE=atmosphere \
   PIO="$PIO" \
   NETCDF="$NETCDF" \
