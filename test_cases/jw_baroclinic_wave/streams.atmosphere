@@ -3,21 +3,21 @@
 <immutable_stream name="input"
                   type="input"
                   io_type="netcdf"
-                  filename_template="supercell_init.nc"
+                  filename_template="x1.40962.init.nc"
                   input_interval="initial_only"/>
 
 <immutable_stream name="restart"
                   type="input;output"
                   filename_template="restart.$Y-$M-$D_$h.$m.$s.nc"
                   input_interval="initial_only"
-                  output_interval="2:00:00"/>
+                  output_interval="5_00:00:00"/>
 
 <stream name="output"
         type="output"
         io_type="netcdf"
         filename_template="output.nc"
         filename_interval="none"
-        output_interval="00:30:00">
+        output_interval="24:00:00">
 
     <file name="stream_list.atmosphere.output"/>
 
@@ -32,7 +32,7 @@
 
 <stream name="surface"
         type="input"
-        filename_template="sfc_update.nc"
+        filename_template="x1.40962.sfc_update.nc"
         filename_interval="none"
         input_interval="none">
 

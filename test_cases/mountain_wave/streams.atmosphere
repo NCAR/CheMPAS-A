@@ -3,14 +3,14 @@
 <immutable_stream name="input"
                   type="input"
                   io_type="netcdf"
-                  filename_template="supercell_init.nc"
+                  filename_template="mtn_wave_init.nc"
                   input_interval="initial_only"/>
 
 <immutable_stream name="restart"
                   type="input;output"
                   filename_template="restart.$Y-$M-$D_$h.$m.$s.nc"
                   input_interval="initial_only"
-                  output_interval="2:00:00"/>
+                  output_interval="1_00:00:00"/>
 
 <stream name="output"
         type="output"

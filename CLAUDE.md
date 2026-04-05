@@ -232,6 +232,17 @@ python init_tracer_sine.py -i supercell_init.nc -t qAB --waves-x 2 --amplitude 0
 
 ## Test Run Directory
 
-The supercell test case is located at `~/Data/MPAS/supercell/` (shared with MPAS-Model-ACOM-dev). See `RUN.md` for execution instructions.
+Idealized test cases are in `~/Data/MPAS/`:
 
-**Important:** The `streams.atmosphere` file must use `io_type="netcdf"` to avoid PnetCDF compatibility issues on macOS/LLVM builds.
+| Case | Directory | Duration | Mesh |
+|------|-----------|----------|------|
+| Supercell | `~/Data/MPAS/supercell/` | 2 hours | ~500 m, 40 levels |
+| Mountain wave | `~/Data/MPAS/mountain_wave/` | 5 hours | ~577 m, 70 levels |
+| Baroclinic wave | `~/Data/MPAS/jw_baroclinic_wave/` | 16 days | 120 km, 26 levels |
+
+Reference namelists and streams files are tracked in `test_cases/` in the repo.
+See `RUN.md` for execution instructions and `test_cases/README.md` for data
+download and setup.
+
+**Important:** All streams files use `io_type="netcdf"` to avoid PnetCDF
+compatibility issues.
