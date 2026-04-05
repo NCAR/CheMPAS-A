@@ -27,7 +27,7 @@ Verify required files exist:
 
 Read `namelist.atmosphere` to find the decomposition prefix and determine available partition sizes.
 
-**Important:** Check that `streams.atmosphere` has `io_type="netcdf"` on input and output streams. PnetCDF has compatibility issues on macOS/LLVM builds. If missing, add `io_type="netcdf"` to avoid "Could not open input file" or "PIO error -36" errors.
+**Important (macOS only):** Check that `streams.atmosphere` has `io_type="netcdf"` on input and output streams. PnetCDF has compatibility issues on macOS/LLVM builds. If missing, add `io_type="netcdf"` to avoid "Could not open input file" or "PIO error -36" errors. On Ubuntu/GCC with conda-built PnetCDF, this is typically not needed but doesn't hurt.
 
 ### 2. Remove Previous Output (REQUIRED)
 
@@ -41,7 +41,7 @@ rm -f output.nc log.atmosphere.*.out
 
 ### 3. Run the Model
 
-Run with 8 MPI ranks (optimal for 10-core Mac, avoids oversubscription):
+Run with 8 MPI ranks:
 
 ```bash
 mpiexec -n 8 ~/EarthSystem/CheMPAS/atmosphere_model 2>&1 | tee run.out

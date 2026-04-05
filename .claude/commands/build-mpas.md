@@ -1,17 +1,27 @@
 # Build MPAS
 
-Build MPAS-Atmosphere with LLVM compilers on macOS. See BUILD.md for full details.
+Build MPAS-Atmosphere or init_atmosphere. The preflight script auto-detects
+the compiler toolchain (LLVM/flang on macOS, GCC/gfortran on Ubuntu) and
+sets paths accordingly. See BUILD.md for full details.
 
 ## Instructions
 
 1. Check if a clean build is needed by looking for stale `.mod` files or build option mismatches.
 
-2. Run the repo build preflight first. It detects the working local LLVM/MUSICA/PNetCDF
-   environment and prints the exports needed by `make`.
+2. Run the repo build preflight. It detects the compiler toolchain, library
+   paths, and prints the exports needed by `make`.
 
    ```bash
    scripts/check_build_env.sh
-   eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
+   ```
+
+   The script will report the detected make target (`llvm` or `gfortran`)
+   and all resolved paths.
+
+3. Build with the preflight exports in a single shell invocation:
+
+   ```bash
+   eval "$(scripts/check_build_env.sh --export)" && make -j8 TARGET \
      CORE=atmosphere \
      PIO="$PIO" \
      NETCDF="$NETCDF" \
@@ -19,10 +29,14 @@ Build MPAS-Atmosphere with LLVM compilers on macOS. See BUILD.md for full detail
      PRECISION=double
    ```
 
-3. To enable MUSICA chemistry, add `MUSICA=true`:
+   Replace `TARGET` with the make target reported by the preflight script:
+   - macOS: `llvm`
+   - Ubuntu: `gfortran`
+
+4. To enable MUSICA chemistry, add `MUSICA=true`:
 
    ```bash
-   eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
+   eval "$(scripts/check_build_env.sh --export)" && make -j8 TARGET \
      CORE=atmosphere \
      PIO="$PIO" \
      NETCDF="$NETCDF" \
@@ -31,30 +45,33 @@ Build MPAS-Atmosphere with LLVM compilers on macOS. See BUILD.md for full detail
      MUSICA=true
    ```
 
-4. Verify the executable was created:
+5. Verify the executable was created:
    ```bash
    ls -la atmosphere_model
    ```
 
-## Important: Build Environment
+## Build Environment
 
-The preflight script currently resolves the working local environment to:
+The preflight script resolves paths per platform:
+
+**macOS (LLVM):**
 - `NETCDF=/opt/homebrew`
-- `PNETCDF=/Users/fillmore/software`
-- `PIO=/Users/fillmore/software`
-- `PKG_CONFIG_PATH=/Users/fillmore/software/lib/pkgconfig`
+- `PNETCDF=$HOME/software`, `PIO=$HOME/software`
+- `OMPI_FC=flang`, `OMPI_CC=clang`, `OMPI_CXX=clang++`
 
-The `eval ... && make ...` **must be in the same shell invocation**. GNU Make evaluates
-`$(shell pkg-config ...)` while parsing the Makefile, so `make` must inherit the correct
-`PKG_CONFIG_PATH` directly.
+**Ubuntu (GCC/conda):**
+- `NETCDF=$CONDA_PREFIX` (miniconda3/envs/mpas)
+- `PNETCDF=$CONDA_PREFIX`, `PIO=$HOME/software`
+- `OMPI_FC=gfortran`, `OMPI_CC=gcc`, `OMPI_CXX=g++`
 
-```bash
-eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm CORE=atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double MUSICA=true
-```
+The `eval ... && make ...` **must be in the same shell invocation**. GNU Make
+evaluates `$(shell pkg-config ...)` while parsing the Makefile, so `make` must
+inherit the correct `PKG_CONFIG_PATH` directly.
 
-Use the installed MUSICA package in `/Users/fillmore/software/lib/pkgconfig/musica-fortran.pc`.
-Do not prefer the sibling `~/EarthSystem/MUSICA-LLVM/build` tree unless the installed package
-is missing or broken.
+On Ubuntu, the `mpas` conda environment must be active (`conda activate mpas`).
+
+The installed MUSICA package in `~/software/lib/pkgconfig/musica-fortran.pc`
+is the preferred source of truth on both platforms.
 
 ## Options
 
@@ -70,5 +87,5 @@ If needed, perform a full clean:
 make clean CORE=atmosphere
 find . -name "*.mod" -delete
 find . -name "*.o" -delete
-eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm CORE=atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double
+eval "$(scripts/check_build_env.sh --export)" && make -j8 TARGET CORE=atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double
 ```
