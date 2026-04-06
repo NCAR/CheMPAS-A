@@ -20,6 +20,7 @@
 module mpas_atm_chemistry
 
     use mpas_kind_types, only : StrKIND, RKIND
+    use mpas_timer, only : mpas_timer_start, mpas_timer_stop
 
     implicit none
 
@@ -36,6 +37,9 @@ module mpas_atm_chemistry
     real(kind=RKIND), save :: chem_lat = 0.0_RKIND
     real(kind=RKIND), save :: chem_lon = 0.0_RKIND
     real(kind=RKIND), save :: chem_j_no2_max = 0.0_RKIND
+
+        ! Reference solve (doubles chemistry cost; off by default)
+        logical, save :: use_ref_solve = .false.
 
         ! TUV-x state
         logical, save :: use_tuvx = .false.
@@ -112,6 +116,14 @@ module mpas_atm_chemistry
         if (associated(j_no2_ptr)) j_no2_val = j_no2_ptr
         call mpas_pool_get_config(configs, 'config_lnox_nox_tau', nox_tau_ptr)
         if (associated(nox_tau_ptr)) nox_tau_val = nox_tau_ptr
+
+        ! Read reference solve flag
+        block
+            logical, pointer :: ref_solve_ptr
+            nullify(ref_solve_ptr)
+            call mpas_pool_get_config(configs, 'config_chemistry_ref_solve', ref_solve_ptr)
+            if (associated(ref_solve_ptr)) use_ref_solve = ref_solve_ptr
+        end block
 
         ! Cache solar geometry config values for per-step SZA computation
         chem_j_no2_max = j_no2_val
@@ -373,6 +385,7 @@ module mpas_atm_chemistry
         end if
 
         call mpas_log_write('Stepping chemistry packages...')
+        call mpas_timer_start('chemistry')
 
         ! Step 0: Inject lightning NOx source (pre-MICM, operator split)
         call mpas_pool_get_array(state, 'scalars', scalars, time_lev)
@@ -383,8 +396,10 @@ module mpas_atm_chemistry
         end if
 
         ! Step 1: Copy MPAS state to MICM (MPAS -> MICM)
+        call mpas_timer_start('chem MPAS->MICM')
         call chemistry_from_MPAS(mesh, state, diag, dimensions, time_lev, &
                                   nCells, nVertLevels, error_code, error_message)
+        call mpas_timer_stop('chem MPAS->MICM')
         if (error_code /= 0) then
             call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
             return
@@ -393,34 +408,43 @@ module mpas_atm_chemistry
         ! On first call, copy coupled state to reference so both start with
         ! identical initial conditions from MPAS. Any subsequent divergence
         ! will indicate advection effects.
-        if (first_call) then
+        if (first_call .and. use_ref_solve) then
             call copy_state_to_ref()
             call mpas_log_write('[Chemistry] Copied coupled state to reference state (first timestep).')
             first_call = .false.
         end if
 
         ! Step 2: Solve chemistry (coupled state)
+        call mpas_timer_start('chem MICM solve')
         call musica_step(time_step, error_code, error_message)
+        call mpas_timer_stop('chem MICM solve')
         if (error_code /= 0) then
             call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
             return
         end if
 
         ! Step 2b: Solve chemistry on reference state (uncoupled, for advection diagnostics)
-        call musica_step_ref(time_step, error_code, error_message)
-        if (error_code /= 0) then
-            call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
-        end if
+        if (use_ref_solve) then
+            call mpas_timer_start('chem MICM ref solve')
+            call musica_step_ref(time_step, error_code, error_message)
+            call mpas_timer_stop('chem MICM ref solve')
+            if (error_code /= 0) then
+                call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
+            end if
 
-        ! Log comparison of coupled vs reference at probe cell
-        call log_column_comparison(probe_cell, nVertLevels)
+            ! Log comparison of coupled vs reference at probe cell
+            call log_column_comparison(probe_cell, nVertLevels)
+        end if
 
         ! Step 3: Copy MICM state back to MPAS (MICM -> MPAS)
+        call mpas_timer_start('chem MICM->MPAS')
         call chemistry_to_MPAS(mesh, state, diag, dimensions, time_lev, &
                                 nCells, nVertLevels, error_code, error_message)
+        call mpas_timer_stop('chem MICM->MPAS')
         if (error_code /= 0) then
             call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
         end if
+        call mpas_timer_stop('chemistry')
 #endif
 
     end subroutine chemistry_step
