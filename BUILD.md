@@ -256,6 +256,114 @@ These warnings are expected and harmless:
 - `Unrecognized compiler directive was ignored [-Wignored-directive]` - Intel `!DIR$` directives
 - `Reference to procedure has an implicit interface` - Due to `include 'mpif.h'` usage
 
+### GCC Build on Ubuntu (conda-forge)
+
+Building MPAS with GCC/gfortran on Ubuntu using a conda-forge toolchain.
+
+#### Prerequisites
+
+Create a conda environment with the full toolchain:
+```bash
+conda create -n mpas -c conda-forge \
+  gcc gxx gfortran cmake openmpi libnetcdf netcdf-fortran libpnetcdf \
+  libblas liblapack pkg-config make
+conda activate mpas
+```
+
+Verify:
+- `gfortran --version` — GCC 15.x (conda-forge)
+- `mpifort --version` — wraps gfortran
+- `nc-config --prefix` — points to conda env
+- `pkg-config --libs netcdf-fortran` — resolves
+
+#### PIO Library
+
+PIO is not available via conda and must be built from source:
+
+```bash
+git clone https://github.com/NCAR/ParallelIO.git
+cd ParallelIO && mkdir build && cd build
+cmake .. \
+  -DCMAKE_INSTALL_PREFIX=$HOME/software \
+  -DCMAKE_C_COMPILER=mpicc \
+  -DCMAKE_Fortran_COMPILER=mpifort \
+  -DPIO_ENABLE_TIMING=OFF
+make -j8 && make install
+```
+
+#### MUSICA Library
+
+Build MUSICA from source with gfortran:
+
+```bash
+cd ~/EarthSystem/MUSICA
+mkdir -p build && cd build
+cmake .. \
+  -DCMAKE_INSTALL_PREFIX=$HOME/software \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_COMPILER=mpicc \
+  -DCMAKE_CXX_COMPILER=mpicxx \
+  -DCMAKE_Fortran_COMPILER=mpifort \
+  -DMUSICA_BUILD_FORTRAN_INTERFACE=ON \
+  -DMUSICA_ENABLE_MPI=ON \
+  -DMUSICA_ENABLE_TESTS=OFF
+make -j8 && make install
+```
+
+**Note:** The installed `musica-fortran.pc` must include `-lstdc++` in its
+`Libs:` line for Fortran-driven linking to resolve C++ standard library
+symbols.
+
+#### Building MPAS
+
+The preflight script auto-detects the GCC toolchain:
+
+```bash
+eval "$(scripts/check_build_env.sh --export)"
+
+make -j8 gfortran \
+  CORE=atmosphere \
+  PIO=$HOME/software \
+  NETCDF="$NETCDF" \
+  PNETCDF="$PNETCDF" \
+  PRECISION=double \
+  MUSICA=true
+```
+
+For `init_atmosphere`:
+```bash
+make -j8 gfortran \
+  CORE=init_atmosphere \
+  PIO=$HOME/software \
+  NETCDF="$NETCDF" \
+  PNETCDF="$PNETCDF" \
+  PRECISION=double
+```
+
+#### GCC Build Technical Details
+
+The `gfortran` target configures:
+- **MPI Wrappers:** Uses `mpif90`/`mpicc`/`mpicxx` (gfortran is the default wrapper compiler)
+- **Fortran Flags:** `-fdefault-real-8 -fdefault-double-8 -fconvert=big-endian -ffree-form -ffree-line-length-none`
+- **MPI Module:** Uses `mpi_f08` module natively (no `NOMPIMOD` needed)
+
+#### GCC-Specific Notes
+
+1. **No `NOMPIMOD` needed.** With gfortran-built OpenMPI, the `mpi_f08` module
+   is compatible. The `gfortran` make target does not pass `-DNOMPIMOD`.
+
+2. **Conda environment isolation.** All builds (PIO, MUSICA, CheMPAS) must
+   happen within the same conda environment to ensure consistent
+   compiler/library paths.
+
+3. **NoahMP and GSL orography source files.** These are fetched from upstream
+   MPAS-Dev/MPAS-Model and are not tracked in the CheMPAS repo. If they are
+   missing, copy from upstream or the sister repo.
+
+4. **Physics data files.** The `checkout_data_files.sh` script in
+   `src/core_atmosphere/physics/` downloads WRF lookup tables from
+   [MPAS-Data](https://github.com/MPAS-Dev/MPAS-Data) on first build.
+
 ### Environment Variables
 
 The Makefile reads several environment variables:

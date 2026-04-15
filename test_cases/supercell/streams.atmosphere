@@ -17,7 +17,7 @@
         io_type="netcdf"
         filename_template="output.nc"
         filename_interval="none"
-        output_interval="00:00:30">
+        output_interval="00:30:00">
 
     <file name="stream_list.atmosphere.output"/>
 

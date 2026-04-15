@@ -888,12 +888,6 @@ $(error "musica-fortran package is not installed. Please install it to proceed."
 endif
 	MUSICA_FCINCLUDES += $(shell pkg-config --cflags musica-fortran)
 	MUSICA_LIBS += $(shell pkg-config --libs musica-fortran)
-	# TUV-x reads NetCDF data files (cross-sections, quantum yields) via
-	# MUSICA's internal musica_io_netcdf module, which needs a flang-built
-	# libnetcdff (gfortran-built symbols use incompatible name mangling).
-	# Specify the static archive directly to avoid the linker picking up
-	# the gfortran-built libnetcdff from Homebrew first.
-	MUSICA_LIBS += $(HOME)/EarthSystem/MUSICA-LLVM/flang-deps/netcdf-fortran-install/lib/libnetcdff.a
 	MUSICA_FFLAGS = -DMPAS_USE_MUSICA
 
 	FCINCLUDES += $(MUSICA_FCINCLUDES)

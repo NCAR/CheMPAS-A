@@ -88,6 +88,11 @@ def parse_args() -> argparse.Namespace:
         dest="long_name",
         help="Long name to assign when creating a new tracer. Defaults to the tracer name.",
     )
+    parser.add_argument(
+        "--spherical",
+        action="store_true",
+        help="Use lonCell/latCell (radians) instead of xCell/yCell — needed for global meshes.",
+    )
     return parser.parse_args()
 
 
@@ -120,7 +125,16 @@ def build_sine_pattern(
     phase_y: float,
     amplitude: float,
     offset: float,
+    spherical: bool = False,
 ) -> np.ndarray:
+    if spherical:
+        # x=lon in [0, 2π), y=lat in [-π/2, π/2]. Wrap longitudinally with
+        # waves_x full cycles around the globe; cos(lat)^waves_y tapers toward
+        # the poles so the pattern is smooth there.
+        phase_x_total = waves_x * x + phase_x
+        horizontal = np.sin(phase_x_total) * np.cos(y) ** max(waves_y, 1.0)
+        return offset + amplitude * horizontal
+
     x_span = float(np.ptp(x))
     y_span = float(np.ptp(y))
     if x_span == 0 or y_span == 0:
@@ -148,8 +162,12 @@ def main() -> None:
     with Dataset(dest, "r+") as ds:
         tracer = ensure_tracer_var(ds, args.tracer, args.create, args.units, args.long_name)
 
-        x = ds.variables["xCell"][:]
-        y = ds.variables["yCell"][:]
+        if args.spherical:
+            x = ds.variables["lonCell"][:]
+            y = ds.variables["latCell"][:]
+        else:
+            x = ds.variables["xCell"][:]
+            y = ds.variables["yCell"][:]
         n_cells = ds.dimensions["nCells"].size
         n_vert = ds.dimensions["nVertLevels"].size
 
@@ -167,6 +185,7 @@ def main() -> None:
             phase_y=args.phase_y,
             amplitude=args.amplitude,
             offset=args.offset,
+            spherical=args.spherical,
         )
 
         field_3d = np.broadcast_to(horizontal_field[:, None], (n_cells, n_vert))

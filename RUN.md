@@ -27,7 +27,8 @@ The `streams.atmosphere` file must use `io_type="netcdf"` for input and output s
 
 1. Build the atmosphere model (see [BUILD.md](BUILD.md)):
    ```bash
-   make -j8 llvm CORE=atmosphere PIO=$HOME/software NETCDF=/opt/homebrew PNETCDF=$HOME/software PRECISION=double
+   eval "$(scripts/check_build_env.sh --export)" && make -j8 TARGET \
+     CORE=atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double
    ```
 
 2. Verify the executable exists:
@@ -241,6 +242,64 @@ due to advection; a rigorous test requires transport disabled.
 | NO2 production | NO2 present where NO+O3 reaction occurs |
 | Photolysis | NO2 converted back to NO+O3 (prevents NO2 accumulation) |
 
-## Other Test Cases
+## Mountain Wave Test Case
 
-Additional test cases can be added to `~/Data/MPAS/` following the same pattern.
+A 2D mountain wave (Schaer test) in `~/Data/MPAS/mountain_wave/`. Tests
+non-hydrostatic dynamics over orography with 70 vertical levels.
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| `config_dt` | 6.0 s |
+| `config_run_duration` | 5 hours |
+| `config_nvertlevels` | 70 |
+| `config_physics_suite` | none |
+| `config_scalar_advection` | false |
+
+### Running
+
+```bash
+cd ~/Data/MPAS/mountain_wave
+rm -f output.nc log.atmosphere.*.out
+mpiexec -n 4 ./atmosphere_model 2>&1 | tee run.out
+```
+
+Partition files available for 2, 4, 6, 8 ranks.
+
+## Jablonowski-Williamson Baroclinic Wave
+
+A global baroclinic instability test on a 120-km (40,962 cell) mesh in
+`~/Data/MPAS/jw_baroclinic_wave/`. This is a standard dynamical core
+benchmark (Jablonowski & Williamson 2006).
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| `config_dt` | 450.0 s |
+| `config_run_duration` | 16 days |
+| `config_nvertlevels` | 26 |
+| `config_horiz_mixing` | 2d_smagorinsky |
+| `config_physics_suite` | none |
+| `config_scalar_advection` | false |
+
+**Note:** The default 16-day run is computationally expensive. For a quick
+verification, reduce `config_run_duration` to `'4_00:00:00'` (4 days).
+
+### Running
+
+```bash
+cd ~/Data/MPAS/jw_baroclinic_wave
+rm -f output.nc log.atmosphere.*.out
+mpiexec -n 8 ./atmosphere_model 2>&1 | tee run.out
+```
+
+Partition files available for 2, 4, 6, 8, 12, 16, 24 ranks.
+
+## Test Case Data
+
+Idealized test case data is downloaded from
+[NCAR MPAS v7.0](https://www2.mmm.ucar.edu/projects/mpas/site/access_code/idealized.html).
+Reference namelists and streams files are tracked in `test_cases/` in this repo.
+See `test_cases/README.md` for download and setup instructions.

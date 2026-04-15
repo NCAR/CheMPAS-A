@@ -1,7 +1,7 @@
 &nhyd_model
     config_dt = 3.0
-    config_start_time = '0000-01-01_18:00:00'
-    config_run_duration = '00:30:00'
+    config_start_time = '0000-01-01_00:00:00'
+    config_run_duration = '02:00:00'
     config_split_dynamics_transport = false
     config_number_of_sub_steps = 6
     config_dynamics_split_steps = 1
@@ -51,19 +51,6 @@
 &printout
     config_print_global_minmax_vel = true
     config_print_global_minmax_sca = true
-/
-
-&musica
-    config_micm_file = 'lnox_o3.yaml'
-    config_lnox_source_rate = 0.5
-    config_lnox_w_threshold = 5.0
-    config_lnox_w_ref = 10.0
-    config_lnox_z_min = 5000.0
-    config_lnox_z_max = 12000.0
-    config_lnox_j_no2 = 0.01
-    config_lnox_nox_tau = 0.0
-    config_chemistry_latitude = 35.86
-    config_chemistry_longitude = -97.93
 /
 
 &physics

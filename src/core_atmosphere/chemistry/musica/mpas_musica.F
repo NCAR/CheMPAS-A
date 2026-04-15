@@ -601,8 +601,15 @@ module mpas_musica
         do rp_index = 1, n_rp
             rp_name = trim(state%rate_parameters_ordering%name(rp_index))
 
-            ! Set rate based on parameter name
-            rate_val = 0.0_real64
+            ! Set rate based on parameter name.
+            ! USER_DEFINED reactions: host multiplier — default 1.0 so the
+            ! YAML scaling_factor defines the effective rate constant.
+            ! PHOTO and LOSS parameters stay at 0 unless explicitly configured.
+            if (rp_name(1:min(5,len(rp_name))) == 'USER.') then
+                rate_val = 1.0_real64
+            else
+                rate_val = 0.0_real64
+            end if
             if (rp_name == 'LOSS.no_loss' .or. rp_name == 'LOSS.no2_loss') then
                 if (nox_tau > 0.0_RKIND) then
                     rate_val = 1.0_real64 / real(nox_tau, real64)
