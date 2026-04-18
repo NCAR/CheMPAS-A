@@ -136,7 +136,7 @@ LNOx-O3 chemistry work.
 
 | Item | Value |
 |------|-------|
-| Run directory | `~/Data/MPAS/supercell` |
+| Run directory | `~/Data/CheMPAS/supercell` |
 | Grid / case | Idealized supercell |
 | Start time | `0000-01-01_18:00:00` |
 | Nominal run duration | `00:30:00` for Phase 1, `00:15:00` for Phase 2/3 comparisons |

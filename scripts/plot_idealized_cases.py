@@ -283,7 +283,7 @@ def plot_jw_baroclinic(path: Path, outdir: Path) -> None:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data-root", default="/home/fillmore/Data/MPAS")
+    ap.add_argument("--data-root", default="/home/fillmore/Data/CheMPAS")
     ap.add_argument("--only", choices=["supercell", "mountain_wave", "jw_baroclinic", "all"],
                     default="all")
     args = ap.parse_args()

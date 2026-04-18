@@ -218,7 +218,7 @@ Packages: numpy, matplotlib, netcdf4
 
 **plot_chemistry.py usage:**
 ```bash
-cd ~/Data/MPAS/supercell
+cd ~/Data/CheMPAS/supercell
 ~/miniconda3/envs/mpas/bin/python plot_chemistry.py -o output.png
 ~/miniconda3/envs/mpas/bin/python plot_chemistry.py --time-series  # Spatial evolution
 ~/miniconda3/envs/mpas/bin/python plot_chemistry.py --diff          # Difference from t=0
@@ -232,13 +232,13 @@ python init_tracer_sine.py -i supercell_init.nc -t qAB --waves-x 2 --amplitude 0
 
 ## Test Run Directory
 
-Idealized test cases are in `~/Data/MPAS/`:
+Idealized test cases are in `~/Data/CheMPAS/`:
 
 | Case | Directory | Duration | Mesh |
 |------|-----------|----------|------|
-| Supercell | `~/Data/MPAS/supercell/` | 2 hours | ~500 m, 40 levels |
-| Mountain wave | `~/Data/MPAS/mountain_wave/` | 5 hours | ~577 m, 70 levels |
-| Baroclinic wave | `~/Data/MPAS/jw_baroclinic_wave/` | 16 days | 120 km, 26 levels |
+| Supercell | `~/Data/CheMPAS/supercell/` | 2 hours | ~500 m, 40 levels |
+| Mountain wave | `~/Data/CheMPAS/mountain_wave/` | 5 hours | ~577 m, 70 levels |
+| Baroclinic wave | `~/Data/CheMPAS/jw_baroclinic_wave/` | 16 days | 120 km, 26 levels |
 
 Reference namelists and streams files are tracked in `test_cases/` in the repo.
 See `RUN.md` for execution instructions and `test_cases/README.md` for data

@@ -1,14 +1,14 @@
 # Idealized Test Cases
 
 Reference namelists and streams configurations for MPAS idealized test cases.
-These files are tracked in the repo; the actual run data lives in `~/Data/MPAS/`.
+These files are tracked in the repo; the actual run data lives in `~/Data/CheMPAS/`.
 
 ## Data Download
 
 Download and extract the three test cases from NCAR:
 
 ```bash
-mkdir -p ~/Data/MPAS && cd ~/Data/MPAS
+mkdir -p ~/Data/CheMPAS && cd ~/Data/CheMPAS
 curl -LO https://www2.mmm.ucar.edu/projects/mpas/test_cases/v7.0/supercell.tar.gz
 curl -LO https://www2.mmm.ucar.edu/projects/mpas/test_cases/v7.0/mountain_wave.tar.gz
 curl -LO https://www2.mmm.ucar.edu/projects/mpas/test_cases/v7.0/jw_baroclinic_wave.tar.gz
@@ -31,14 +31,14 @@ After downloading, copy the tracked configs and initialize each case:
 ```bash
 # Copy reference configs (with io_type="netcdf") to run directories
 for case in supercell mountain_wave jw_baroclinic_wave; do
-  cp test_cases/$case/* ~/Data/MPAS/$case/
-  ln -sf ~/EarthSystem/CheMPAS/init_atmosphere_model ~/Data/MPAS/$case/
-  ln -sf ~/EarthSystem/CheMPAS/atmosphere_model ~/Data/MPAS/$case/
+  cp test_cases/$case/* ~/Data/CheMPAS/$case/
+  ln -sf ~/EarthSystem/CheMPAS/init_atmosphere_model ~/Data/CheMPAS/$case/
+  ln -sf ~/EarthSystem/CheMPAS/atmosphere_model ~/Data/CheMPAS/$case/
 done
 
 # Initialize each case
 for case in supercell mountain_wave jw_baroclinic_wave; do
-  cd ~/Data/MPAS/$case
+  cd ~/Data/CheMPAS/$case
   mpiexec -n 4 ./init_atmosphere_model
   cd -
 done
