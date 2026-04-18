@@ -64,3 +64,25 @@
     config_physics_suite = 'none'
     config_microp_scheme = 'mp_kessler'
 /
+
+! Enable chemistry by uncommenting the &musica block below (requires a
+! MUSICA-linked build). The supercell TUV-x development setup uses
+! lnox_o3.yaml + tuvx_no2.json + tuvx_upper_atm.csv; see
+! docs/guides/TUVX_INTEGRATION.md. For placeholder advection-only tests
+! set config_micm_file = 'abba.yaml' and drop the TUV-x / LNOx options.
+!
+! &musica
+!     config_micm_file = 'lnox_o3.yaml'
+!     config_tuvx_config_file = 'tuvx_no2.json'
+!     config_tuvx_top_extension = .true.
+!     config_tuvx_extension_file = 'tuvx_upper_atm.csv'
+!     config_lnox_source_rate = 0.5
+!     config_lnox_w_threshold = 5.0
+!     config_lnox_w_ref = 10.0
+!     config_lnox_z_min = 5000.0
+!     config_lnox_z_max = 12000.0
+!     config_lnox_j_no2 = 0.01
+!     config_lnox_nox_tau = 0.0
+!     config_chemistry_latitude = 35.86
+!     config_chemistry_longitude = -97.93
+! /
