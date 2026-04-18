@@ -55,4 +55,4 @@ reactions:
         coefficient: 1
       - species name: O3
         coefficient: 1
-    name: no2_photolysis
+    name: jNO2

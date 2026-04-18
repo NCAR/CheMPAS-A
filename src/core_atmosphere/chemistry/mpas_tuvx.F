@@ -268,7 +268,7 @@ contains
         j_no2_index = -1
         do i = 1, n_photo_rates
             call mpas_log_write('[TUV-x] Photolysis reaction ' // trim(photo_ordering%name(i)))
-            if (trim(photo_ordering%name(i)) == 'jno2') then
+            if (trim(photo_ordering%name(i)) == 'jNO2') then
                 j_no2_index = photo_ordering%index(i)
             end if
         end do
@@ -276,7 +276,7 @@ contains
 
         if (j_no2_index < 1) then
             error_code = 1
-            error_message = '[TUV-x] jno2 reaction not found in photolysis ordering'
+            error_message = '[TUV-x] jNO2 reaction not found in photolysis ordering'
             return
         end if
 

@@ -507,7 +507,7 @@ module mpas_atm_chemistry
         real(kind=RKIND), dimension(:,:), pointer :: j_no2_diag
 
         nullify(j_no2_diag)
-        call mpas_pool_get_array(diag, 'j_no2', j_no2_diag)
+        call mpas_pool_get_array(diag, 'j_jNO2', j_no2_diag)
         if (.not. associated(j_no2_diag)) return
 
         j_no2_diag = j_no2_value
@@ -533,7 +533,7 @@ module mpas_atm_chemistry
         integer :: k, iCell
 
         nullify(j_no2_diag)
-        call mpas_pool_get_array(diag, 'j_no2', j_no2_diag)
+        call mpas_pool_get_array(diag, 'j_jNO2', j_no2_diag)
         if (.not. associated(j_no2_diag)) return
 
         do iCell = 1, min(nCells, size(j_no2_diag, 2))

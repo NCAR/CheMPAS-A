@@ -76,7 +76,7 @@
   "photolysis": {
     "reactions": [
       {
-        "name": "jno2",
+        "name": "jNO2",
         "__reaction": "NO2 + hv -> NO + O(3P)",
         "cross section": {
           "netcdf files": [

@@ -36,7 +36,7 @@ module mpas_musica
     type(state_t), pointer :: state => null ( )  ! Pointer to the state of the MICM solver (coupled to MPAS)
     type(state_t), pointer :: state_ref => null ( )  ! Reference state (uncoupled, chemistry only)
 
-    integer, save :: photo_no2_rp_index = -1   ! cached rate-parameter index for PHOTO.no2_photolysis
+    integer, save :: photo_no2_rp_index = -1   ! cached rate-parameter index for PHOTO.jNO2
 
     type :: species_entry_t
         character(len=64) :: micm_name    ! e.g. 'AB'
@@ -630,10 +630,10 @@ module mpas_musica
     !------------------------------------------------------------------------
     !  subroutine cache_photo_rp_index
     !
-    !> \brief Cache the rate parameter index for PHOTO.no2_photolysis
+    !> \brief Cache the rate parameter index for PHOTO.jNO2
     !> \details
     !>  Scans the rate_parameters_ordering to find the index for
-    !>  PHOTO.no2_photolysis and caches it in the module variable
+    !>  PHOTO.jNO2 and caches it in the module variable
     !>  photo_no2_rp_index for use by musica_set_photolysis.
     !------------------------------------------------------------------------
     subroutine cache_photo_rp_index()
@@ -647,15 +647,15 @@ module mpas_musica
         n_rp = state%rate_parameters_ordering%size()
         do i = 1, n_rp
             rp_name = trim(state%rate_parameters_ordering%name(i))
-            if (rp_name == 'PHOTO.no2_photolysis') then
+            if (rp_name == 'PHOTO.jNO2') then
                 photo_no2_rp_index = i
-                call mpas_log_write('[MUSICA] Cached PHOTO.no2_photolysis rate param index = $i', &
+                call mpas_log_write('[MUSICA] Cached PHOTO.jNO2 rate param index = $i', &
                     intArgs=[i])
                 return
             end if
         end do
 
-        call mpas_log_write('[MUSICA] PHOTO.no2_photolysis not found in rate parameters (SZA scaling disabled)')
+        call mpas_log_write('[MUSICA] PHOTO.jNO2 not found in rate parameters (SZA scaling disabled)')
 
     end subroutine cache_photo_rp_index
 
@@ -664,7 +664,7 @@ module mpas_musica
     !
     !> \brief Updates the active NO2 photolysis rate parameter
     !> \details
-    !>  Sets the PHOTO.no2_photolysis rate parameter for every grid cell
+    !>  Sets the PHOTO.jNO2 rate parameter for every grid cell
     !>  to the value computed by the chemistry driver for the current timestep.
     !------------------------------------------------------------------------
     subroutine musica_set_photolysis(j_no2_value, error_code, error_message)

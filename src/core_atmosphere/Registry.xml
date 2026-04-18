@@ -1828,8 +1828,17 @@
                 <var name="relhum" type="real" dimensions="nVertLevels nCells Time" units="percent"
                      description="Relative humidity"/>
 
-                <var name="j_no2" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
-                     description="NO2 photolysis rate used by chemistry"/>
+                <var name="j_jNO2" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
+                     description="NO2 photolysis rate (NO2 + hv -> NO + O) used by chemistry"/>
+
+                <var name="j_jO2" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
+                     description="O2 photolysis rate (O2 + hv -> 2 O) used by chemistry"/>
+
+                <var name="j_jO3_O" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
+                     description="O3 photolysis rate for O(3P) channel (O3 + hv -> O + O2) used by chemistry"/>
+
+                <var name="j_jO3_O1D" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
+                     description="O3 photolysis rate for O(1D) channel (O3 + hv -> O1D + O2) used by chemistry"/>
 
                 <var name="spechum" type="real" dimensions="nVertLevels nCells Time" units="kg kg^{-1}"
                      description="Specific humidity"

@@ -57,7 +57,7 @@ reactions:
         coefficient: 1
       - species name: O2
         coefficient: 1
-    name: jO3->O
+    name: jO3_O
 
   - type: ARRHENIUS
     gas phase: gas
@@ -81,7 +81,7 @@ reactions:
         coefficient: 1
       - species name: O2
         coefficient: 1
-    name: jO3->O1D
+    name: jO3_O1D
 
   - type: ARRHENIUS
     gas phase: gas
