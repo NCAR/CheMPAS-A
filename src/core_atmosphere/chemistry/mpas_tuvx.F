@@ -42,6 +42,7 @@ module mpas_tuvx
     private
 
     public :: tuvx_init, tuvx_compute_photolysis, tuvx_is_enabled, tuvx_finalize
+    public :: tuvx_n_rates, tuvx_rate_names
 
 #ifdef MPAS_USE_MUSICA
     ! Module-level state (initialized once, updated per column)
@@ -70,9 +71,12 @@ module mpas_tuvx
     real(dk), parameter :: R_EFF_RAIN  = 500.0e-6_dk  ! rain drop r_eff [m]
     real(dk), parameter :: RHO_WATER   = 1000.0_dk    ! water density [kg/m^3]
 
-    integer, save :: j_no2_index     = -1  ! index in photolysis rate constants
-    integer, save :: n_photo_rates   = 0
-    integer, save :: n_heating_rates = 0
+    ! Photolysis rate bookkeeping: cache all rates TUV-x reports.
+    ! tuvx_indices(i) is the TUV-x ordering index for photo_names(i).
+    integer, save              :: n_photo_rates   = 0
+    integer, save              :: n_heating_rates = 0
+    character(len=64), allocatable :: photo_names(:)  ! one per TUV-x reaction
+    integer,           allocatable :: tuvx_indices(:)
 
     ! Column decomposition:
     !   n_mpas_layers   : layers supplied by MPAS host state
@@ -260,28 +264,31 @@ contains
         cloud_ssa = CLOUD_SSA_VAL
         cloud_g(:,:,1) = CLOUD_G_VAL
 
-        ! Query photolysis ordering to find j_NO2 index
+        ! Enumerate ALL photolysis reactions TUV-x reports; cache names and indices.
         photo_ordering => tuvx_solver%get_photolysis_rate_constants_ordering(err)
         if (tuvx_has_error(err, error_code, error_message)) return
         n_photo_rates = photo_ordering%size()
 
-        j_no2_index = -1
-        do i = 1, n_photo_rates
-            call mpas_log_write('[TUV-x] Photolysis reaction ' // trim(photo_ordering%name(i)))
-            if (trim(photo_ordering%name(i)) == 'jNO2') then
-                j_no2_index = photo_ordering%index(i)
-            end if
-        end do
-        deallocate(photo_ordering)
-
-        if (j_no2_index < 1) then
+        if (n_photo_rates < 1) then
             error_code = 1
-            error_message = '[TUV-x] jNO2 reaction not found in photolysis ordering'
+            error_message = '[TUV-x] TUV-x config registered zero photolysis reactions'
+            deallocate(photo_ordering)
             return
         end if
 
-        write(msg, '(A,I0)') '[TUV-x] j_NO2 index in photo_rates = ', j_no2_index
-        call mpas_log_write(trim(msg))
+        if (allocated(photo_names))  deallocate(photo_names)
+        if (allocated(tuvx_indices)) deallocate(tuvx_indices)
+        allocate(photo_names(n_photo_rates))
+        allocate(tuvx_indices(n_photo_rates))
+
+        do i = 1, n_photo_rates
+            photo_names(i)  = trim(photo_ordering%name(i))
+            tuvx_indices(i) = photo_ordering%index(i)
+            write(msg, '(A,A,A,I0)') '[TUV-x] Photolysis reaction ', &
+                trim(photo_names(i)), ' index = ', tuvx_indices(i)
+            call mpas_log_write(trim(msg))
+        end do
+        deallocate(photo_ordering)
 
         ! Query heating rates ordering
         heat_ordering => tuvx_solver%get_heating_rates_ordering(err)
@@ -309,15 +316,15 @@ contains
     !------------------------------------------------------------------------
     !  subroutine tuvx_compute_photolysis
     !
-    !> \brief Compute j_NO2 for a single atmospheric column
+    !> \brief Compute photolysis rates for a single atmospheric column
     !> \details
     !>  Converts MPAS fields to TUV-x units, updates from-host profiles,
-    !>  calls TUV-x run, and extracts j_NO2 (edge values averaged to
-    !>  midpoints).
+    !>  calls TUV-x run, and extracts every cached photolysis rate
+    !>  (edge values averaged to midpoints) for the MPAS slice.
     !------------------------------------------------------------------------
     subroutine tuvx_compute_photolysis(cos_sza, z_edges_m, rho_air, temperature, &
                                         qo3, qc, qr, nVertLevels_in, &
-                                        j_no2_column, error_code, error_message)
+                                        photo_rates_out, error_code, error_message)
 
 #ifdef MPAS_USE_MUSICA
         use mpas_log, only: mpas_log_write
@@ -331,7 +338,7 @@ contains
         real(kind=RKIND), intent(in)  :: qc(:)               ! nVertLevels cloud water [kg/kg]
         real(kind=RKIND), intent(in)  :: qr(:)               ! nVertLevels rain water [kg/kg]
         integer, intent(in)           :: nVertLevels_in
-        real(kind=RKIND), intent(out) :: j_no2_column(:)     ! nVertLevels
+        real(kind=RKIND), intent(out) :: photo_rates_out(:,:) ! (n_rates, nVertLevels)
         integer, intent(out)          :: error_code
         character(len=:), allocatable, intent(out) :: error_message
 
@@ -350,9 +357,9 @@ contains
         error_code = 0
         error_message = ''
 
-        ! Nighttime: skip TUV-x call, return zero
+        ! Nighttime: skip TUV-x call, return zero for every cached rate
         if (cos_sza <= 0.0_RKIND) then
-            j_no2_column(1:n_mpas_layers) = 0.0_RKIND
+            photo_rates_out(1:n_photo_rates, 1:n_mpas_layers) = 0.0_RKIND
             return
         end if
 
@@ -461,19 +468,64 @@ contains
         call tuvx_solver%run(sza_rad, esd, photo_rates, heating_rates, err)
         if (tuvx_has_error(err, error_code, error_message)) return
 
-        ! Extract j_NO2 for the MPAS slice only; extension-layer values are
-        ! computed by TUV-x but discarded (the host has no storage for them).
-        do k = 1, n_mpas_layers
-            j_no2_column(k) = real(0.5_dk * (photo_rates(k, j_no2_index) + &
-                                              photo_rates(k + 1, j_no2_index)), RKIND)
-        end do
+        ! Extract every cached photolysis rate on the MPAS slice; extension-
+        ! layer values are computed by TUV-x but discarded (the host has no
+        ! storage for them).
+        block
+            integer :: ir
+            do ir = 1, n_photo_rates
+                do k = 1, n_mpas_layers
+                    photo_rates_out(ir, k) = real( &
+                        0.5_dk * (photo_rates(k,     tuvx_indices(ir)) + &
+                                  photo_rates(k + 1, tuvx_indices(ir))), RKIND)
+                end do
+            end do
+        end block
 #else
         error_code = 0
         error_message = ''
-        j_no2_column = 0.0_RKIND
+        photo_rates_out = 0.0_RKIND
 #endif
 
     end subroutine tuvx_compute_photolysis
+
+
+    !------------------------------------------------------------------------
+    !  function tuvx_n_rates
+    !
+    !> \brief Returns the number of photolysis reactions TUV-x reported.
+    !> \details Zero when TUV-x is disabled; otherwise equals n_photo_rates.
+    !------------------------------------------------------------------------
+    integer function tuvx_n_rates()
+
+#ifdef MPAS_USE_MUSICA
+        tuvx_n_rates = n_photo_rates
+#else
+        tuvx_n_rates = 0
+#endif
+
+    end function tuvx_n_rates
+
+
+    !------------------------------------------------------------------------
+    !  subroutine tuvx_rate_names
+    !
+    !> \brief Return the cached list of TUV-x photolysis reaction names
+    !> \details Caller-allocated character array must be at least
+    !>  tuvx_n_rates() elements long. Fills entries 1..n_photo_rates.
+    !------------------------------------------------------------------------
+    subroutine tuvx_rate_names(names_out)
+
+        character(len=*), intent(out) :: names_out(:)
+
+#ifdef MPAS_USE_MUSICA
+        integer :: i
+        do i = 1, n_photo_rates
+            names_out(i) = photo_names(i)
+        end do
+#endif
+
+    end subroutine tuvx_rate_names
 
 
     !------------------------------------------------------------------------
@@ -511,6 +563,8 @@ contains
         if (allocated(ext_T_K_edges))   deallocate(ext_T_K_edges)
         if (allocated(ext_n_air_edges)) deallocate(ext_n_air_edges)
         if (allocated(ext_n_o3_edges))  deallocate(ext_n_o3_edges)
+        if (allocated(photo_names))     deallocate(photo_names)
+        if (allocated(tuvx_indices))    deallocate(tuvx_indices)
 
         if (associated(tuvx_solver)) then
             deallocate(tuvx_solver)
