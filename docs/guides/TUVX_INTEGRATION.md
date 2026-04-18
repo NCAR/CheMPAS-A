@@ -137,7 +137,7 @@ LNOx-O3 chemistry work.
 | Item | Value |
 |------|-------|
 | Run directory | `~/Data/CheMPAS/supercell` |
-| Grid / case | Idealized supercell |
+| Grid / case | Idealized supercell, 60 stretched levels (0–50 km) |
 | Start time | `0000-01-01_18:00:00` |
 | Nominal run duration | `00:30:00` for Phase 1, `00:15:00` for Phase 2/3 comparisons |
 | Dynamics timestep | `3.0 s` |
@@ -208,6 +208,48 @@ Why the synthetic start time:
 
 For the complete tables, plots, and pass/fail notes, see
 `docs/results/TEST_RUNS.md`.
+
+## Column Extension Above MPAS Top
+
+TUV-x can see a climatology column above the MPAS domain so UV attenuation
+by above-domain air and O3 is captured. Enable via the `&musica` namelist:
+
+```
+config_tuvx_top_extension  = .true.
+config_tuvx_extension_file = 'tuvx_upper_atm.csv'
+```
+
+The CSV file lives in the run directory. Format (one edge per row, bottom-up):
+
+```
+z_km,T_K,n_air_molec_cm3,n_O3_molec_cm3
+50.00,270.65,2.13e16,6.45e11
+55.00,260.77,1.18e16,2.02e11
+...
+100.00,195.08,1.19e13,2.85e07
+```
+
+The shipped default (`micm_configs/tuvx_upper_atm.csv`) covers 50–100 km at
+5-km spacing (10 layers) using US Standard Atmosphere 1976 for T and air
+density, and AFGL mid-latitude-summer O3. Regenerate with
+`scripts/gen_tuvx_upper_atm.py`.
+
+At init, TUV-x is built on `nVertLevels + n_ext_layers` grid sections
+(70 for the default supercell setup). During each photolysis call the
+per-column profile is stitched:
+
+- MPAS layers 1..nVertLevels: from host state (rho, T, qO3).
+- Extension layers nVertLevels+1..nVertLevels+n_ext: midpoint values
+  averaged from CSV edges.
+- Edge values are the usual neighbour-averages; the MPAS/extension join
+  edge averages the top MPAS midpoint with the first extension midpoint.
+- Cloud OD is zero in the extension.
+
+Extension-layer `j` values are computed by TUV-x but discarded — only the
+first `nVertLevels` slice flows back to MICM.
+
+The extension CSV must start at the MPAS top (zero gap). For the 50-km
+supercell this means `z_km = 50.0` is the first CSV row.
 
 ## Current Limits And Follow-On Work
 

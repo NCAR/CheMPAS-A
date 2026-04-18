@@ -20,16 +20,22 @@ rm *.tar.gz
 
 | Case | Init Case | Mesh | Cells | Levels | dt (s) | Duration |
 |------|-----------|------|-------|--------|--------|----------|
-| `supercell/` | 5 | ~500 m | ~40k | 40 | 3 | 2 hours |
+| `supercell/` | 5 | ~500 m | ~40k | 60 (stretched 0–50 km) | 3 | 2 hours |
 | `mountain_wave/` | 6 | ~577 m | ~2k | 70 | 6 | 5 hours |
 | `jw_baroclinic_wave/` | 2 | 120 km | 40,962 | 26 | 450 | 16 days |
+
+The supercell vertical grid is read from `test_cases/supercell/supercell_zeta_levels.txt`
+(61 edge heights in metres) via the `config_specified_zeta_levels` namelist option.
+Regenerate with `scripts/gen_zeta_levels.py --top 50000 --nlevels 60 --stretch 1.25`.
 
 ## Setup and Initialization
 
 After downloading, copy the tracked configs and initialize each case:
 
 ```bash
-# Copy reference configs (with io_type="netcdf") to run directories
+# Copy reference configs (with io_type="netcdf") to run directories.
+# For the supercell case this also copies supercell_zeta_levels.txt, which
+# the init step reads when building the 60-level stretched grid.
 for case in supercell mountain_wave jw_baroclinic_wave; do
   cp test_cases/$case/* ~/Data/CheMPAS/$case/
   ln -sf ~/EarthSystem/CheMPAS/init_atmosphere_model ~/Data/CheMPAS/$case/

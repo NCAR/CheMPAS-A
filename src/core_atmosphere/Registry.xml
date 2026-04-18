@@ -432,6 +432,14 @@
                      units="-"
                      description="TUV-x configuration file name (empty = use Phase 1 cos(SZA) fallback)"
                      possible_values="Any valid filename"/>
+                <nml_option name="config_tuvx_top_extension" type="logical" default_value="false"
+                     units="-"
+                     description="Extend the TUV-x column above the MPAS domain using a CSV climatology"
+                     possible_values=".true. or .false."/>
+                <nml_option name="config_tuvx_extension_file" type="character" default_value=""
+                     units="-"
+                     description="Path to TUV-x upper-atmosphere climatology CSV (z_km, T_K, n_air_cm-3, n_O3_cm-3); required when config_tuvx_top_extension is true"
+                     possible_values="Any valid filename"/>
                 <nml_option name="config_chemistry_latitude" type="real" default_value="0.0"
                      units="degrees"
                      description="Latitude for solar geometry in idealized cases (degrees N)"

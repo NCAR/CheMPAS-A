@@ -4,7 +4,7 @@ This document describes how to run MPAS atmosphere test cases.
 
 ## Supercell Test Case
 
-The supercell thunderstorm is an idealized convection test case located at `~/Data/CheMPAS/supercell`.
+The supercell thunderstorm is an idealized convection test case located at `~/Data/CheMPAS/supercell`. The tracked init-time setup uses 60 stretched vertical levels spanning 0–50 km (~300 m at the surface, ~1 km at the top). The level edges are loaded from `supercell_zeta_levels.txt` via the `config_specified_zeta_levels` namelist option; this file must be copied into the run directory alongside `namelist.init_atmosphere` before running `init_atmosphere_model`.
 
 ### Important: I/O Configuration
 

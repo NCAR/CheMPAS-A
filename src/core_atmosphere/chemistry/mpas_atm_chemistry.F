@@ -88,6 +88,10 @@ module mpas_atm_chemistry
         real(kind=RKIND)                :: j_no2_val, nox_tau_val
         real(kind=RKIND), pointer       :: lat_ptr, lon_ptr
         character(len=StrKIND), pointer :: tuvx_filepath_ptr
+        logical, pointer                :: tuvx_top_extension_ptr
+        character(len=StrKIND), pointer :: tuvx_extension_file_ptr
+        logical                         :: tuvx_top_extension
+        character(len=StrKIND)          :: tuvx_extension_file
         integer, pointer                :: idx_qO3_ptr
         integer, pointer                :: idx_qc_ptr, idx_qr_ptr
 #endif
@@ -169,7 +173,17 @@ module mpas_atm_chemistry
         nullify(tuvx_filepath_ptr)
         call mpas_pool_get_config(configs, 'config_tuvx_config_file', tuvx_filepath_ptr)
         if (associated(tuvx_filepath_ptr) .and. len_trim(tuvx_filepath_ptr) > 0) then
-            call tuvx_init(tuvx_filepath_ptr, nVertLevels, error_code, error_message)
+            nullify(tuvx_top_extension_ptr)
+            nullify(tuvx_extension_file_ptr)
+            call mpas_pool_get_config(configs, 'config_tuvx_top_extension', tuvx_top_extension_ptr)
+            call mpas_pool_get_config(configs, 'config_tuvx_extension_file', tuvx_extension_file_ptr)
+            tuvx_top_extension = .false.
+            tuvx_extension_file = ''
+            if (associated(tuvx_top_extension_ptr)) tuvx_top_extension = tuvx_top_extension_ptr
+            if (associated(tuvx_extension_file_ptr)) tuvx_extension_file = tuvx_extension_file_ptr
+
+            call tuvx_init(tuvx_filepath_ptr, nVertLevels, tuvx_top_extension, &
+                           tuvx_extension_file, error_code, error_message)
             if (error_code /= 0) then
                 call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
             end if
