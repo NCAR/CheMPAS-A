@@ -256,6 +256,219 @@ a 340 DU column at ~300 nm is ~3.7 → transmission ~2.5 %. TUV-x is
 giving transmission ~26 % at the surface (OD ~1.3), about 12× less
 attenuation than physics would predict.
 
+## Line A results: what MICM actually sees and produces at step 1
+
+Instrumented `MICM_from_chemistry`, `musica_set_photolysis_rates`,
+and `MICM_to_chemistry` to dump, at cell 1 / level 1 / surface, for
+the first two chemistry steps:
+
+- all four `state%rate_parameters(PHOTO.*)` values,
+- `state%conditions(1)%{temperature, pressure, air_density}`,
+- the in-concentrations (`MICM-in`) and post-solve concentrations
+  (`MICM-out`) for every non-parameterized species,
+- stride layout (`species_strides`, `rate_parameters_strides`).
+
+Stride layout is `cell_stride = n_species`, `var_stride = 1`
+(row-major by grid cell), with MICM's own variable_map order
+putting O2 at stride 1, O at stride 2, O3 at stride 3, NO at 4,
+NO2 at 5 — matches the iteration order returned by MICM's
+`species_ordering` when the Fortran coupler pairs names with
+stride indices, so the MPAS↔MICM copy is correctly routed.
+
+### Step-1 inputs are correct
+
+```
+[DEBUG MICM-in] T=299.09 K  P=98321 Pa  rho=1.14 kg/m³  air_density=39.2 mol/m³
+[DEBUG MICM-in] NO2 conc=1.37e-9   q=5.56e-11
+[DEBUG MICM-in] NO  conc=5.88e-10  q=1.55e-11
+[DEBUG MICM-in] O3  conc=1.05e-6   q=4.45e-8
+[DEBUG MICM-in] O   conc=0         q=0
+[DEBUG MICM-in] O2  conc=8.21      q=0.2314
+[DEBUG RP-in]   PHOTO.jNO2    = 6.74e-3
+[DEBUG RP-in]   PHOTO.jO3_O1D = 8.87e-6
+[DEBUG RP-in]   PHOTO.jO3_O   = 3.63e-4
+[DEBUG RP-in]   PHOTO.jO2     = 3.92e-38
+```
+
+Everything we hand MICM at step 1 is what the coupler should hand
+it: environment is correct, concentrations match the AFGL init, the
+photolysis slots hold exactly the (anomalous-TOA) values TUV-x
+emitted. The step-1 explosion is not a result of the coupler
+overwriting with garbage.
+
+### Step-1 MICM solve output has impossible mass imbalance
+
+```
+[DEBUG MICM-out] NO2 conc=0
+[DEBUG MICM-out] NO  conc=8.67e-7   ← was 5.88e-10, grew 1475×
+[DEBUG MICM-out] O3  conc=0.315     ← was 1.05e-6,  grew ~300 000×
+[DEBUG MICM-out] O   conc=1.53e-6
+[DEBUG MICM-out] O2  conc=7.74      ← was 8.21,      dropped 6%
+```
+
+Oxygen-atom balance is preserved at the cell level (the O2 loss
+exactly accounts for the O + 3×O3 gain). **Nitrogen balance is
+not** — total N at this cell grows from 1.96e-9 to 8.67e-7 mol m⁻³
+(443×). Across the whole column the mean total-N mole fraction
+grows 32× between t=0 and t=3 s, then stays constant through step
+2 onward.
+
+The Chapman steady state predicted by the rate constants for the
+step-1 anomalous photolysis rates is `[O]_ss ≈ 5e-15 mol m⁻³` at
+surface, with `d[O3]/dt ≈ 2e-11 mol m⁻³ s⁻¹` — i.e. qO3 should
+barely move over 3 s. MICM evolves [O3] to 0.315 mol m⁻³ in that
+single step, which is the wrong fixed point by ~13 orders of
+magnitude.
+
+### What this rules in and out
+
+- **It is not a coupler data-transfer bug.** Inputs are verified
+  clean at the cell level.
+- **It is not a rate_parameter scaling_factor issue.** All our
+  photolysis reactions default to `scaling_factor = 1.0` and MICM
+  applies `k = custom_parameter × scaling_factor`, so the
+  effective j equals exactly what TUV-x wrote. Ruled out.
+- **It is not a stride/indexing mixup.** Stride layout is verified.
+- **It IS a solver fidelity problem inside MICM.** The combination
+  of a huge (anomalous) step-1 photolysis rate, zero initial [O],
+  a very stiff Chapman cycle (R2 timescale ~14 μs at surface), and
+  a 3 s outer dt, drives Rosenbrock into an unphysical attractor
+  where oxygen is conserved at the cell level but N is created and
+  O3 overshoots by ~5 orders. The solver reports "9 accepted, 0
+  rejected" — it thinks it converged.
+
+This leaves TWO independent problems to fix:
+
+1. **Step-1 TOA photolysis rates.** TUV-x must attenuate through
+   the provided O3 column on the first call. (Lines B work.)
+2. **MICM Rosenbrock robustness.** Even if photolysis is correct,
+   the current combination of tolerance settings and dt seems
+   fragile. Worth testing loosened `__absolute tolerance`, a small
+   non-zero seed for [O], or a different solver family.
+
+### Backward Euler solver test
+
+Swapped `musica_init` from `RosenbrockStandardOrder` to
+`BackwardEulerStandardOrder` in `mpas_musica.F` and reran the same
+chem_box + `chapman_nox_noO1D.yaml` case. Result:
+
+```
+              qO3 mean (kg/kg)       Total N (mol N / kg air)
+t=0           5.07e-6                1.19e-7
+t=3 s         1.52e-2  (3000× up)    1.19e-7  (conserved)
+t=6 s         1.98e-2                1.19e-7
+```
+
+**Backward Euler preserves nitrogen mass balance at step 1.** The
+32×-column-mean N-creation that Rosenbrock produces is gone
+entirely with BE. This is direct evidence that the step-1 N
+imbalance was a Rosenbrock-specific numerical artifact (probably
+the implicit step evaluating the Jacobian at a near-degenerate
+state with tight 1e-12 absolute tolerances and zero initial [O]),
+NOT a mechanism or coupler bug.
+
+**Backward Euler does not prevent the qO3 explosion.** qO3 still
+jumps from 5e-6 to 1.5e-2 kg/kg (mean) in one 3 s step — slightly
+less than Rosenbrock's ~5× bigger jump, but still ~3000× too high.
+BE faithfully integrates the rate equations; it can't compensate
+for a physical photolysis forcing that is 5 orders of magnitude too
+strong. The step-1 TOA-photolysis problem is the primary driver of
+the O3 blowup, not the solver.
+
+**Decision:** keep Backward Euler as the production solver for now.
+It removes the N-balance violation, makes MICM's output physically
+interpretable under every condition we've tested, and has no
+apparent downsides for this mechanism (3 s dt, tightly-coupled
+null cycles). The Rosenbrock path can be revisited if/when we find
+a mechanism that demonstrably needs higher-order stiff accuracy.
+
+## Line B results: TUV-x is not the bug
+
+B1 (analytical sanity check) corrected an earlier misreading of
+the step-1 rates. Comparing each channel to published WACCM/ACOM
+reference values at noon mid-latitude conditions:
+
+| Channel            | Observed step 1 | Published (noon mid-lat) | Status |
+|--------------------|-----------------|--------------------------|--------|
+| jO2 (SR bands)     | ~0              | ~0 (absorbed above)      | ✓      |
+| jO3_O (Chappuis)   | 3.6e-4          | 2–5e-4                   | ✓      |
+| jO3_O1D (Hartley)  | 8.87e-6         | 1–5e-5                   | ✓      |
+| jNO2 (UV-Vis)      | 6.7e-3          | ~1e-2                    | ✓      |
+
+The earlier narrative that jO3_O was "5 orders too high at surface"
+came from comparing the Chappuis `jO3_O` (weakly self-absorbed by
+O3, so surface ≈ TOA/few) against expectations for the strongly-
+attenuated Hartley `jO3_O1D` channel. Chappuis surface rates of
+~10⁻⁴ s⁻¹ are physically normal. The step-1 rates are correct.
+
+B2 (standalone `MUSICA/fortran/examples/test_tuvx_v54` built
+against the installed MUSICA) confirms this. At SZA = 0 with the
+US-Std-Atm column, TUV-x emits `jO3_O = 4.98e-4` and `jO3_O1D =
+4.83e-5` at the surface — consistent with our chem_box step-1
+rates after scaling down for SZA ≈ 58° (cos scaling gives the
+observed ~0.7× for Chappuis and ~0.2× for Hartley).
+
+B3 + B4 (coupling completeness fixes) implemented in
+`mpas_tuvx.F`: `set_edge_values` is now called for the O3 and O2
+profiles (previously only midpoints + layer densities were set,
+leaving edge arrays at their constructor zeros), and
+`calculate_exo_layer_density(7 km)` populates the air profile's
+exo layer density so spherical-geometry slant-path integration
+accounts for air above the 100 km extension top. These are real
+correctness fixes that should be in even though they did **not**
+change any photolysis output in the chem_box test — the surface
+rates for a 340-DU column at SZA = 58° are physically what we
+were already seeing, and the base radiator's optical-depth
+calculation uses `layer_dens_` (which we were already writing
+correctly), not edge values.
+
+B5 (direct TUV-x radiator instrumentation) was not pursued: B1+B2
+make it clear the RT solver is doing the right thing for this
+column, and deeper instrumentation is unlikely to find a bug that
+isn't there.
+
+**Line B conclusion:** TUV-x is producing the physically correct
+photolysis rates at step 1. The qO3 explosion is driven entirely
+by the MICM solver's response to full-strength photolysis applied
+to an initial state with `[O] = 0`. Even Backward Euler, with a
+3 s outer dt that is 10⁵–10⁶ larger than the fastest Chapman mode,
+lands on an implicit fixed point where [O2] has been converted to
+[O3] + [O] at levels far above what the Chapman/NOx chemistry
+should produce physically. Total oxygen atoms ARE conserved at
+the cell level (verified at cell 1 surface: 16.42 in = 16.42 out
+mol m⁻³ of O). The mechanism moves a large fraction of [O2] into
+[O3] + [O] in a single 3 s step, which is numerically self-
+consistent with BE's implicit step but not what Chapman physics
+would give in a well-resolved transient.
+
+## What actually fixes the explosion
+
+None of the Line A or Line B work above addresses the root cause
+directly — they rule hypotheses out. Real fixes to try, in rough
+order of cost:
+
+1. **Seed qO with a small non-zero value at init.** Modifying
+   `scripts/init_chapman.py` to write a small [O] profile
+   (e.g. Chapman quasi-steady-state values, or just `1e-15`
+   everywhere) may be enough to break the degeneracy that lets
+   BE's Newton iteration land on the wrong implicit fixed point.
+2. **Loosen `__absolute tolerance` on O / O1D / NO / NO2 from
+   `1e-12` to `1e-10` or `1e-8`** in `chapman_nox.yaml`. The
+   very tight tolerance on species that start at zero makes the
+   BE Newton solve prone to picking self-consistent but non-
+   physical end states.
+3. **Shorten `config_dt` for the first few steps** (run a pre-
+   dawn spinup, or reduce `config_dt` to 0.1 s for the first
+   10 s). Avoid presenting BE with a 3 s step while the fast
+   Chapman null cycle is spinning up from zero.
+4. **Start `config_start_time` at night (cos_sza ≤ 0)** so
+   photolysis ramps up naturally and [O] has time to track.
+   This is what `MUSICA/fortran/examples/column_model.F90` does,
+   and it doesn't explode.
+
+Option 4 is closest to the MUSICA reference usage pattern and is
+the cheapest to try first.
+
 ## Hypotheses still on the table
 
 1. **TUV-x radiator update ordering.** `radiator_from_host_t::update_state`

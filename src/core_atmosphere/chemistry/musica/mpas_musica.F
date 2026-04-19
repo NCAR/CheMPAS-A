@@ -79,7 +79,7 @@ module mpas_musica
         use iso_fortran_env, only: real64
         use mpas_kind_types, only: RKIND
 
-        use musica_micm, only : RosenbrockStandardOrder
+        use musica_micm, only : BackwardEulerStandardOrder
         use musica_util, only : error_t, string_t
 
         use mpas_log, only : mpas_log_write
@@ -98,7 +98,9 @@ module mpas_musica
 
         type(error_t)  :: error
         type(string_t) :: micm_version
-        integer :: solver_type = RosenbrockStandardOrder
+        ! Try Backward Euler for chapman_nox to test robustness; see
+        ! docs/plans/2026-04-18-chapman-nox-chem-box-issue.md.
+        integer :: solver_type = BackwardEulerStandardOrder
         integer :: i_species, spec_idx
         character(len=:), allocatable :: sp_name
 
