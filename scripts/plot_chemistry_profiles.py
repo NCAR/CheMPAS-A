@@ -23,10 +23,12 @@ Panels:
 """
 import argparse
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import matplotlib.ticker as mticker
 from netCDF4 import Dataset
 
@@ -81,6 +83,15 @@ def xtime_to_seconds(xt_frame):
     hms = parts[-1].split(":")
     days = int(dparts[0]) * 365 + (int(dparts[1]) - 1) * 30 + int(dparts[2]) - 1
     return days * 86400 + int(hms[0]) * 3600 + int(hms[1]) * 60 + int(hms[2])
+
+
+def xtime_to_datetime(xt_frame):
+    """Decode an xtime char array to a Python datetime; None if year<1."""
+    s = "".join([c.decode() if isinstance(c, bytes) else c for c in xt_frame]).strip()
+    try:
+        return datetime.strptime(s, "%Y-%m-%d_%H:%M:%S")
+    except ValueError:
+        return None
 
 
 def read_times_seconds(filename):
@@ -233,6 +244,13 @@ def main() -> None:
     ap.add_argument("--time-series", default=None,
                     help="comma-separated altitudes [km] for a companion time-series "
                          "plot, e.g. --time-series 1,5,10,20,30,40")
+    ap.add_argument("--title", default=None,
+                    help="custom figure suptitle; overrides the default.")
+    ap.add_argument("--tz-offset-hours", type=float, default=None,
+                    help="hours offset from UTC. When set, the time-series "
+                         "x-axis shows HH:MM local time (e.g. -6 for MDT).")
+    ap.add_argument("--tz-label", default="local",
+                    help="timezone label in the time-series x-axis (default: local)")
     args = ap.parse_args()
 
     if args.output is None:
@@ -247,6 +265,8 @@ def main() -> None:
     z_mid_km = 0.5 * (zgrid[:-1] + zgrid[1:]) / 1000.0
     time_s = read_times_seconds(args.input)
     nTimes = len(time_s)
+    nCells = len(ds.dimensions["nCells"])
+    domain_subtitle = f"{nCells}-hex domain mean"
 
     # Drop panels whose inputs are missing
     species = [v for v in SPECIES_PANELS
@@ -290,17 +310,36 @@ def main() -> None:
         frame_idx = list(range(nTimes))
     n_frames = len(frame_idx)
 
-    # Time-series colours: NCAR palette for small frame counts (distinct,
-    # brand-aligned), continuous viridis for larger counts so adjacent frames
-    # remain visually distinguishable instead of wrapping the 8-colour palette.
-    if n_frames <= len(style.NCAR_PALETTE):
-        time_colors = style.get_palette(n_frames)
+    # Day/night-aware palette: warm (YlOrRd) for frames with nonzero
+    # photolysis, cool (Blues) for frames at night. Falls back to the NCAR
+    # palette if jO2 is not in the output.
+    if "j_jO2" in ds.variables:
+        is_day = [float(np.asarray(ds.variables["j_jO2"][t]).max()) > 0.0
+                  for t in frame_idx]
     else:
-        time_colors = [plt.cm.viridis(x) for x in np.linspace(0.0, 0.95, n_frames)]
+        is_day = [True] * n_frames
+    day_count = sum(is_day)
+    night_count = n_frames - day_count
+    day_pos = (np.linspace(0.35, 0.90, day_count)
+               if day_count > 1 else np.array([0.75]))
+    night_pos = (np.linspace(0.95, 0.55, night_count)
+                 if night_count > 1 else np.array([0.80]))
+    time_colors = []
+    d_i = n_i = 0
+    for day in is_day:
+        if day:
+            time_colors.append(plt.cm.YlOrRd(day_pos[d_i])); d_i += 1
+        else:
+            time_colors.append(plt.cm.Blues(night_pos[n_i])); n_i += 1
 
     have_ss_inputs = all(v in ds.variables for v in
                          ("rho", "theta", "pressure", "qO2", "qO3",
                           "j_jO2", "j_jO3_O", "j_jO3_O1D"))
+
+    t0_utc = xtime_to_datetime(ds.variables["xtime"][0])
+    use_local_labels = args.tz_offset_hours is not None and t0_utc is not None
+    t0_local = (t0_utc + timedelta(hours=args.tz_offset_hours)
+                if use_local_labels else None)
 
     for idx, name in enumerate(variables):
         ax = axes[idx // ncols, idx % ncols]
@@ -311,7 +350,14 @@ def main() -> None:
             mean = slab.mean(axis=0)
             lo = slab.min(axis=0)
             hi = slab.max(axis=0)
-            label = _format_seconds(time_s[t]) if idx == 0 else None
+            if idx == 0:
+                if use_local_labels:
+                    label = (t0_local + timedelta(
+                        seconds=float(time_s[t]))).strftime("%H:%M")
+                else:
+                    label = _format_seconds(time_s[t])
+            else:
+                label = None
             ax.plot(mean, z_mid_km, color=time_colors[k], lw=1.8, label=label)
             ax.fill_betweenx(z_mid_km, lo, hi, color=time_colors[k], alpha=0.12,
                               linewidth=0)
@@ -320,7 +366,7 @@ def main() -> None:
         if name == "qO_total" and have_ss_inputs:
             ppb_ss = chapman_steady_state_O_ppb(ds, nTimes - 1)
             ax.plot(ppb_ss, z_mid_km, color=style.NCAR_COLORS["gray"],
-                    lw=1.5, ls="--", label="Chapman SS")
+                    lw=1.5, ls="--", label="Steady State")
 
         ax.set_xlabel(panel_xlabel(name))
         ax.set_title(panel_title(name))
@@ -339,26 +385,42 @@ def main() -> None:
     for j in range(len(variables), nrows * ncols):
         axes[j // ncols, j % ncols].axis("off")
 
-    axes[0, 0].legend(loc="best",
-                       fontsize=style.FONT_SIZES_DEFAULT.legend_small,
-                       title="sim time")
+    legend_title = f"Time ({args.tz_label})" if use_local_labels else "sim time"
+    handles, labels = axes[0, 0].get_legend_handles_labels()
 
-    # O panel gets its own single-entry legend for the steady-state line
+    empty_idx = len(variables)
+    if empty_idx < nrows * ncols:
+        legend_ax = axes[empty_idx // ncols, empty_idx % ncols]
+        leg = legend_ax.legend(handles, labels, loc="center", title=legend_title,
+                               fontsize=16, title_fontsize=18,
+                               ncol=2, columnspacing=1.5,
+                               handlelength=2.5, labelspacing=0.7,
+                               borderpad=0.8, frameon=False)
+        leg._legend_box.align = "center"
+    else:
+        axes[0, 0].legend(handles, labels, loc="best", title=legend_title,
+                          fontsize=style.FONT_SIZES_DEFAULT.legend_small)
+
+    # Steady-state reference gets its own small legend on the qO_total panel.
     if "qO_total" in variables:
         o_idx = variables.index("qO_total")
         ax_o = axes[o_idx // ncols, o_idx % ncols]
-        handles, labels = ax_o.get_legend_handles_labels()
-        ss = [(h, l) for h, l in zip(handles, labels) if l == "Chapman SS"]
-        if ss:
-            ax_o.legend([ss[0][0]], [ss[0][1]], loc="best",
-                        fontsize=style.FONT_SIZES_DEFAULT.legend_small)
+        for h, l in zip(*ax_o.get_legend_handles_labels()):
+            if l == "Steady State":
+                ax_o.legend([h], [l], loc="best",
+                            fontsize=style.FONT_SIZES_DEFAULT.legend_small)
+                break
 
-    subtitle = "shaded = min/max envelope across cells"
-    if args.endpoints and nTimes > 2:
-        subtitle = f"endpoints only (t=0, t={int(round(time_s[-1]))} s); " + subtitle
-    fig.suptitle(
-        f"Horizontal-mean profiles from {Path(args.input).name}  |  {subtitle}"
-    )
+    if args.title:
+        fig.suptitle(f"{args.title}\n{domain_subtitle}")
+    else:
+        subtitle = "shaded = min/max envelope across cells"
+        if args.endpoints and nTimes > 2:
+            subtitle = f"endpoints only (t=0, t={int(round(time_s[-1]))} s); " + subtitle
+        fig.suptitle(
+            f"Horizontal-mean profiles from {Path(args.input).name}  |  {subtitle}"
+            f"\n{domain_subtitle}"
+        )
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig(args.output, dpi=150, bbox_inches="tight")
     pdf = Path(args.output).with_suffix(".pdf")
@@ -373,14 +435,20 @@ def main() -> None:
             Path(args.output).stem + "_timeseries.png"
         )
         _plot_time_series_at_levels(
-            ds, variables, time_s, z_mid_km, ts_alts, str(ts_path)
+            ds, variables, time_s, z_mid_km, ts_alts, str(ts_path),
+            title=args.title, t0_utc=t0_utc,
+            tz_offset_hours=args.tz_offset_hours, tz_label=args.tz_label,
+            subtitle=domain_subtitle,
         )
 
     ds.close()
 
 
 def _plot_time_series_at_levels(ds, variables, time_s, z_mid_km,
-                                 target_alts_km, output_path):
+                                 target_alts_km, output_path,
+                                 title=None, t0_utc=None,
+                                 tz_offset_hours=None, tz_label="local",
+                                 subtitle=None):
     """Companion plot: domain-mean time series at a set of altitudes."""
     level_idx = [int(np.argmin(np.abs(z_mid_km - a))) for a in target_alts_km]
     actual_alts = [z_mid_km[i] for i in level_idx]
@@ -393,7 +461,14 @@ def _plot_time_series_at_levels(ds, variables, time_s, z_mid_km,
 
     level_colors = style.get_palette(len(level_idx))
 
-    t_min = time_s / 60.0
+    use_local = tz_offset_hours is not None and t0_utc is not None
+    if use_local:
+        t0_local = t0_utc + timedelta(hours=tz_offset_hours)
+        t_plot = [t0_local + timedelta(seconds=float(s)) for s in time_s]
+        xlabel = f"Time ({tz_label})"
+    else:
+        t_plot = time_s / 60.0
+        xlabel = "Time [min]"
 
     for idx, name in enumerate(variables):
         ax = axes[idx // ncols, idx % ncols]
@@ -401,10 +476,10 @@ def _plot_time_series_at_levels(ds, variables, time_s, z_mid_km,
         for k, (li, za) in enumerate(zip(level_idx, actual_alts)):
             series = arr_plot[:, :, li].mean(axis=1)
             label = f"{za:.1f} km" if idx == 0 else None
-            ax.plot(t_min, series, color=level_colors[k], lw=1.8, label=label)
+            ax.plot(t_plot, series, color=level_colors[k], lw=1.8, label=label)
 
         ax.set_title(panel_title(name))
-        ax.set_xlabel("Time [min]")
+        ax.set_xlabel(xlabel)
         # Each panel carries its own units (ppb vs s^-1), so label every one.
         ax.set_ylabel(panel_xlabel(name))
         spec = AXIS_SPECS.get(name)
@@ -426,13 +501,28 @@ def _plot_time_series_at_levels(ds, variables, time_s, z_mid_km,
     for j in range(len(variables), nrows * ncols):
         axes[j // ncols, j % ncols].axis("off")
 
-    axes[0, 0].legend(loc="best",
-                       fontsize=style.FONT_SIZES_DEFAULT.legend_small,
-                       title="altitude")
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    handles, labels = list(reversed(handles)), list(reversed(labels))
+    empty_idx = len(variables)
+    if empty_idx < nrows * ncols:
+        legend_ax = axes[empty_idx // ncols, empty_idx % ncols]
+        leg = legend_ax.legend(handles, labels, loc="center", title="Altitude",
+                               fontsize=16, title_fontsize=18,
+                               handlelength=2.5, labelspacing=0.7,
+                               borderpad=0.8, frameon=False)
+        leg._legend_box.align = "center"
+    else:
+        axes[0, 0].legend(handles, labels, loc="best", title="Altitude",
+                          fontsize=style.FONT_SIZES_DEFAULT.legend_small)
 
-    fig.suptitle(
-        f"Domain-mean time series from {Path(ds.filepath()).name}"
-    )
+    if use_local:
+        for ax in axes.flat:
+            ax.xaxis.set_major_locator(mdates.HourLocator(interval=4))
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+        fig.autofmt_xdate(rotation=30, ha="right")
+
+    primary = title or f"Domain-mean time series from {Path(ds.filepath()).name}"
+    fig.suptitle(f"{primary}\n{subtitle}" if subtitle else primary)
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     pdf = Path(output_path).with_suffix(".pdf")
