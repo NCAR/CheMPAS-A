@@ -209,6 +209,57 @@ Why the synthetic start time:
 For the complete tables, plots, and pass/fail notes, see
 `docs/results/TEST_RUNS.md`.
 
+## Multi-Photolysis Plumbing
+
+CheMPAS couples TUV-x to MICM through a single-name convention: for every
+photolysis reaction, the same string is used in four places —
+
+```
+<rxn_name>  == TUV-x JSON "name:" field
+            == MICM yaml reaction "name:" field
+            == Registry diagnostic variable "j_<rxn_name>"
+            == MICM rate parameter key "PHOTO.<rxn_name>"
+```
+
+At chemistry init, `tuvx_init` enumerates every photolysis reaction the
+TUV-x config registers and caches names + indices. The chemistry driver
+then calls `musica_cache_photo_indices(names)` so MICM looks up
+`PHOTO.<name>` for each one. At each step, `tuvx_compute_photolysis`
+fills a `(n_rates, nVertLevels)` slab per cell, and a single call to
+`musica_set_photolysis_rates` writes the full `(n_rates, nVertLevels,
+nCells)` array into both the coupled and reference MICM states.
+
+### Supported mechanisms (in `micm_configs/`)
+
+| MICM yaml | TUV-x JSON | Rates | Purpose |
+|-----------|------------|-------|---------|
+| `lnox_o3.yaml` | `tuvx_no2.json` | jNO2 | Tropospheric LNOx-O3 development |
+| `chapman_full.yaml` | `tuvx_chapman.json` | jO2, jO3_O, jO3_O1D | Stratospheric Chapman cycle |
+| `chapman_nox.yaml` | `tuvx_chapman_nox.json` | jO2, jO3_O, jO3_O1D, jNO2 | Chapman + NOx catalytic O3 destruction |
+
+Pick a paired MICM/TUV-x config via `&musica` in `namelist.atmosphere`:
+
+```
+&musica
+    config_micm_file = 'chapman_full.yaml'
+    config_tuvx_config_file = 'tuvx_chapman.json'
+    config_tuvx_top_extension = .true.
+    config_tuvx_extension_file = 'tuvx_upper_atm.csv'
+    config_chemistry_latitude = 35.86
+    config_chemistry_longitude = -97.93
+/
+```
+
+Chapman and Chapman+NOx runs require realistic initial O3 (AFGL
+mid-latitude-summer) — seed with `scripts/init_chapman.py`, optionally
+`--seed-nox` for the NOx setup.
+
+The Phase-1 `cos(SZA)` fallback is still available: when
+`config_tuvx_config_file` is empty, chemistry runs with a single
+synthesised `jNO2` rate equal to `config_lnox_j_no2 * max(0, cos_sza)`.
+The fallback is single-rate only; Chapman and Chapman+NOx mechanisms
+require TUV-x.
+
 ## Column Extension Above MPAS Top
 
 TUV-x can see a climatology column above the MPAS domain so UV attenuation
