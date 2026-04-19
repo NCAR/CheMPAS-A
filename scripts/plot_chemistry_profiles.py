@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
 """Horizontal-mean vertical profiles of chemistry output.
 
-Plots one panel per variable (species tracer or photolysis rate) with
-altitude on the y-axis and the horizontal-mean value on the x-axis.
-Each output time gets its own coloured curve so we can see evolution.
-A shaded band shows the min/max envelope across cells at each level.
+One panel per variable (species or photolysis rate), altitude on y,
+horizontal-mean on x. Each output frame gets its own curve labelled
+with the simulation time in seconds; a shaded band is the min/max
+envelope across cells at each level.
 
-Conventions (scripts/style.py):
-- NCAR brand palette via style.setup()
-- Species-specific colors via style.species_color()
-- LaTeX species labels via style.species_label() / style.format_title()
-- Chemistry tracers are shown in ppb (converted from MPAS kg/kg using
-  per-species molar masses); photolysis rates in s^{-1}
-- Units are always in axis labels.
+Conventions (match scripts/style.py and scripts/plot_lnox_o3.py):
+- style.setup() for NCAR brand palette / fonts
+- Simulation time in seconds parsed from xtime (reference = t=0 of
+  the init file)
+- Tracer mass mixing ratios shown in ppb via per-species molar mass
+- NCAR palette colours for the time series
+- Photolysis rate tick labels trimmed to avoid overlap
+
+Panels:
+- O3, NO, NO2       (main chemistry tracers in ppb)
+- O = q_O + q_O1D   (atomic oxygen summed; O1D is rapidly quenched
+                      to O(3P) by M so the sum is the useful view)
+- O2 is not plotted (constant-ish at 0.2095 VMR by construction)
+- jO2, jO3 -> O(3P), jO3 -> O(1D), jNO2  (photolysis rates in s^-1)
 """
 import argparse
 import sys
@@ -20,6 +27,7 @@ from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 from netCDF4 import Dataset
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -35,32 +43,23 @@ MOLAR_MASS = {
     "qO3":  0.048,
     "qNO":  0.030,
     "qNO2": 0.046,
-    "qCO":  0.028,
-    "qCH4": 0.016,
-    "qOH":  0.017,
-    "qHO2": 0.033,
 }
 
-DEFAULT_SPECIES = ["qO3", "qO", "qO1D", "qNO", "qNO2", "qO2"]
-DEFAULT_JVARS   = ["j_jO2", "j_jO3_O", "j_jO3_O1D", "j_jNO2"]
+# Species shown (O = qO + qO1D summed; O2 omitted because near-constant)
+SPECIES_PANELS = ["qO3", "qO_total", "qNO", "qNO2"]
+JVAR_PANELS    = ["j_jO2", "j_jO3_O", "j_jO3_O1D", "j_jNO2"]
 
-
-# Fixed x-axis ranges sized to the physically expected values (not
-# idealized spin-up transients or floating-point denormals). Species in
-# ppb, photolysis rates in s^-1.
 AXIS_SPECS = {
     # Species [ppb]
-    "qO3":   {"range": (1.0, 1.0e5),     "log": True},   # 50 ppb tropo → 10 ppm stratospheric peak
-    "qO":    {"range": (0.0, 5.0e7),     "log": False},  # idealized spin-up transient; steady-state tiny
-    "qO1D":  {"range": (0.0, 1.0),       "log": False},  # idealized spin-up transient
-    "qNO":   {"range": (0.0, 5.0),       "log": False},  # stratospheric NO peak ~3 ppb
-    "qNO2":  {"range": (0.0, 10.0),      "log": False},  # stratospheric NO2 peak ~8 ppb
-    "qO2":   {"range": (1.8e8, 2.3e8),   "log": False},  # ~0.2095 VMR -> ~2.09e8 ppb
+    "qO3":      {"range": (1.0, 1.0e5),     "log": True},   # AFGL MLS profile
+    "qO_total": {"range": (0.0, 5.0e7),     "log": False},  # idealized spin-up transient
+    "qNO":      {"range": (0.0, 5.0),       "log": False},
+    "qNO2":     {"range": (0.0, 10.0),      "log": False},
     # Photolysis rates [s^-1]
-    "j_jO2":     {"range": (0.0, 5.0e-10), "log": False},  # Schumann-Runge weak
-    "j_jO3_O":   {"range": (0.0, 1.0e-3),  "log": False},  # Hartley band, O(3P) channel
-    "j_jO3_O1D": {"range": (0.0, 1.0e-3),  "log": False},  # Hartley band, O(1D) channel
-    "j_jNO2":    {"range": (0.0, 1.5e-2),  "log": False},  # midday NO2 photolysis
+    "j_jO2":     {"range": (0.0, 5.0e-10), "log": False},
+    "j_jO3_O":   {"range": (0.0, 1.0e-3),  "log": False},
+    "j_jO3_O1D": {"range": (0.0, 1.0e-3),  "log": False},
+    "j_jNO2":    {"range": (0.0, 1.5e-2),  "log": False},
 }
 
 
@@ -69,12 +68,32 @@ def to_ppbv(q_kgkg, M_species):
     return q_kgkg * (M_AIR / M_species) * 1.0e9
 
 
+def xtime_to_seconds(xt_frame):
+    """Decode an xtime char array to absolute seconds since 0000-01-01_00:00:00."""
+    s = "".join([c.decode() if isinstance(c, bytes) else c for c in xt_frame]).strip()
+    parts = s.split("_")
+    dparts = parts[0].split("-")
+    hms = parts[-1].split(":")
+    days = int(dparts[0]) * 365 + (int(dparts[1]) - 1) * 30 + int(dparts[2]) - 1
+    return days * 86400 + int(hms[0]) * 3600 + int(hms[1]) * 60 + int(hms[2])
+
+
+def read_times_seconds(filename):
+    """Return simulation time in seconds since the init-file t=0."""
+    ds = Dataset(filename, "r")
+    xt = ds.variables["xtime"][:]
+    t0 = xtime_to_seconds(xt[0])
+    init_file = Path(filename).parent / "supercell_init.nc"
+    if init_file.exists():
+        with Dataset(init_file, "r") as dsi:
+            t0 = xtime_to_seconds(dsi.variables["xtime"][0])
+    times = np.array([xtime_to_seconds(xt[t]) - t0 for t in range(len(xt))])
+    ds.close()
+    return times
+
+
 def rate_label(name):
-    """Return a LaTeX display label for a j_<rxn> diagnostic variable."""
-    if not name.startswith("j_"):
-        return name
-    rxn = name[2:]
-    # Known rates: jNO2, jO2, jO3_O, jO3_O1D
+    rxn = name[2:] if name.startswith("j_") else name
     pretty = {
         "jNO2":    r"$j_{NO_2}$",
         "jO2":     r"$j_{O_2}$",
@@ -84,12 +103,61 @@ def rate_label(name):
     return pretty.get(rxn, name)
 
 
-def species_panel_label(name):
+def panel_title(name):
+    if name == "qO_total":
+        return "O"   # sum of qO + qO1D, labelled simply as O
+    if name.startswith("j_"):
+        return rate_label(name)
+    return style.species_label(name)
+
+
+def panel_xlabel(name):
+    if name == "qO_total":
+        return "O [ppb]"
+    if name.startswith("j_"):
+        return f"{rate_label(name)} [s$^{{-1}}$]"
     return f"{style.species_label(name)} [ppb]"
 
 
-def rate_panel_label(name):
-    return f"{rate_label(name)} [s$^{{-1}}$]"
+def load_panel_data(ds, name):
+    """Return an (nTimes, nCells, nVertLevels) array in the panel's display units."""
+    if name == "qO_total":
+        # Sum atomic oxygen channels; both have M = 0.016 so convert together.
+        qO  = ds.variables["qO"][:] if "qO" in ds.variables else 0.0
+        qO1D = ds.variables["qO1D"][:] if "qO1D" in ds.variables else 0.0
+        return to_ppbv(qO + qO1D, MOLAR_MASS["qO"])
+    if name.startswith("j_"):
+        return ds.variables[name][:]
+    Mw = MOLAR_MASS.get(name)
+    arr = ds.variables[name][:]
+    return to_ppbv(arr, Mw) if Mw else arr
+
+
+def _format_seconds(s):
+    return f"t = {int(round(float(s)))} s"
+
+
+def _photolysis_tick_formatter(vmax):
+    """Return a formatter that keeps photolysis tick labels compact.
+
+    Small ranges -> scientific notation with one decimal; larger ranges
+    stay in engineering form so a panel with vmax = 1.5e-2 shows labels
+    like 0.005, 0.010, 0.015 instead of 0.00500 0.00750 etc.
+    """
+    def fmt(x, _pos):
+        if x == 0:
+            return "0"
+        return f"{x:.1e}"
+    return mticker.FuncFormatter(fmt)
+
+
+def apply_tick_style(ax, name):
+    """Limit tick density and formatting per panel type."""
+    if name.startswith("j_"):
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=3))
+        ax.xaxis.set_major_formatter(_photolysis_tick_formatter(ax.get_xlim()[1]))
+    else:
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=5))
 
 
 def main() -> None:
@@ -110,10 +178,15 @@ def main() -> None:
     ds = Dataset(args.input, "r")
     zgrid = ds.variables["zgrid"][0, :]
     z_mid_km = 0.5 * (zgrid[:-1] + zgrid[1:]) / 1000.0
-    nTimes = ds.dimensions["Time"].size
+    time_s = read_times_seconds(args.input)
+    nTimes = len(time_s)
 
-    species = [v for v in DEFAULT_SPECIES if v in ds.variables]
-    jvars   = [v for v in DEFAULT_JVARS   if v in ds.variables]
+    # Drop panels whose inputs are missing
+    species = [v for v in SPECIES_PANELS
+               if v == "qO_total" or v in ds.variables]
+    if "qO_total" in species and "qO" not in ds.variables and "qO1D" not in ds.variables:
+        species.remove("qO_total")
+    jvars = [v for v in JVAR_PANELS if v in ds.variables]
     variables = species + jvars
     if not variables:
         raise SystemExit("No known species or j_* diagnostic variables found.")
@@ -124,48 +197,29 @@ def main() -> None:
                               sharey=True)
     axes = np.atleast_2d(axes)
 
-    # Time-series color ramp: viridis, one shade per output frame
-    cmap = plt.cm.viridis
-    time_colors = [cmap(i / max(nTimes - 1, 1)) for i in range(nTimes)]
+    # Time-series colours from the NCAR palette so they match the rest of
+    # the project. If there are more frames than palette colours we cycle.
+    time_colors = style.get_palette(nTimes)
 
     for idx, name in enumerate(variables):
         ax = axes[idx // ncols, idx % ncols]
-        arr = ds.variables[name][:]  # (Time, nCells, nVertLevels)
-
-        is_species = name in species
-        if is_species:
-            Mw = MOLAR_MASS.get(name)
-            if Mw is None:
-                # Unknown species — plot raw kg/kg
-                arr_plot = arr
-                xlabel = f"{style.species_label(name)} [kg kg$^{{-1}}$]"
-            else:
-                arr_plot = to_ppbv(arr, Mw)
-                xlabel = species_panel_label(name)
-            title = style.species_label(name)
-        else:
-            arr_plot = arr
-            xlabel = rate_panel_label(name)
-            title = rate_label(name)
+        arr_plot = load_panel_data(ds, name)
 
         for t in range(nTimes):
             slab = arr_plot[t, :, :]
             mean = slab.mean(axis=0)
             lo = slab.min(axis=0)
             hi = slab.max(axis=0)
-            label = f"t={t}" if idx == 0 else None
-            ax.plot(mean, z_mid_km, color=time_colors[t], lw=1.5, label=label)
-            ax.fill_betweenx(z_mid_km, lo, hi, color=time_colors[t], alpha=0.15,
+            label = _format_seconds(time_s[t]) if idx == 0 else None
+            ax.plot(mean, z_mid_km, color=time_colors[t], lw=1.8, label=label)
+            ax.fill_betweenx(z_mid_km, lo, hi, color=time_colors[t], alpha=0.12,
                               linewidth=0)
 
-        ax.set_xlabel(xlabel)
-        ax.set_title(title)
+        ax.set_xlabel(panel_xlabel(name))
+        ax.set_title(panel_title(name))
         if idx % ncols == 0:
             ax.set_ylabel("Altitude [km]")
 
-        # Fixed x-axis range per the physically expected values in AXIS_SPECS.
-        # Data outside the range is clipped visually, which is the intent —
-        # numerical transients and denormals are not interesting here.
         spec = AXIS_SPECS.get(name)
         if spec is not None:
             lo, hi = spec["range"]
@@ -173,13 +227,14 @@ def main() -> None:
             if spec["log"]:
                 ax.set_xscale("log")
 
-    # Hide unused panels
+        apply_tick_style(ax, name)
+
     for j in range(len(variables), nrows * ncols):
         axes[j // ncols, j % ncols].axis("off")
 
     axes[0, 0].legend(loc="best",
                        fontsize=style.FONT_SIZES_DEFAULT.legend_small,
-                       title="time idx")
+                       title="sim time")
 
     fig.suptitle(
         f"Horizontal-mean profiles from {Path(args.input).name}  |  "
@@ -190,9 +245,8 @@ def main() -> None:
     pdf = Path(args.output).with_suffix(".pdf")
     plt.savefig(pdf, bbox_inches="tight")
     print(f"saved {args.output} and {pdf}")
-    print(f"variables plotted: {', '.join(variables)}")
-    print(f"nTimes: {nTimes}, nVertLevels: {len(z_mid_km)}, "
-          f"z range: {z_mid_km[0]:.2f} - {z_mid_km[-1]:.2f} km")
+    print(f"panels: {', '.join(variables)}")
+    print(f"times [s]: {time_s.tolist()}")
 
     ds.close()
 
