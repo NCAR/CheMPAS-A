@@ -256,6 +256,96 @@ a 340 DU column at ~300 nm is ~3.7 → transmission ~2.5 %. TUV-x is
 giving transmission ~26 % at the surface (OD ~1.3), about 12× less
 attenuation than physics would predict.
 
+## Line A results: what MICM actually sees and produces at step 1
+
+Instrumented `MICM_from_chemistry`, `musica_set_photolysis_rates`,
+and `MICM_to_chemistry` to dump, at cell 1 / level 1 / surface, for
+the first two chemistry steps:
+
+- all four `state%rate_parameters(PHOTO.*)` values,
+- `state%conditions(1)%{temperature, pressure, air_density}`,
+- the in-concentrations (`MICM-in`) and post-solve concentrations
+  (`MICM-out`) for every non-parameterized species,
+- stride layout (`species_strides`, `rate_parameters_strides`).
+
+Stride layout is `cell_stride = n_species`, `var_stride = 1`
+(row-major by grid cell), with MICM's own variable_map order
+putting O2 at stride 1, O at stride 2, O3 at stride 3, NO at 4,
+NO2 at 5 — matches the iteration order returned by MICM's
+`species_ordering` when the Fortran coupler pairs names with
+stride indices, so the MPAS↔MICM copy is correctly routed.
+
+### Step-1 inputs are correct
+
+```
+[DEBUG MICM-in] T=299.09 K  P=98321 Pa  rho=1.14 kg/m³  air_density=39.2 mol/m³
+[DEBUG MICM-in] NO2 conc=1.37e-9   q=5.56e-11
+[DEBUG MICM-in] NO  conc=5.88e-10  q=1.55e-11
+[DEBUG MICM-in] O3  conc=1.05e-6   q=4.45e-8
+[DEBUG MICM-in] O   conc=0         q=0
+[DEBUG MICM-in] O2  conc=8.21      q=0.2314
+[DEBUG RP-in]   PHOTO.jNO2    = 6.74e-3
+[DEBUG RP-in]   PHOTO.jO3_O1D = 8.87e-6
+[DEBUG RP-in]   PHOTO.jO3_O   = 3.63e-4
+[DEBUG RP-in]   PHOTO.jO2     = 3.92e-38
+```
+
+Everything we hand MICM at step 1 is what the coupler should hand
+it: environment is correct, concentrations match the AFGL init, the
+photolysis slots hold exactly the (anomalous-TOA) values TUV-x
+emitted. The step-1 explosion is not a result of the coupler
+overwriting with garbage.
+
+### Step-1 MICM solve output has impossible mass imbalance
+
+```
+[DEBUG MICM-out] NO2 conc=0
+[DEBUG MICM-out] NO  conc=8.67e-7   ← was 5.88e-10, grew 1475×
+[DEBUG MICM-out] O3  conc=0.315     ← was 1.05e-6,  grew ~300 000×
+[DEBUG MICM-out] O   conc=1.53e-6
+[DEBUG MICM-out] O2  conc=7.74      ← was 8.21,      dropped 6%
+```
+
+Oxygen-atom balance is preserved at the cell level (the O2 loss
+exactly accounts for the O + 3×O3 gain). **Nitrogen balance is
+not** — total N at this cell grows from 1.96e-9 to 8.67e-7 mol m⁻³
+(443×). Across the whole column the mean total-N mole fraction
+grows 32× between t=0 and t=3 s, then stays constant through step
+2 onward.
+
+The Chapman steady state predicted by the rate constants for the
+step-1 anomalous photolysis rates is `[O]_ss ≈ 5e-15 mol m⁻³` at
+surface, with `d[O3]/dt ≈ 2e-11 mol m⁻³ s⁻¹` — i.e. qO3 should
+barely move over 3 s. MICM evolves [O3] to 0.315 mol m⁻³ in that
+single step, which is the wrong fixed point by ~13 orders of
+magnitude.
+
+### What this rules in and out
+
+- **It is not a coupler data-transfer bug.** Inputs are verified
+  clean at the cell level.
+- **It is not a rate_parameter scaling_factor issue.** All our
+  photolysis reactions default to `scaling_factor = 1.0` and MICM
+  applies `k = custom_parameter × scaling_factor`, so the
+  effective j equals exactly what TUV-x wrote. Ruled out.
+- **It is not a stride/indexing mixup.** Stride layout is verified.
+- **It IS a solver fidelity problem inside MICM.** The combination
+  of a huge (anomalous) step-1 photolysis rate, zero initial [O],
+  a very stiff Chapman cycle (R2 timescale ~14 μs at surface), and
+  a 3 s outer dt, drives Rosenbrock into an unphysical attractor
+  where oxygen is conserved at the cell level but N is created and
+  O3 overshoots by ~5 orders. The solver reports "9 accepted, 0
+  rejected" — it thinks it converged.
+
+This leaves TWO independent problems to fix:
+
+1. **Step-1 TOA photolysis rates.** TUV-x must attenuate through
+   the provided O3 column on the first call. (Lines B work.)
+2. **MICM Rosenbrock robustness.** Even if photolysis is correct,
+   the current combination of tolerance settings and dt seems
+   fragile. Worth testing loosened `__absolute tolerance`, a small
+   non-zero seed for [O], or a different solver family.
+
 ## Hypotheses still on the table
 
 1. **TUV-x radiator update ordering.** `radiator_from_host_t::update_state`
