@@ -23,6 +23,14 @@ share ancestry but have no merge or rebase relationship. Integration
 contributions take the form of focused pull requests that reimplement a
 mature CheMPAS feature against the current `MPAS-Model-ACOM-dev` tree.
 
+**Baseline:** CheMPAS derives from MPAS-Model v8.3.1 (commit `b9090a143`).
+At the file level, every v8.3.1 source file is present at the same path in
+CheMPAS (1197 / 1197), 97.6% of them byte-identical; the divergence is
+entirely additive (chemistry coupling, MUSICA/MICM/TUV-x integration, build
+fixes for macOS LLVM/flang) plus per-file modifications. See
+[docs/upstream/2026-04-19-vs-mpas-v8.3.1.md](docs/upstream/2026-04-19-vs-mpas-v8.3.1.md)
+for the full systematic comparison.
+
 In practice this means each upstream PR is:
 
 - **Scoped to one capability** — e.g., runtime tracer allocation, the
@@ -46,10 +54,27 @@ code and the relevant deeper documentation.
 
 - **Runtime chemistry tracer system** — chemistry tracers are removed from
   `Registry.xml` and discovered at startup from the active MICM YAML
-  configuration; tracer field arrays are allocated at runtime in the block
-  setup path.
-  Code: `src/core_atmosphere/mpas_atm_core_interface.F`,
-  `src/framework/mpas_block_creator.F`.
+  configuration. The `atm_extend_scalars_for_chemistry` hook, called from
+  `atm_setup_block` before field-array allocation, queries MICM for the
+  species list and extends the `scalars` pool's metadata in place
+  (`num_scalars` dimension, `constituentNames`, `attLists`, index dims) for
+  both time levels and the tend pool. The framework's normal allocation
+  path then sizes field arrays from the updated `num_scalars`. Two known
+  constraints: incompatible with `config_apply_lbcs=true` (because
+  `lbc_scalars` is statically sized from Registry metadata), and currently
+  hardcoded to the chemistry use case rather than a generic runtime
+  pool-extension mechanism. **Stopgap intent:** this implementation is
+  meant to be superseded by the generic runtime data-pool-variables
+  infrastructure planned for a future MPAS-Dev release; CheMPAS will
+  migrate when that lands upstream.
+  Code: `src/core_atmosphere/mpas_atm_core_interface.F:657`
+  (`atm_extend_scalars_for_chemistry`),
+  `src/core_atmosphere/chemistry/mpas_atm_chemistry.F:999`
+  (`chemistry_query_species`),
+  `src/core_atmosphere/chemistry/musica/mpas_musica.F:232`
+  (`musica_query_species`),
+  `src/framework/mpas_block_creator.F` (allocates arrays from
+  `num_scalars` after extension).
 
 - **MUSICA/MICM coupler** — state transfer between MPAS and MICM in
   mol/m³, unit conversion, and external rate-parameter wiring.
