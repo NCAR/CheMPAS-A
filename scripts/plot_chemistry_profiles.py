@@ -47,7 +47,9 @@ MOLAR_MASS = {
 
 # Species shown (O = qO + qO1D summed; O2 omitted because near-constant)
 SPECIES_PANELS = ["qO3", "qO_total", "qNO", "qNO2"]
-JVAR_PANELS    = ["j_jO2", "j_jO3_O", "j_jO3_O1D", "j_jNO2"]
+# Photolysis: combine jO3 channels since O(1D) is rapidly quenched to
+# O(3P) by M, so both produce atomic oxygen on the same timescale.
+JVAR_PANELS    = ["j_jO2", "j_jO3_total", "j_jNO2"]
 
 AXIS_SPECS = {
     # Species [ppb]
@@ -56,10 +58,9 @@ AXIS_SPECS = {
     "qNO":      {"range": (0.0, 5.0),       "log": False},
     "qNO2":     {"range": (0.0, 10.0),      "log": False},
     # Photolysis rates [s^-1]
-    "j_jO2":     {"range": (0.0, 5.0e-10), "log": False},
-    "j_jO3_O":   {"range": (0.0, 1.0e-3),  "log": False},
-    "j_jO3_O1D": {"range": (0.0, 1.0e-3),  "log": False},
-    "j_jNO2":    {"range": (0.0, 1.5e-2),  "log": False},
+    "j_jO2":       {"range": (0.0, 5.0e-10), "log": False},
+    "j_jO3_total": {"range": (0.0, 2.0e-3),  "log": False},  # jO3_O + jO3_O1D combined
+    "j_jNO2":      {"range": (0.0, 1.5e-2),  "log": False},
 }
 
 
@@ -95,10 +96,11 @@ def read_times_seconds(filename):
 def rate_label(name):
     rxn = name[2:] if name.startswith("j_") else name
     pretty = {
-        "jNO2":    r"$j_{NO_2}$",
-        "jO2":     r"$j_{O_2}$",
-        "jO3_O":   r"$j_{O_3 \to O(^3P)}$",
-        "jO3_O1D": r"$j_{O_3 \to O(^1D)}$",
+        "jNO2":       r"$j_{NO_2}$",
+        "jO2":        r"$j_{O_2}$",
+        "jO3_O":      r"$j_{O_3 \to O(^3P)}$",
+        "jO3_O1D":    r"$j_{O_3 \to O(^1D)}$",
+        "jO3_total":  r"$j_{O_3 \to O}$",   # jO3_O + jO3_O1D combined
     }
     return pretty.get(rxn, name)
 
@@ -126,6 +128,11 @@ def load_panel_data(ds, name):
         qO  = ds.variables["qO"][:] if "qO" in ds.variables else 0.0
         qO1D = ds.variables["qO1D"][:] if "qO1D" in ds.variables else 0.0
         return to_ppbv(qO + qO1D, MOLAR_MASS["qO"])
+    if name == "j_jO3_total":
+        # O(1D) is rapidly quenched to O(3P), so both channels produce O.
+        jO  = ds.variables["j_jO3_O"][:] if "j_jO3_O" in ds.variables else 0.0
+        j1D = ds.variables["j_jO3_O1D"][:] if "j_jO3_O1D" in ds.variables else 0.0
+        return jO + j1D
     if name.startswith("j_"):
         return ds.variables[name][:]
     Mw = MOLAR_MASS.get(name)
@@ -137,13 +144,8 @@ def _format_seconds(s):
     return f"t = {int(round(float(s)))} s"
 
 
-def _photolysis_tick_formatter(vmax):
-    """Return a formatter that keeps photolysis tick labels compact.
-
-    Small ranges -> scientific notation with one decimal; larger ranges
-    stay in engineering form so a panel with vmax = 1.5e-2 shows labels
-    like 0.005, 0.010, 0.015 instead of 0.00500 0.00750 etc.
-    """
+def _photolysis_tick_formatter():
+    """Compact scientific-notation formatter for photolysis rate ticks."""
     def fmt(x, _pos):
         if x == 0:
             return "0"
@@ -151,11 +153,18 @@ def _photolysis_tick_formatter(vmax):
     return mticker.FuncFormatter(fmt)
 
 
-def apply_tick_style(ax, name):
+def apply_tick_style(ax, name, spec):
     """Limit tick density and formatting per panel type."""
+    if spec is not None and spec["log"]:
+        # Log axes: one tick per decade keeps labels from overlapping.
+        ax.xaxis.set_major_locator(mticker.LogLocator(base=10.0, numticks=6))
+        ax.xaxis.set_minor_locator(mticker.LogLocator(
+            base=10.0, subs=np.arange(2, 10) * 0.1, numticks=6))
+        ax.xaxis.set_minor_formatter(mticker.NullFormatter())
+        return
     if name.startswith("j_"):
         ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=3))
-        ax.xaxis.set_major_formatter(_photolysis_tick_formatter(ax.get_xlim()[1]))
+        ax.xaxis.set_major_formatter(_photolysis_tick_formatter())
     else:
         ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=5))
 
@@ -186,7 +195,14 @@ def main() -> None:
                if v == "qO_total" or v in ds.variables]
     if "qO_total" in species and "qO" not in ds.variables and "qO1D" not in ds.variables:
         species.remove("qO_total")
-    jvars = [v for v in JVAR_PANELS if v in ds.variables]
+    jvars = []
+    for v in JVAR_PANELS:
+        if v == "j_jO3_total":
+            # Synthesized: needs both components
+            if "j_jO3_O" in ds.variables and "j_jO3_O1D" in ds.variables:
+                jvars.append(v)
+        elif v in ds.variables:
+            jvars.append(v)
     variables = species + jvars
     if not variables:
         raise SystemExit("No known species or j_* diagnostic variables found.")
@@ -227,7 +243,7 @@ def main() -> None:
             if spec["log"]:
                 ax.set_xscale("log")
 
-        apply_tick_style(ax, name)
+        apply_tick_style(ax, name, spec)
 
     for j in range(len(variables), nrows * ncols):
         axes[j // ncols, j % ncols].axis("off")
