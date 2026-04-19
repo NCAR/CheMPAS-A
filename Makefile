@@ -753,17 +753,23 @@ ifneq ($(wildcard $(NETCDF)/lib64/libnetcdf.*), )
 	NETCDFLIBLOC = lib64
 endif
 	CPPINCLUDES += -I$(NETCDF)/include
-	FCINCLUDES += -I$(NETCDF)/include
-	LIBS += -L$(NETCDF)/$(NETCDFLIBLOC)
 	NCLIB = -lnetcdf
 	NCLIBF = -lnetcdff
-	ifneq ($(wildcard $(NETCDF)/$(NETCDFLIBLOC)/libnetcdff.*), ) # CHECK FOR NETCDF4
-		LIBS += $(NCLIBF)
-	endif # CHECK FOR NETCDF4
+	# If NETCDFF is set, it takes precedence for the Fortran include and lib:
+	# put its -L FIRST (so -lnetcdff resolves to the NETCDFF copy) and do
+	# NOT add -lnetcdff from NETCDF. Needed on macOS with MUSICA+TUV-x where
+	# Homebrew's gfortran-built libnetcdff is ABI-incompatible with flang.
 	ifneq "$(NETCDFF)" ""
 		FCINCLUDES += -I$(NETCDFF)/include
-		LIBS += -L$(NETCDFF)/$(NETCDFLIBLOC)
-		LIBS += $(NCLIBF)
+		LIBS += -L$(NETCDFF)/$(NETCDFLIBLOC) $(NCLIBF)
+		FCINCLUDES += -I$(NETCDF)/include
+		LIBS += -L$(NETCDF)/$(NETCDFLIBLOC)
+	else
+		FCINCLUDES += -I$(NETCDF)/include
+		LIBS += -L$(NETCDF)/$(NETCDFLIBLOC)
+		ifneq ($(wildcard $(NETCDF)/$(NETCDFLIBLOC)/libnetcdff.*), ) # CHECK FOR NETCDF4
+			LIBS += $(NCLIBF)
+		endif # CHECK FOR NETCDF4
 	endif
 	LIBS += $(NCLIB)
 endif
@@ -892,6 +898,14 @@ endif
 
 	FCINCLUDES += $(MUSICA_FCINCLUDES)
 	LIBS += $(MUSICA_LIBS)
+	# libmusica.a has netcdf.F90.o (from TUV-x) whose __QMnetcdfP* symbols
+	# must resolve after -lmusica in static-lib link order. Re-append
+	# netcdff (and netcdf) from NETCDFF if set, otherwise NETCDF.
+	ifneq "$(NETCDFF)" ""
+		LIBS += -L$(NETCDFF)/$(NETCDFLIBLOC) -lnetcdff -L$(NETCDF)/$(NETCDFLIBLOC) -lnetcdf
+	else
+		LIBS += -L$(NETCDF)/$(NETCDFLIBLOC) -lnetcdff -lnetcdf
+	endif
 	override CPPFLAGS += $(MUSICA_FFLAGS)
 endif
 
