@@ -1,0 +1,93 @@
+version: "1.0.0"
+name: Chapman-NOx-no-O
+# Sanity-check variant: no [O], no production of O3 from O2.
+# Pure O3 decay system + Leighton NOx cycle.
+#
+# Purpose: test whether the chem_box qO3 explosion can happen in a
+# strictly-decaying, non-stiff, atom-conservative mechanism. If qO3 still
+# blows up here, the problem is in MICM's coupling/solver at the chem_box
+# scale, not in the [O] null cycle. If qO3 decays monotonically, the [O]
+# null cycle is implicated.
+#
+# Reactions (every one destroys atoms only — never creates them):
+#   jO3_O: O3 → (nothing)       photolytic sink, loses 3 O atoms per event
+#   jNO2:  NO2 → NO             photolytic sink, loses 1 O atom per event
+#   NO + O3 → NO2 + O2          atom-conservative (2N+4O → 2N+4O)
+#
+# jO2 omitted — physical value is ~0 in the MPAS domain and any rewrite
+# that produces O3 from O2 without an intermediate O would break atom
+# balance (which was the pathology of the previous attempt).
+
+species:
+  - name: O2
+    __molar mass: 0.032
+    __long name: molecular_oxygen
+    __do advect: true
+    __initial concentration: 0.0
+  - name: O3
+    __absolute tolerance: 1e-10
+    __molar mass: 0.048
+    __long name: ozone
+    __atoms: 3
+    __do advect: true
+    __initial concentration: 0.0
+  - name: NO
+    __absolute tolerance: 1e-10
+    __molar mass: 0.030
+    __long name: nitric_oxide
+    __do advect: true
+    __initial concentration: 0.0
+  - name: NO2
+    __absolute tolerance: 1e-10
+    __molar mass: 0.046
+    __long name: nitrogen_dioxide
+    __do advect: true
+    __initial concentration: 0.0
+
+phases:
+  - name: gas
+    species:
+      - O2
+      - O3
+      - NO
+      - NO2
+
+reactions:
+  - type: PHOTOLYSIS
+    gas phase: gas
+    reactants:
+      - species name: O3
+        coefficient: 1
+    products: []
+    name: jO3_O
+
+  - type: ARRHENIUS
+    # NO + O3 -> NO2 + O2    (JPL: k = 3.0e-12 exp(-1500/T); existing lnox_o3
+    # value A=1.084e6 preserved)
+    gas phase: gas
+    reactants:
+      - species name: NO
+        coefficient: 1
+      - species name: O3
+        coefficient: 1
+    products:
+      - species name: NO2
+        coefficient: 1
+      - species name: O2
+        coefficient: 1
+    A: 1.084e6
+    B: 0
+    C: -1370.0
+    D: 300
+    E: 0
+    name: R_NO_O3
+
+  - type: PHOTOLYSIS
+    gas phase: gas
+    reactants:
+      - species name: NO2
+        coefficient: 1
+    products:
+      - species name: NO
+        coefficient: 1
+    name: jNO2

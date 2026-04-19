@@ -515,6 +515,58 @@ make no difference: the adaptive controller keeps accepting the
 same ~0.3 s sub-steps that land the implicit Newton iterate on
 the wrong fixed point.
 
+### Deeper reason: "adaptive and converged" ≠ "correct"
+
+The adaptive controller only measures *local* truncation error
+against the tolerances. It has no view of physical correctness.
+For a Backward Euler implicit solve of stiff Chapman chemistry
+starting from `[O] = 0` with full-strength photolysis, the
+implicit equation
+
+```
+y_{n+1} - y_n - dt · f(t_{n+1}, y_{n+1}) = 0
+```
+
+has more than one physically-distinct root within the 3 s outer
+dt: the true gradual-ramp-up trajectory where [O] slowly builds
+from photolysis, and the far-field attractor where [O2] has
+already been converted to [O3] + [O] at ~10% mass-fraction
+levels. Newton lands on whichever root is closer to its
+linearization, not necessarily the physical one.
+
+The adaptive controller sub-divides when its estimate of the
+local error |y_new − y_old_extrapolated| exceeds the tolerance.
+But if Newton is converging to the wrong root at *every*
+sub-step, those local errors can still be small — the solver
+has no way to tell "the root I'm finding is physically wrong."
+That's why the Line A logs show "9 accepted, 0 rejected" — the
+solver literally thinks it converged.
+
+**What shortening the outer dt does** (that no internal stepper
+can replicate): shrink the neighborhood where the implicit
+equation has multiple roots. At `dt = 0.1 s`, `dt · f` is small,
+so Newton is forced to land near the initial state — i.e., on
+the physical trajectory. With many short outer steps, [O]
+builds up stepwise from photolysis and the Chapman null cycle
+tracks reality. By the time outer dt returns to 3 s, the state
+is no longer degenerate.
+
+Corollary: **starting at night** (`cos_sza < 0`, option 4) has
+the same effect for free. With photolysis rates at zero,
+`dt · f ≈ 0` regardless of outer dt, so the implicit solve is
+trivial. As photolysis ramps up smoothly through dawn, [O]
+builds up gradually at naturally-small j-values. No Newton
+degeneracy ever develops. This is why the MUSICA column model
+(`fortran/examples/column_model.F90`) never sees the
+explosion — it starts pre-dawn by construction.
+
+Operator splitting is a secondary factor: chemistry and
+dynamics are split at the outer-dt boundary with the photolysis
+rates frozen during the MICM solve. Shorter outer dt means less
+splitting error when j-values are changing rapidly (e.g. across
+sunrise). This is first-order in outer dt and cannot be
+recovered by any amount of internal adaptive stepping.
+
 ## Next planned test — tighten `relative_tolerance`
 
 Extend `musica_init` in `mpas_musica.F` to call
@@ -560,6 +612,50 @@ Not committed — open work:
   pre-tolerance-change baseline.
 - If successful, decide on production tolerance values and
   whether to expose them via namelist.
+
+## 2026-04-18 update: handoff API gap + pivoting to option 4
+
+Picked up the handoff on the macOS side. Two findings before
+running the next test:
+
+1. **The Fortran binding `set_backward_euler_solver_parameters`
+   doesn't exist** in the installed MUSICA-Fortran. Searched
+   `MUSICA-LLVM/fortran/{micm,state}.F90`, the C interface
+   (`src/micm/{micm,state}_c_interface.cpp`), and
+   `libmusica.a` symbols — no `Set*SolverParameters`, no
+   `SetRelativeTolerance`, nothing tolerance-related beyond
+   what v1 parses from YAML (`absolute_tolerance` per species
+   only).
+2. **Upstream `BackwardEulerSolverParameters` does not contain
+   `relative_tolerance`.** From
+   `build/_deps/micm-src/include/micm/solver/backward_euler_solver_parameters.hpp`
+   it has only `{small_, h_start_, max_number_of_steps_,
+   time_step_reductions_}`. `relative_tolerance_` is a scalar
+   on `State` (default `1e-06`, `micm-src/.../solver/state.hpp:34`),
+   set via direct C++ assignment — not exposed via any C API.
+
+So following the handoff literally requires a cross-repo MUSICA
+API addition (new C shim for `state.relative_tolerance_` and
+BE param setters, matching Fortran bindings, rebuild MUSICA-LLVM,
+rebuild CheMPAS). Deferring that; trying option 4 first —
+pre-dawn start — since it targets the same root cause
+(degenerate implicit-solve neighborhood at full-strength
+photolysis) with only a namelist edit.
+
+Test plan (option 4):
+- `config_start_time = '0000-01-01_10:00:00'` (04:00 local at
+  chem_lat 35.86, chem_lon -97.93 → pre-dawn, cos_sza < 0)
+- `config_run_duration = '09:00:00'` → finishes 19:00 UTC
+  (13:00 local, ~30 min past solar noon)
+- dt = 3 s unchanged, BE solver unchanged, qO seed unchanged.
+- Crosses civil-twilight (~12:35 UTC) and sunrise (~13:30 UTC);
+  photolysis ramps up from zero over ~1 h.
+- Pass condition: qO3 stays within ~2× AFGL profile through
+  noon; no 1e4× saturation.
+- Fail condition: same saturation as daytime start — implies
+  the Newton-degeneracy happens again at the sunrise crossing,
+  which would mean shortening dt across dawn (not just starting
+  earlier) is the real fix.
 
 ## Hypotheses still on the table
 
@@ -633,3 +729,113 @@ chemistry on the very first step (let dynamics run once, then
 allow chem to start). That sidesteps the bootstrap without
 addressing the root cause. Not a real fix — flag it as mitigation
 only.
+
+## 2026-04-18 pm session: root cause pinned to stiffness
+
+Two new shipped commits:
+- Re-entrant `micm%solve` loop in `mpas_musica.F::musica_step` and
+  `musica_step_ref`: if the solver returns early with
+  `solver_stats%final_time() < time_step`, resubmit the remainder
+  until the full `time_step` is covered. Matches the pattern in
+  `MUSICA/fortran/examples/column_model.F90:217-229`.
+- `config_chem_substeps` namelist option (default 1) and outer loop
+  in `mpas_atm_chemistry.F::chemistry_step` that calls
+  `musica_step(dt/N)` N times per MPAS step, with the TUV-x
+  photolysis rates frozen across sub-steps. No MUSICA changes.
+
+### The handoff plan's `relative_tolerance` proposal required cross-repo work
+
+`set_backward_euler_solver_parameters` does not exist as a Fortran
+binding in installed MUSICA-Fortran. Searched
+`MUSICA-LLVM/fortran/{micm,state}.F90`,
+`src/micm/{micm,state}_c_interface.cpp`, and `libmusica.a` symbols —
+no `Set*SolverParameters`, no `SetRelativeTolerance`. Upstream
+`BackwardEulerSolverParameters` does not even contain
+`relative_tolerance_`; that scalar lives on `State` (default `1e-06`,
+`micm-src/.../solver/state.hpp:34`) and has no C accessor. Pursuing
+the proposal as written would need new entry points in MUSICA-LLVM.
+
+### Sub-stepping alone does NOT fix the full Chapman run
+
+Ran `chapman_nox.yaml` with `config_chem_substeps = 30` (dt = 0.1 s)
+at 18:00 UTC. Result: **qO3 explodes identically** — 24000 → 9.4e7 ppb
+at 5 min, same as `config_chem_substeps = 1`.
+
+Reason: the R2 termolecular (O + O2 + M → O3 + M) has
+`k2·[O2]·[M] ≈ 4.5e4 s⁻¹` at surface, so `τ_O ≈ 14 µs`. At dt = 0.1 s,
+`dt/τ_O ≈ 1e4` — still massively stiff. Newton's multi-root pathology
+persists. Shortening dt by finite factors cannot outrun a µs-scale
+stiffness; you would need dt < 1 µs.
+
+### Sanity tests — what the solver actually does
+
+Three progressively-simpler mechanisms tested on `chem_box` at 18:00 UTC,
+dt=3s, `config_chem_substeps = 1`:
+
+**Test A: atom-non-conservative `O2 → 2 O3`.** Broken stoichiometry
+(creates 4 O atoms per photolysis). qO3 mean grew 5e-6 → 0.29 kg/kg at
+5 min; qO2 mean dropped 0.23 → 0.13; net O-atom mass change
++0.19 kg / kg air. **BE landed on an unphysical root specifically
+because unbalanced stoichiometry gave the implicit equation extra roots
+to find.** Lesson: sanity checks must preserve atom conservation or
+they fail for uninformative reasons.
+
+**Test B: atom-conservative decay-only `chapman_nox_no_O.yaml`.**
+No [O], no [O1D], no production of O3 from O2. Reactions:
+`O3 → (nothing)` (jO3_O sink), `NO + O3 → NO2 + O2`,
+`NO2 → NO` (jNO2 sink). qO3 max decayed monotonically
+24000 → 750 → 23 ppb (t = 0, 5, 10 min). qO2 unchanged. qNO/qNO2
+fluctuate stably through the Leighton cycle. **No explosion.**
+MICM/BE handles atom-conservative non-stiff chemistry cleanly.
+
+**Test C: `chapman_nox_slow.yaml` — same topology, rates scaled 1e-6 on
+R2 and R6.** `τ_O` 14 µs → 14 s, `τ_O1D` ~1 µs → ~1 s; no longer stiff
+at dt = 3 s. Full species set {M, O, O1D, O2, O3, NO, NO2} and all 9
+reactions present. Result: qO3 max 24000 → 1668 → 1660 ppb, qO rises
+to 0.22 kg/kg at column top (unphysical equilibrium for the bogus
+rates, but the system is on the attractor those rates define). **Atom
+balance exact at every level, every timestep:
+qO + qO2 + qO3 = 0.2314 kg/kg everywhere.** No runaway, no wrong root.
+
+### Conclusion
+
+Stiffness is the cause. The microsecond `[O]/[O3]` null cycle creates
+a multi-root implicit equation at any practical dt; BE's Newton
+iterate picks the non-physical root when started from a degenerate
+state (`[O] ≈ 0` with full photolysis). MICM is *not* broken — on
+atom-conservative non-stiff systems it integrates correctly, and when
+Newton starts from a non-degenerate state on the physical attractor it
+stays there.
+
+### Implication: Newton stability on the attractor
+
+BE's Newton iterate linearizes around its starting guess (typically
+`y_old`). With `y_old` in a degenerate neighborhood ([O] ≈ 0, full
+photolysis), the Jacobian is ill-conditioned — the loss term
+`k2·[O]·[O2]·[M]` is dominated by `[O]` going to zero, so there is no
+restoring force toward small [O], and the far-field attractor is
+within reach. With `y_old = [O]_ss`, the Jacobian has active loss
+terms and Newton's linearization lands on the nearest root — the
+physical one.
+
+This means: once the system is spun up to QSS, normal dt is safe. The
+only unsafe moments are when something pushes the state into a
+degenerate neighborhood (cold start, sunrise after long night with
+[O] not at QSS, impulsive perturbations).
+
+### Next test — warmup strategy
+
+Run the first N MPAS chemistry steps with `config_chem_substeps` very
+high (e.g. 3000 → dt = 0.001 s, below `τ_O` at all altitudes up to
+stratosphere) so Newton is forced to the physical root every step and
+[O] builds up to QSS. After N steps, drop `config_chem_substeps = 1`
+and continue at the full 3 s outer dt; rely on attractor stability
+to keep Newton on the physical manifold.
+
+To implement without per-step namelist churn: add
+`config_chem_warmup_steps` and `config_chem_warmup_substeps` options
+and switch to `config_chem_substeps` once the counter elapses.
+
+If this works, it's a cheap production fix for the cold-start case and
+a clean model for handling sunrise in longer runs (same pattern, just
+triggered by cos_sza transitions rather than step count).

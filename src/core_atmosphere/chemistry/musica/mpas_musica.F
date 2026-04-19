@@ -296,23 +296,67 @@ module mpas_musica
         use musica_util, only : error_t, string_t
 
         use mpas_log, only : mpas_log_write
+        use mpas_kind_types, only : RKIND
 
         real(real64), intent(in) :: time_step
 
         integer,                       intent(out) :: error_code
         character(len=:), allocatable, intent(out) :: error_message
 
-        type(string_t)       :: solver_state 
+        type(string_t)       :: solver_state
         type(solver_stats_t) :: solver_stats
         type(error_t)        :: error
 
+        real(real64)       :: elapsed, remaining, advanced
+        integer            :: sub_call
+        integer, parameter :: MAX_SUB_CALLS = 100
+
+        ! Re-entrant solve loop: MICM's adaptive controller returns early when
+        ! it exhausts its internal step budget (max_number_of_steps, default 11)
+        ! before reaching the requested interval. solver_stats%final_time()
+        ! reports how far it actually advanced. Resubmit the remainder until
+        ! the full time_step is covered or the safety cap is hit. This is the
+        ! pattern used by MUSICA/fortran/examples/column_model.F90 and is
+        ! required for stiff transients (e.g. Chapman chemistry at sunrise).
+
         call mpas_log_write('[MUSICA] Stepping MICM solver...')
 
-        call micm%solve(time_step, state, solver_state, solver_stats, error)
-        if (has_error_occurred(error, error_message, error_code)) return
+        elapsed  = 0.0_real64
+        sub_call = 0
 
-        if (solver_state%get_char_array() /= 'Converged') then
-            call mpas_log_write('[MUSICA Warning] MICM solver failure')
+        do while (elapsed < time_step .and. sub_call < MAX_SUB_CALLS)
+            sub_call = sub_call + 1
+            remaining = time_step - elapsed
+
+            call micm%solve(remaining, state, solver_state, solver_stats, error)
+            if (has_error_occurred(error, error_message, error_code)) return
+
+            advanced = solver_stats%final_time()
+
+            if (advanced <= 0.0_real64) then
+                call mpas_log_write('[MUSICA Error] MICM advanced 0 s with state "' // &
+                    solver_state%get_char_array() // '"; aborting sub-step loop')
+                error_code = 1
+                error_message = '[MUSICA] MICM stalled at sub-step'
+                return
+            end if
+
+            elapsed = elapsed + advanced
+        end do
+
+        if (elapsed < time_step) then
+            call mpas_log_write('[MUSICA Error] MICM exhausted sub-call budget ($i calls); ' // &
+                'elapsed $r of $r s', &
+                intArgs=[MAX_SUB_CALLS], &
+                realArgs=[real(elapsed, RKIND), real(time_step, RKIND)])
+            error_code = 1
+            error_message = '[MUSICA] sub-step budget exhausted'
+            return
+        end if
+
+        if (sub_call > 1) then
+            call mpas_log_write('[MUSICA] MICM completed time_step $r s in $i sub-calls', &
+                intArgs=[sub_call], realArgs=[real(time_step, RKIND)])
         end if
 
         call log_solver_stats(solver_stats)
@@ -344,13 +388,34 @@ module mpas_musica
         type(solver_stats_t) :: solver_stats
         type(error_t)        :: error
 
-        ! Solve reference state (not coupled to MPAS, chemistry only)
-        call micm%solve(time_step, state_ref, solver_state, solver_stats, error)
-        if (has_error_occurred(error, error_message, error_code)) return
+        real(real64)       :: elapsed, remaining, advanced
+        integer            :: sub_call
+        integer, parameter :: MAX_SUB_CALLS = 100
 
-        if (solver_state%get_char_array() /= 'Converged') then
+        ! Re-entrant solve loop (see musica_step above for rationale).
+        elapsed  = 0.0_real64
+        sub_call = 0
+
+        do while (elapsed < time_step .and. sub_call < MAX_SUB_CALLS)
+            sub_call = sub_call + 1
+            remaining = time_step - elapsed
+
+            call micm%solve(remaining, state_ref, solver_state, solver_stats, error)
+            if (has_error_occurred(error, error_message, error_code)) return
+
+            advanced = solver_stats%final_time()
+            if (advanced <= 0.0_real64) then
+                error_code = 1
+                error_message = '[MUSICA] Reference MICM stalled at sub-step'
+                return
+            end if
+
+            elapsed = elapsed + advanced
+        end do
+
+        if (elapsed < time_step) then
             error_code = 1
-            error_message = '[MUSICA Warning] Reference MICM solver failure'
+            error_message = '[MUSICA] Reference MICM sub-step budget exhausted'
         end if
 
     end subroutine musica_step_ref

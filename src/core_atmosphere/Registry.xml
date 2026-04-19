@@ -452,6 +452,10 @@
                      units="-"
                      description="Run a duplicate MICM solve on uncoupled reference state for advection diagnostics. Doubles chemistry cost."
                      possible_values=".true. or .false."/>
+                <nml_option name="config_chem_substeps" type="integer" default_value="1"
+                     units="-"
+                     description="Number of MICM sub-steps per MPAS dt. MICM is called N times with dt/N; needed when mechanisms with fast null cycles (e.g. Chapman [O]/[O3]) cause Backward Euler to land on unphysical implicit roots at the full outer dt."
+                     possible_values="Any positive integer"/>
         </nml_record>
 #endif
 

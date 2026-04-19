@@ -1,0 +1,250 @@
+version: "1.0.0"
+name: Chapman-NOx-slow
+# SANITY-TEST VARIANT of chapman_nox.yaml.
+# Same species, same reaction topology (including full [O] and [O1D] loops)
+# as chapman_nox.yaml. Only the two fast termolecular/quenching rate
+# constants are scaled down by 1e6 to remove stiffness while keeping the
+# Chapman structure intact:
+#   R2 (O + O2 + M -> O3 + M):   A 2.176e2 -> 2.176e-4   (τ_O: 14 µs -> 14 s)
+#   R6 (O1D + M -> O + M):       A 1.422e7 -> 1.422e1    (τ_O1D: ~1 µs -> ~1 s)
+# All other rate constants unchanged. The resulting chemistry is
+# physically wrong (Chapman ozone equilibrium shifts drastically) but
+# the ODE system is no longer stiff at dt = 3 s.
+#
+# Purpose: confirm that MICM's Backward Euler can integrate the full
+# Chapman-NOx reaction topology when stiffness is removed. If qO3 stays
+# stable here, stiffness of R2/R6 is the cause of the explosion in
+# chapman_nox.yaml. If qO3 still explodes, the problem is deeper than
+# stiffness.
+#
+# Reverting to physical rates: restore the original A values from
+# chapman_nox.yaml (2.17597...e2 for R2, 1.4223365...e7 for R6).
+#
+# ARRHENIUS rate form (MICM v1):
+#   k = A * (T/D)^B * exp(C/T) * (1 + E*P)
+# Rate constants in SI (mol/m^3 basis).
+
+species:
+  - name: M
+    is third body: true
+    __description: Third-body molecule.
+  - name: O2
+    # Do not mark as CONSTANT tracer — the canonical MICM Chapman
+    # config treats O2 as a regular species integrated by the solver.
+    # MICM reads [O2] from MPAS state each step via
+    # MICM_from_chemistry, so a uniform 0.2095 VMR seed is preserved.
+    __molar mass: 0.032
+    __long name: molecular_oxygen
+    __do advect: true
+    __initial concentration: 0.0
+  - name: O
+    __absolute tolerance: 1e-10
+    __molar mass: 0.016
+    __long name: atomic_oxygen_3P
+    __do advect: true
+    __initial concentration: 0.0
+  - name: O1D
+    __absolute tolerance: 1e-10
+    __molar mass: 0.016
+    __long name: atomic_oxygen_1D
+    __do advect: true
+    __initial concentration: 0.0
+  - name: O3
+    __absolute tolerance: 1e-10
+    __molar mass: 0.048
+    __long name: ozone
+    __atoms: 3
+    __do advect: true
+    __initial concentration: 0.0
+  - name: NO
+    __absolute tolerance: 1e-10
+    __molar mass: 0.030
+    __long name: nitric_oxide
+    __do advect: true
+    __initial concentration: 0.0
+  - name: NO2
+    __absolute tolerance: 1e-10
+    __molar mass: 0.046
+    __long name: nitrogen_dioxide
+    __do advect: true
+    __initial concentration: 0.0
+
+phases:
+  - name: gas
+    species:
+      - M
+      - O
+      - O2
+      - O3
+      - O1D
+      - NO
+      - NO2
+
+reactions:
+  # ----- Chapman cycle (values copied from MUSICA/configs/v1/chapman) -----
+
+  - type: PHOTOLYSIS
+    gas phase: gas
+    reactants:
+      - species name: O2
+    products:
+      - species name: O
+        coefficient: 2
+    name: jO2
+
+  - type: ARRHENIUS
+    # O + O2 + M -> O3 + M    (JPL: k0 = 6.0e-34 (T/300)^-2.4, termolecular)
+    gas phase: gas
+    reactants:
+      - species name: O
+        coefficient: 1
+      - species name: O2
+        coefficient: 1
+      - species name: M
+        coefficient: 1
+    products:
+      - species name: O3
+        coefficient: 1
+      - species name: M
+        coefficient: 1
+    A: 2.17597075999520e-4   # was 2.17597e2 — scaled 1e-6 for sanity test
+    B: -2.4
+    C: 0
+    D: 300
+    E: 0
+    name: R2
+
+  - type: PHOTOLYSIS
+    gas phase: gas
+    reactants:
+      - species name: O3
+        coefficient: 1
+    products:
+      - species name: O
+        coefficient: 1
+      - species name: O2
+        coefficient: 1
+    name: jO3_O
+
+  - type: ARRHENIUS
+    # O + O3 -> 2 O2    (JPL: k = 8.0e-12 exp(-2060/T))
+    gas phase: gas
+    reactants:
+      - species name: O
+        coefficient: 1
+      - species name: O3
+        coefficient: 1
+    products:
+      - species name: O2
+        coefficient: 2
+    A: 4817712.608
+    B: 0
+    C: -2059.0316582998285
+    D: 300
+    E: 0
+    name: R4
+
+  - type: PHOTOLYSIS
+    gas phase: gas
+    reactants:
+      - species name: O3
+        coefficient: 1
+    products:
+      - species name: O1D
+        coefficient: 1
+      - species name: O2
+        coefficient: 1
+    name: jO3_O1D
+
+  - type: ARRHENIUS
+    # O1D + M -> O + M    (approximate combined O1D+N2 and O1D+O2 quenching)
+    gas phase: gas
+    reactants:
+      - species name: O1D
+        coefficient: 1
+      - species name: M
+        coefficient: 1
+    products:
+      - species name: O
+        coefficient: 1
+      - species name: M
+        coefficient: 1
+    A: 14.22336593        # was 1.4223e7 — scaled 1e-6 for sanity test
+    B: 0
+    C: 90.0
+    D: 300
+    E: 0
+    name: R6
+
+  - type: ARRHENIUS
+    # O1D + O3 -> 2 O2    (JPL: k = 1.2e-10)
+    gas phase: gas
+    reactants:
+      - species name: O1D
+        coefficient: 1
+      - species name: O3
+        coefficient: 1
+    products:
+      - species name: O2
+        coefficient: 2
+    A: 7.22e7
+    B: 0
+    C: 0
+    D: 300
+    E: 0
+    name: R7
+
+  # ----- NOx catalytic O3 destruction -----
+
+  - type: ARRHENIUS
+    # NO + O3 -> NO2 + O2    (JPL: k = 3.0e-12 exp(-1500/T); existing lnox_o3
+    # value A=1.084e6 preserved)
+    gas phase: gas
+    reactants:
+      - species name: NO
+        coefficient: 1
+      - species name: O3
+        coefficient: 1
+    products:
+      - species name: NO2
+        coefficient: 1
+      - species name: O2
+        coefficient: 1
+    A: 1.084e6
+    B: 0
+    C: -1370.0
+    D: 300
+    E: 0
+    name: R_NO_O3
+
+  - type: ARRHENIUS
+    # NO2 + O -> NO + O2    (JPL: k = 5.1e-12 exp(+210/T))
+    gas phase: gas
+    reactants:
+      - species name: NO2
+        coefficient: 1
+      - species name: O
+        coefficient: 1
+    products:
+      - species name: NO
+        coefficient: 1
+      - species name: O2
+        coefficient: 1
+    A: 3.07e6
+    B: 0
+    C: 210.0
+    D: 300
+    E: 0
+    name: R_NO2_O
+
+  - type: PHOTOLYSIS
+    gas phase: gas
+    reactants:
+      - species name: NO2
+        coefficient: 1
+    products:
+      - species name: NO
+        coefficient: 1
+      - species name: O
+        coefficient: 1
+    name: jNO2
