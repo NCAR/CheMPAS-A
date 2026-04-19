@@ -36,6 +36,8 @@ import style  # noqa: E402
 
 # Molar masses [kg/mol] for mass->ppbv conversion
 M_AIR = 0.02897
+M_O2  = 0.032
+M_O3  = 0.048
 MOLAR_MASS = {
     "qO":   0.016,
     "qO1D": 0.016,
@@ -44,6 +46,8 @@ MOLAR_MASS = {
     "qNO":  0.030,
     "qNO2": 0.046,
 }
+
+NA = 6.02214076e23  # Avogadro
 
 # Species shown (O = qO + qO1D summed; O2 omitted because near-constant)
 SPECIES_PANELS = ["qO3", "qO_total", "qNO", "qNO2"]
@@ -54,7 +58,7 @@ JVAR_PANELS    = ["j_jO2", "j_jO3_total", "j_jNO2"]
 AXIS_SPECS = {
     # Species [ppb]
     "qO3":      {"range": (1.0, 1.0e5),     "log": True},   # AFGL MLS profile
-    "qO_total": {"range": (0.0, 5.0e7),     "log": False},  # idealized spin-up transient
+    "qO_total": {"range": (1.0e-4, 1.0e8),  "log": True},   # wide: spin-up (~1e7) + Chapman SS (~1e2)
     "qNO":      {"range": (0.0, 5.0),       "log": False},
     "qNO2":     {"range": (0.0, 10.0),      "log": False},
     # Photolysis rates [s^-1]
@@ -119,6 +123,49 @@ def panel_xlabel(name):
     if name.startswith("j_"):
         return f"{rate_label(name)} [s$^{{-1}}$]"
     return f"{style.species_label(name)} [ppb]"
+
+
+def chapman_steady_state_O_ppb(ds, time_idx):
+    """Return horizontal-mean Chapman steady-state [O] in ppb on the MPAS grid.
+
+    Solves P_O = L_O at each (cell, level):
+      P_O = 2 * jO2 * [O2] + (jO3_O + jO3_O1D) * [O3]
+      L_O = k(O+O2+M) * [M] * [O2] * [O] + k(O+O3) * [O3] * [O]
+    with JPL-style rate constants:
+      k(O+O2+M) = 6.1e-34 * (T/300)^-2.4   cm^6 molec^-2 s^-1
+      k(O+O3)   = 8.0e-12 * exp(-2060/T)    cm^3 molec^-1 s^-1
+
+    The product [M]*[O2]*[O] from the 3-body reaction dominates below
+    ~60 km. The horizontal mean is taken after the per-cell solve
+    because the formula is non-linear in T.
+    """
+    rho    = ds.variables["rho"][time_idx, :, :]
+    theta  = ds.variables["theta"][time_idx, :, :]
+    press  = ds.variables["pressure"][time_idx, :, :]
+    qO2    = ds.variables["qO2"][time_idx, :, :]
+    qO3    = ds.variables["qO3"][time_idx, :, :]
+    jO2_a  = ds.variables["j_jO2"][time_idx, :, :]
+    jO3a_a = ds.variables["j_jO3_O"][time_idx, :, :]
+    jO3b_a = ds.variables["j_jO3_O1D"][time_idx, :, :]
+    jO3    = jO3a_a + jO3b_a
+
+    T = theta * (press / 1.0e5) ** (287.0 / 1004.0)
+
+    # Number densities [molec / cm^3]
+    n_M  = rho / M_AIR * NA * 1.0e-6
+    n_O2 = qO2 * rho / M_O2 * NA * 1.0e-6
+    n_O3 = qO3 * rho / M_O3 * NA * 1.0e-6
+
+    k_O_O2_M = 6.1e-34 * (T / 300.0) ** (-2.4)           # cm^6/molec^2/s
+    k_O_O3   = 8.0e-12 * np.exp(-2060.0 / T)             # cm^3/molec/s
+
+    prod = 2.0 * jO2_a * n_O2 + jO3 * n_O3
+    loss_coeff = k_O_O2_M * n_M * n_O2 + k_O_O3 * n_O3
+    with np.errstate(divide="ignore", invalid="ignore"):
+        n_O_ss = np.where(loss_coeff > 0, prod / loss_coeff, np.nan)
+        ppb_ss = n_O_ss / n_M * 1.0e9
+
+    return np.nanmean(ppb_ss, axis=0)
 
 
 def load_panel_data(ds, name):
@@ -217,6 +264,10 @@ def main() -> None:
     # the project. If there are more frames than palette colours we cycle.
     time_colors = style.get_palette(nTimes)
 
+    have_ss_inputs = all(v in ds.variables for v in
+                         ("rho", "theta", "pressure", "qO2", "qO3",
+                          "j_jO2", "j_jO3_O", "j_jO3_O1D"))
+
     for idx, name in enumerate(variables):
         ax = axes[idx // ncols, idx % ncols]
         arr_plot = load_panel_data(ds, name)
@@ -230,6 +281,12 @@ def main() -> None:
             ax.plot(mean, z_mid_km, color=time_colors[t], lw=1.8, label=label)
             ax.fill_betweenx(z_mid_km, lo, hi, color=time_colors[t], alpha=0.12,
                               linewidth=0)
+
+        # Chapman analytic steady-state [O] reference for the O panel
+        if name == "qO_total" and have_ss_inputs:
+            ppb_ss = chapman_steady_state_O_ppb(ds, nTimes - 1)
+            ax.plot(ppb_ss, z_mid_km, color=style.NCAR_COLORS["gray"],
+                    lw=1.5, ls="--", label="Chapman SS")
 
         ax.set_xlabel(panel_xlabel(name))
         ax.set_title(panel_title(name))
@@ -251,6 +308,16 @@ def main() -> None:
     axes[0, 0].legend(loc="best",
                        fontsize=style.FONT_SIZES_DEFAULT.legend_small,
                        title="sim time")
+
+    # O panel gets its own single-entry legend for the steady-state line
+    if "qO_total" in variables:
+        o_idx = variables.index("qO_total")
+        ax_o = axes[o_idx // ncols, o_idx % ncols]
+        handles, labels = ax_o.get_legend_handles_labels()
+        ss = [(h, l) for h, l in zip(handles, labels) if l == "Chapman SS"]
+        if ss:
+            ax_o.legend([ss[0][0]], [ss[0][1]], loc="best",
+                        fontsize=style.FONT_SIZES_DEFAULT.legend_small)
 
     fig.suptitle(
         f"Horizontal-mean profiles from {Path(args.input).name}  |  "
