@@ -1443,6 +1443,8 @@ module init_atm_cases
       real (kind=RKIND), dimension(:), pointer :: u_init, qv_init, angleEdge, fEdge, fVertex
 
       character (len=StrKIND), pointer :: config_interface_projection
+      character (len=StrKIND), pointer :: config_specified_zeta_levels
+      real (kind=RKIND), dimension(:), pointer :: specified_zw
 
       call mpas_pool_get_array(mesh, 'xCell', xCell)
       call mpas_pool_get_array(mesh, 'yCell', yCell)
@@ -1571,39 +1573,55 @@ module init_atm_cases
 
       !     metrics for hybrid coordinate and vertical stretching
 
-      str = 1.0
-      zt = 20000.
-      dz = zt/float(nz1)
+      call mpas_pool_get_config(configs, 'config_specified_zeta_levels', config_specified_zeta_levels)
 
-!      write(0,*) ' dz = ',dz
       call mpas_log_write(' hx computation complete ')
 
-      do k=1,nz
+      if (len_trim(config_specified_zeta_levels) > 0) then
 
-!           sh(k) is the stretching specified for height surfaces
+         ! Read user-supplied edge heights (metres). Used by the supercell
+         ! test case to extend beyond the default 20-km top with stretching.
+         call mpas_log_write('Setting up vertical grid using levels from '''//trim(config_specified_zeta_levels)//'''')
 
-            zc(k) = zt*(real(k-1)*dz/zt)**str 
+         if (read_text_array(dminfo, trim(config_specified_zeta_levels), specified_zw) /= 0) then
+            call mpas_log_write('Failed to read vertical levels from '''//trim(config_specified_zeta_levels)//'''', &
+                                 messageType=MPAS_LOG_CRIT)
+         end if
 
-!           to specify specific heights zc(k) for coordinate surfaces,
-!           input zc(k) 
-!           zw(k) is the hieght of zeta surfaces
-!                zw(k) = (k-1)*dz yields constant dzeta
-!                        and nonconstant dzeta/dz
-!                zw(k) = sh(k)*zt yields nonconstant dzeta
-!                        and nearly constant dzeta/dz 
+         if (size(specified_zw) /= nz) then
+            call mpas_log_write('config_nvertlevels = $i, but', intArgs=(/nz1/), messageType=MPAS_LOG_ERR)
+            call mpas_log_write(''''//trim(config_specified_zeta_levels)//''' has $i values.', &
+                                 intArgs=(/size(specified_zw)/), messageType=MPAS_LOG_ERR)
+            call mpas_log_write(''''//trim(config_specified_zeta_levels)//''' must contain nVertLevels+1 ($i) values.', &
+                                 intArgs=(/nz/), messageType=MPAS_LOG_CRIT)
+         end if
 
-!            zw(k) = float(k-1)*dz
-            zw(k) = zc(k)
-!
-!           ah(k) governs the transition between terrain-following 
-!           and pureheight coordinates
-!                ah(k) = 0 is a terrain-following coordinate
-!                ah(k) = 1 is a height coordinate
- 
-!            ah(k) = 1.-cos(.5*pii*(k-1)*dz/zt)**6
+         do k=1,nz
+            zw(k) = specified_zw(k)
+            zc(k) = zw(k)   ! flat-terrain idealized case: zc = zw
             ah(k) = 1.
-!            call mpas_log_write(' k, zc, zw, ah = $i $r $r $r', intArgs=(/k/), realArgs=(/zc(k),zw(k),ah(k)/))
-      end do
+         end do
+
+         zt = zw(nz)
+         dz = zt/float(nz1)
+
+         deallocate(specified_zw)
+
+      else
+
+         ! Legacy path: uniform 20-km column (original squall-line / supercell setup).
+         ! Preserved for case 4 (squall line) and any legacy supercell runs.
+         str = 1.0
+         zt = 20000.
+         dz = zt/float(nz1)
+
+         do k=1,nz
+            zc(k) = zt*(real(k-1)*dz/zt)**str
+            zw(k) = zc(k)
+            ah(k) = 1.
+         end do
+
+      end if
       do k=1,nz1
          dzw (k) = zw(k+1)-zw(k)
          rdzw(k) = 1./dzw(k)

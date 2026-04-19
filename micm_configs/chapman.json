@@ -96,7 +96,7 @@
           "coefficient": 1
         }
       ],
-      "name": "jO3->O"
+      "name": "jO3_O"
     },
     {
       "type": "ARRHENIUS",
@@ -138,7 +138,7 @@
           "coefficient": 1
         }
       ],
-      "name": "jO3->O1D"
+      "name": "jO3_O1D"
     },
     {
       "type": "ARRHENIUS",

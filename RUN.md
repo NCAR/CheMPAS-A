@@ -4,7 +4,7 @@ This document describes how to run MPAS atmosphere test cases.
 
 ## Supercell Test Case
 
-The supercell thunderstorm is an idealized convection test case located at `~/Data/MPAS/supercell`. This directory is shared with the upstream MPAS-Model-ACOM-dev project.
+The supercell thunderstorm is an idealized convection test case located at `~/Data/CheMPAS/supercell`. The tracked init-time setup uses 60 stretched vertical levels spanning 0–50 km (~300 m at the surface, ~1 km at the top). The level edges are loaded from `supercell_zeta_levels.txt` via the `config_specified_zeta_levels` namelist option; this file must be copied into the run directory alongside `namelist.init_atmosphere` before running `init_atmosphere_model`.
 
 ### Important: I/O Configuration
 
@@ -41,7 +41,7 @@ The `streams.atmosphere` file must use `io_type="netcdf"` for input and output s
 **Important:** You must remove or move any existing `output.nc` before running. MPAS defaults to `clobber_mode = never_modify`, so if `output.nc` already exists the model will silently skip all output writes — the run completes but produces no new data.
 
 ```bash
-cd ~/Data/MPAS/supercell
+cd ~/Data/CheMPAS/supercell
 
 # Archive previous run output (REQUIRED — model won't overwrite existing output.nc)
 timestamp=$(date +%Y%m%d_%H%M%S)
@@ -99,7 +99,7 @@ Look for final timestep and timing statistics.
 Create a helper script `run.sh`:
 ```bash
 #!/bin/bash
-cd ~/Data/MPAS/supercell
+cd ~/Data/CheMPAS/supercell
 
 # Archive previous output
 ts=$(date +%Y%m%d_%H%M%S)
@@ -118,7 +118,7 @@ To visualize advection effects on chemistry tracers, use custom initial conditio
 ### Initialize with Sine Wave Pattern
 
 ```bash
-cd ~/Data/MPAS/supercell
+cd ~/Data/CheMPAS/supercell
 
 # Backup uniform initial conditions
 cp supercell_init.nc supercell_init_uniform.nc
@@ -149,7 +149,7 @@ For visible advection displacement, run 10-15 minutes:
 ### Visualization
 
 ```bash
-cd ~/Data/MPAS/supercell
+cd ~/Data/CheMPAS/supercell
 
 # Main summary plot
 ~/miniconda3/envs/mpas/bin/python plot_chemistry.py -o chemistry.png
@@ -182,13 +182,13 @@ are set to 0, so the default config omits them to preserve conservation.
 
 1. Copy the MICM config to the run directory:
    ```bash
-   cp ~/EarthSystem/CheMPAS/micm_configs/lnox_o3.yaml ~/Data/MPAS/supercell/
+   cp ~/EarthSystem/CheMPAS/micm_configs/lnox_o3.yaml ~/Data/CheMPAS/supercell/
    # If using NOx sink: also copy lnox_o3_sink.yaml and set config_micm_file accordingly
    ```
 
 2. Initialize tracers (O3=50 ppbv, NO=NO2=0):
    ```bash
-   cd ~/Data/MPAS/supercell
+   cd ~/Data/CheMPAS/supercell
    ~/miniconda3/envs/mpas/bin/python ~/EarthSystem/CheMPAS/scripts/init_lnox_o3.py -i supercell_init.nc
    ```
 
@@ -214,7 +214,7 @@ The source scaling follows `S = rate * max(0, w - w_threshold) / w_ref`, so
 The primary test case with lightning NOx source active:
 
 ```bash
-cd ~/Data/MPAS/supercell
+cd ~/Data/CheMPAS/supercell
 ts=$(date +%Y%m%d_%H%M%S)
 [ -f output.nc ] && mv output.nc output.${ts}.nc
 [ -f log.atmosphere.0000.out ] && mv log.atmosphere.0000.out log.atmosphere.0000.${ts}.out
@@ -244,7 +244,7 @@ due to advection; a rigorous test requires transport disabled.
 
 ## Mountain Wave Test Case
 
-A 2D mountain wave (Schaer test) in `~/Data/MPAS/mountain_wave/`. Tests
+A 2D mountain wave (Schaer test) in `~/Data/CheMPAS/mountain_wave/`. Tests
 non-hydrostatic dynamics over orography with 70 vertical levels.
 
 ### Configuration
@@ -260,7 +260,7 @@ non-hydrostatic dynamics over orography with 70 vertical levels.
 ### Running
 
 ```bash
-cd ~/Data/MPAS/mountain_wave
+cd ~/Data/CheMPAS/mountain_wave
 rm -f output.nc log.atmosphere.*.out
 mpiexec -n 4 ./atmosphere_model 2>&1 | tee run.out
 ```
@@ -270,7 +270,7 @@ Partition files available for 2, 4, 6, 8 ranks.
 ## Jablonowski-Williamson Baroclinic Wave
 
 A global baroclinic instability test on a 120-km (40,962 cell) mesh in
-`~/Data/MPAS/jw_baroclinic_wave/`. This is a standard dynamical core
+`~/Data/CheMPAS/jw_baroclinic_wave/`. This is a standard dynamical core
 benchmark (Jablonowski & Williamson 2006).
 
 ### Configuration
@@ -290,7 +290,7 @@ verification, reduce `config_run_duration` to `'4_00:00:00'` (4 days).
 ### Running
 
 ```bash
-cd ~/Data/MPAS/jw_baroclinic_wave
+cd ~/Data/CheMPAS/jw_baroclinic_wave
 rm -f output.nc log.atmosphere.*.out
 mpiexec -n 8 ./atmosphere_model 2>&1 | tee run.out
 ```

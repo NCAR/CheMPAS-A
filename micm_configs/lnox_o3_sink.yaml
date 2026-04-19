@@ -55,7 +55,7 @@ reactions:
         coefficient: 1
       - species name: O3
         coefficient: 1
-    name: no2_photolysis
+    name: jNO2
 
   # NOx first-order loss reactions.  Rate = 1/tau is set externally via
   # config_lnox_nox_tau in the &musica namelist.

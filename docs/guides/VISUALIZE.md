@@ -21,7 +21,7 @@ conda activate mpas
 
 ## Scripts
 
-All scripts are in the `scripts/` directory with symlinks in `~/Data/MPAS/supercell/`.
+All scripts are in the `scripts/` directory with symlinks in `~/Data/CheMPAS/supercell/`.
 
 ### plot_chemistry.py
 
@@ -29,7 +29,7 @@ Visualize chemistry tracer output (currently `qA`, `qB`, `qAB` for ABBA tests).
 
 **Basic usage:**
 ```bash
-cd ~/Data/MPAS/supercell
+cd ~/Data/CheMPAS/supercell
 ~/miniconda3/envs/mpas/bin/python plot_chemistry.py -o chemistry.png
 ```
 
@@ -119,7 +119,7 @@ python init_tracer_sine.py -i supercell_init.nc -o supercell_init_sine.nc -t qAB
 After a run, generate a quick summary:
 
 ```bash
-cd ~/Data/MPAS/supercell
+cd ~/Data/CheMPAS/supercell
 ~/miniconda3/envs/mpas/bin/python plot_chemistry.py -o quick.png
 open quick.png
 ```

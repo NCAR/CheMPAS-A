@@ -62,8 +62,10 @@ module mpas_atm_chemistry
     subroutine chemistry_init(configs, dimensions, structs)
 
 #ifdef MPAS_USE_MUSICA
-        use mpas_musica, only: musica_init, resolve_mpas_indices
-        use mpas_tuvx, only: tuvx_init, tuvx_is_enabled
+        use mpas_musica, only: musica_init, resolve_mpas_indices, &
+                               musica_cache_photo_indices
+        use mpas_tuvx, only: tuvx_init, tuvx_is_enabled, &
+                             tuvx_n_rates, tuvx_rate_names
 #endif
         use mpas_log, only : mpas_log_write
         use mpas_derived_types, only: mpas_pool_type, MPAS_LOG_CRIT
@@ -88,6 +90,10 @@ module mpas_atm_chemistry
         real(kind=RKIND)                :: j_no2_val, nox_tau_val
         real(kind=RKIND), pointer       :: lat_ptr, lon_ptr
         character(len=StrKIND), pointer :: tuvx_filepath_ptr
+        logical, pointer                :: tuvx_top_extension_ptr
+        character(len=StrKIND), pointer :: tuvx_extension_file_ptr
+        logical                         :: tuvx_top_extension
+        character(len=StrKIND)          :: tuvx_extension_file
         integer, pointer                :: idx_qO3_ptr
         integer, pointer                :: idx_qc_ptr, idx_qr_ptr
 #endif
@@ -156,10 +162,13 @@ module mpas_atm_chemistry
         call chemistry_seed_chem(dimensions, structs)
 
         ! Initialize photolysis diagnostics before any initial history write.
+        ! We zero every j_<reaction> diag var that the Registry declares, by
+        ! scanning candidate names and clearing those that exist.
         nullify(diagPool)
         call mpas_pool_get_subpool(structs, 'diag', diagPool)
         if (associated(diagPool)) then
-            call chemistry_set_j_no2_diag(diagPool, 0.0_RKIND)
+            call zero_photolysis_diag(diagPool, ['j_jNO2   ', 'j_jO2    ', &
+                                                  'j_jO3_O  ', 'j_jO3_O1D'])
         end if
 
         ! Initialize lightning NOx source (no-op if qNO not in mechanism)
@@ -169,7 +178,17 @@ module mpas_atm_chemistry
         nullify(tuvx_filepath_ptr)
         call mpas_pool_get_config(configs, 'config_tuvx_config_file', tuvx_filepath_ptr)
         if (associated(tuvx_filepath_ptr) .and. len_trim(tuvx_filepath_ptr) > 0) then
-            call tuvx_init(tuvx_filepath_ptr, nVertLevels, error_code, error_message)
+            nullify(tuvx_top_extension_ptr)
+            nullify(tuvx_extension_file_ptr)
+            call mpas_pool_get_config(configs, 'config_tuvx_top_extension', tuvx_top_extension_ptr)
+            call mpas_pool_get_config(configs, 'config_tuvx_extension_file', tuvx_extension_file_ptr)
+            tuvx_top_extension = .false.
+            tuvx_extension_file = ''
+            if (associated(tuvx_top_extension_ptr)) tuvx_top_extension = tuvx_top_extension_ptr
+            if (associated(tuvx_extension_file_ptr)) tuvx_extension_file = tuvx_extension_file_ptr
+
+            call tuvx_init(tuvx_filepath_ptr, nVertLevels, tuvx_top_extension, &
+                           tuvx_extension_file, error_code, error_message)
             if (error_code /= 0) then
                 call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
             end if
@@ -223,6 +242,34 @@ module mpas_atm_chemistry
         else
             call mpas_log_write('[Chemistry] TUV-x disabled (no config_tuvx_config_file); using Phase 1 fallback.')
         end if
+
+        ! Cache MICM rate-parameter indices for every photolysis rate we plan
+        ! to write. When TUV-x is active, names come from its photolysis
+        ! ordering. When TUV-x is disabled, we fall back to a single rate
+        ! ('jNO2') driven by cos(SZA) * j_max.
+        block
+            character(len=64), allocatable :: photo_names(:)
+            integer                        :: n_rates
+            if (use_tuvx) then
+                n_rates = tuvx_n_rates()
+                if (n_rates < 1) then
+                    call mpas_log_write('[Chemistry] TUV-x reported zero photolysis rates.', &
+                        messageType=MPAS_LOG_CRIT)
+                    return
+                end if
+                allocate(photo_names(n_rates))
+                call tuvx_rate_names(photo_names)
+            else
+                n_rates = 1
+                allocate(photo_names(1))
+                photo_names(1) = 'jNO2'
+            end if
+            call musica_cache_photo_indices(photo_names, error_code, error_message)
+            if (error_code /= 0) then
+                call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
+            end if
+            deallocate(photo_names)
+        end block
 #endif
 
     end subroutine chemistry_init
@@ -244,11 +291,11 @@ module mpas_atm_chemistry
 #ifdef MPAS_USE_MUSICA
         use iso_fortran_env, only: real64
         use mpas_musica, only: musica_step, musica_step_ref, log_column_comparison, &
-                               copy_state_to_ref, musica_set_photolysis, &
-                               musica_set_photolysis_field
+                               copy_state_to_ref, musica_set_photolysis_rates, &
+                               n_photo_rp
         use mpas_lightning_nox, only: lightning_nox_inject
         use mpas_solar_geometry, only: solar_cos_sza
-        use mpas_tuvx, only: tuvx_compute_photolysis
+        use mpas_tuvx, only: tuvx_compute_photolysis, tuvx_rate_names
 #endif
         use mpas_log, only : mpas_log_write
         use mpas_derived_types, only: mpas_pool_type, MPAS_LOG_CRIT
@@ -280,14 +327,14 @@ module mpas_atm_chemistry
         real(kind=RKIND), dimension(:,:,:), pointer :: scalars
         real(kind=RKIND), dimension(:,:), pointer :: w, zgrid
 
-        ! TUV-x variables
-        real(kind=RKIND), allocatable :: j_no2_field(:,:)
+        ! Photolysis variables
+        real(kind=RKIND), allocatable :: photo_rates(:,:,:)  ! (n_rates, nVertLevels, nCells)
         real(kind=RKIND), dimension(:,:), pointer :: rho_zz, theta_m, zz, exner
         integer, pointer :: index_qv
         real(kind=RKIND), allocatable :: rho_air_col(:), temperature_col(:)
         real(kind=RKIND), allocatable :: qc_col(:), qr_col(:)
         real(kind=RKIND), parameter :: rvord = 461.5_RKIND / 287.0_RKIND
-        integer :: iCell, k
+        integer :: iCell, k, ir
 
         time_step = dt
 
@@ -306,15 +353,27 @@ module mpas_atm_chemistry
                  + real(second, RKIND) / 3600.0_RKIND
         cos_sza = solar_cos_sza(DoY, hour_utc, chem_lat, chem_lon)
 
-        ! Update photolysis rates: TUV-x (Phase 2) or cos(SZA) fallback (Phase 1)
+        ! Update photolysis rates. Unified multi-rate path: TUV-x fills
+        ! photo_rates(ir,k,iCell) for every reaction it reports; when TUV-x
+        ! is disabled, the fallback fills a single 'jNO2' slot with
+        ! j_max * max(0, cos_sza).
+        if (n_photo_rp < 1) then
+            call mpas_log_write('[Chemistry] photolysis rate indices not cached.', &
+                messageType=MPAS_LOG_CRIT)
+            return
+        end if
+
+        allocate(photo_rates(n_photo_rp, nVertLevels, nCells))
+        photo_rates = 0.0_RKIND
+
         if (use_tuvx) then
             if (idx_qO3 < 1) then
                 call mpas_log_write('[Chemistry] TUV-x enabled but index_qO3 is unresolved.', &
                     messageType=MPAS_LOG_CRIT)
+                deallocate(photo_rates)
                 return
             end if
 
-            allocate(j_no2_field(nVertLevels, nCells))
             allocate(rho_air_col(nVertLevels))
             allocate(temperature_col(nVertLevels))
             allocate(qc_col(nVertLevels))
@@ -336,7 +395,6 @@ module mpas_atm_chemistry
                         (1.0_RKIND + rvord * scalars(index_qv, k, iCell))) * exner(k, iCell)
                 end do
 
-                ! Extract cloud/rain water columns (zero if tracer not available)
                 if (idx_qc > 0) then
                     qc_col(:) = scalars(idx_qc, :, iCell)
                 else
@@ -353,36 +411,35 @@ module mpas_atm_chemistry
                                              scalars(idx_qO3, :, iCell), &
                                              qc_col, qr_col, &
                                              nVertLevels, &
-                                             j_no2_field(:, iCell), &
+                                             photo_rates(:, :, iCell), &
                                              error_code, error_message)
                 if (error_code /= 0) then
                     call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
-                    deallocate(j_no2_field, rho_air_col, temperature_col, qc_col, qr_col)
+                    deallocate(photo_rates, rho_air_col, temperature_col, qc_col, qr_col)
                     return
                 end if
             end do
 
-            call musica_set_photolysis_field(j_no2_field, nCells, nVertLevels, &
-                                             error_code, error_message)
-            if (error_code /= 0) then
-                call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
-                deallocate(j_no2_field, rho_air_col, temperature_col, qc_col, qr_col)
-                return
-            end if
-
-            ! Write per-cell/level j_no2 to diagnostic array
-            call chemistry_set_j_no2_diag_field(diag, j_no2_field, nCells, nVertLevels)
-
-            deallocate(j_no2_field, rho_air_col, temperature_col, qc_col, qr_col)
+            deallocate(rho_air_col, temperature_col, qc_col, qr_col)
         else
+            ! Phase-1 fallback: single rate 'jNO2' = j_max * max(0, cos_sza).
+            ! Assumes n_photo_rp == 1 and the cached rate name is 'jNO2' —
+            ! musica_cache_photo_indices was called with that name at init.
             j_no2_value = chem_j_no2_max * max(0.0_RKIND, cos_sza)
-            call musica_set_photolysis(j_no2_value, error_code, error_message)
-            if (error_code /= 0) then
-                call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
-                return
-            end if
-            call chemistry_set_j_no2_diag(diag, j_no2_value)
+            photo_rates(1, :, :) = j_no2_value
         end if
+
+        call musica_set_photolysis_rates(photo_rates, nCells, nVertLevels, &
+                                         n_photo_rp, error_code, error_message)
+        if (error_code /= 0) then
+            call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
+            deallocate(photo_rates)
+            return
+        end if
+
+        call chemistry_set_photolysis_diag(diag, photo_rates, nCells, nVertLevels)
+
+        deallocate(photo_rates)
 
         call mpas_log_write('Stepping chemistry packages...')
         call mpas_timer_start('chemistry')
@@ -478,57 +535,75 @@ module mpas_atm_chemistry
 
 
     !------------------------------------------------------------------------
-    !  routine chemistry_set_j_no2_diag
+    !  routine chemistry_set_photolysis_diag
     !
-    !> \brief Writes the current NO2 photolysis rate into the diagnostic pool
+    !> \brief Write per-cell/level photolysis rates into diagnostic pool
+    !> \details
+    !>  For every cached photolysis rate name (j_<name>), look up the
+    !>  matching diag array and copy the corresponding slice from
+    !>  photo_rates. Silently skips rates whose diag variable is not in
+    !>  the Registry (so the chemistry driver stays agnostic about which
+    !>  mechanism is loaded).
     !------------------------------------------------------------------------
-    subroutine chemistry_set_j_no2_diag(diag, j_no2_value)
+    subroutine chemistry_set_photolysis_diag(diag, photo_rates, nCells, nVertLevels)
 
+#ifdef MPAS_USE_MUSICA
+        use mpas_musica, only: photo_rp_names, n_photo_rp
+#endif
         use mpas_pool_routines, only: mpas_pool_get_array
         use mpas_derived_types, only: mpas_pool_type
 
         type(mpas_pool_type), intent(inout) :: diag
-        real(kind=RKIND), intent(in) :: j_no2_value
-
-        real(kind=RKIND), dimension(:,:), pointer :: j_no2_diag
-
-        nullify(j_no2_diag)
-        call mpas_pool_get_array(diag, 'j_no2', j_no2_diag)
-        if (.not. associated(j_no2_diag)) return
-
-        j_no2_diag = j_no2_value
-
-    end subroutine chemistry_set_j_no2_diag
-
-
-    !------------------------------------------------------------------------
-    !  routine chemistry_set_j_no2_diag_field
-    !
-    !> \brief Writes per-cell/level j_NO2 array into the diagnostic pool
-    !------------------------------------------------------------------------
-    subroutine chemistry_set_j_no2_diag_field(diag, j_no2_field, nCells, nVertLevels)
-
-        use mpas_pool_routines, only: mpas_pool_get_array
-        use mpas_derived_types, only: mpas_pool_type
-
-        type(mpas_pool_type), intent(inout) :: diag
-        real(kind=RKIND), intent(in) :: j_no2_field(:,:)  ! (nVertLevels, nCells)
+        real(kind=RKIND), intent(in) :: photo_rates(:,:,:)  ! (n_rates, nVertLevels, nCells)
         integer, intent(in) :: nCells, nVertLevels
 
-        real(kind=RKIND), dimension(:,:), pointer :: j_no2_diag
-        integer :: k, iCell
+#ifdef MPAS_USE_MUSICA
+        real(kind=RKIND), dimension(:,:), pointer :: diag_field
+        integer :: ir, k, iCell
 
-        nullify(j_no2_diag)
-        call mpas_pool_get_array(diag, 'j_no2', j_no2_diag)
-        if (.not. associated(j_no2_diag)) return
+        do ir = 1, n_photo_rp
+            nullify(diag_field)
+            call mpas_pool_get_array(diag, 'j_' // trim(photo_rp_names(ir)), diag_field)
+            if (.not. associated(diag_field)) cycle
 
-        do iCell = 1, min(nCells, size(j_no2_diag, 2))
-            do k = 1, min(nVertLevels, size(j_no2_diag, 1))
-                j_no2_diag(k, iCell) = j_no2_field(k, iCell)
+            do iCell = 1, min(nCells, size(diag_field, 2))
+                do k = 1, min(nVertLevels, size(diag_field, 1))
+                    diag_field(k, iCell) = photo_rates(ir, k, iCell)
+                end do
             end do
         end do
+#endif
 
-    end subroutine chemistry_set_j_no2_diag_field
+    end subroutine chemistry_set_photolysis_diag
+
+
+    !------------------------------------------------------------------------
+    !  routine zero_photolysis_diag
+    !
+    !> \brief Zero a set of photolysis diagnostic fields at init time
+    !> \details
+    !>  Given a caller-provided list of candidate diag variable names
+    !>  (padded to equal length), clear each one that exists in the diag
+    !>  pool. Names not present in the Registry are silently skipped.
+    !------------------------------------------------------------------------
+    subroutine zero_photolysis_diag(diag, names)
+
+        use mpas_pool_routines, only: mpas_pool_get_array
+        use mpas_derived_types, only: mpas_pool_type
+
+        type(mpas_pool_type), intent(inout) :: diag
+        character(len=*), intent(in)        :: names(:)
+
+        real(kind=RKIND), dimension(:,:), pointer :: diag_field
+        integer :: i
+
+        do i = 1, size(names)
+            nullify(diag_field)
+            call mpas_pool_get_array(diag, trim(names(i)), diag_field)
+            if (associated(diag_field)) diag_field = 0.0_RKIND
+        end do
+
+    end subroutine zero_photolysis_diag
 
 
     !------------------------------------------------------------------------

@@ -42,6 +42,7 @@ restart_timestamp
 # Text files (For statistical output from ocean model)
 *.txt
 !CMakeLists.txt
+!test_cases/**/*.txt
 
 # Directories with individual .gitignore files are:
 # src/external (Externals might have a different compilation method)
@@ -63,6 +64,7 @@ stream_list.*
 # But track reference configs for test cases
 !test_cases/**/namelist.*
 !test_cases/**/streams.*
+!test_cases/**/stream_list.*
 
 # Intermediate files that may be produced by Intel compilers
 *.i

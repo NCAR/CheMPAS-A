@@ -30,13 +30,19 @@ module mpas_musica
     public :: log_column_comparison, copy_state_to_ref
     public :: resolve_mpas_indices, n_chem_species, chem_species
     public :: musica_query_species
-    public :: musica_set_photolysis, musica_set_photolysis_field
+    public :: musica_cache_photo_indices, musica_set_photolysis_rates
+    public :: n_photo_rp, photo_rp_names
 
     type(micm_t),  pointer :: micm  => null ( )  ! Pointer to the MICM ODE solver instance
     type(state_t), pointer :: state => null ( )  ! Pointer to the state of the MICM solver (coupled to MPAS)
     type(state_t), pointer :: state_ref => null ( )  ! Reference state (uncoupled, chemistry only)
 
-    integer, save :: photo_no2_rp_index = -1   ! cached rate-parameter index for PHOTO.no2_photolysis
+    ! Photolysis rate-parameter bookkeeping. For each TUV-x reaction name we
+    ! resolve the MICM rate_parameters_ordering key PHOTO.<name> once at
+    ! init, then reuse the cached stride index on every step.
+    integer, save                    :: n_photo_rp = 0
+    integer,             allocatable :: photo_rp_indices(:)
+    character(len=64),   allocatable :: photo_rp_names(:)
 
     type :: species_entry_t
         character(len=64) :: micm_name    ! e.g. 'AB'
@@ -155,8 +161,9 @@ module mpas_musica
             if (has_error_occurred(error, error_message, error_code)) return
         end do
 
-        ! Cache photolysis rate parameter index for per-step updates
-        call cache_photo_rp_index()
+        ! Photolysis rate-parameter indices are cached later, after TUV-x
+        ! init, by chemistry_init calling musica_cache_photo_indices with
+        ! the reaction names TUV-x enumerated.
 
         deallocate(init_conc)
 
@@ -628,147 +635,143 @@ module mpas_musica
     end subroutine assign_rate_parameters
 
     !------------------------------------------------------------------------
-    !  subroutine cache_photo_rp_index
+    !  subroutine musica_cache_photo_indices
     !
-    !> \brief Cache the rate parameter index for PHOTO.no2_photolysis
+    !> \brief Resolve MICM rate-parameter indices for a list of rate names
     !> \details
-    !>  Scans the rate_parameters_ordering to find the index for
-    !>  PHOTO.no2_photolysis and caches it in the module variable
-    !>  photo_no2_rp_index for use by musica_set_photolysis.
+    !>  For each name, looks up ``PHOTO.<name>`` in state%rate_parameters_ordering
+    !>  and caches the stride index in photo_rp_indices(:). Errors if a rate
+    !>  name is missing from the MICM ordering; the chemistry mechanism
+    !>  (yaml) and the TUV-x config must be consistent about which
+    !>  photolysis reactions exist.
     !------------------------------------------------------------------------
-    subroutine cache_photo_rp_index()
-        use mpas_log, only : mpas_log_write
-        integer :: i, n_rp
-        character(len=:), allocatable :: rp_name
-
-        if (.not. associated(state)) return
-        if (state%number_of_rate_parameters == 0) return
-
-        n_rp = state%rate_parameters_ordering%size()
-        do i = 1, n_rp
-            rp_name = trim(state%rate_parameters_ordering%name(i))
-            if (rp_name == 'PHOTO.no2_photolysis') then
-                photo_no2_rp_index = i
-                call mpas_log_write('[MUSICA] Cached PHOTO.no2_photolysis rate param index = $i', &
-                    intArgs=[i])
-                return
-            end if
-        end do
-
-        call mpas_log_write('[MUSICA] PHOTO.no2_photolysis not found in rate parameters (SZA scaling disabled)')
-
-    end subroutine cache_photo_rp_index
-
-    !------------------------------------------------------------------------
-    !  subroutine musica_set_photolysis
-    !
-    !> \brief Updates the active NO2 photolysis rate parameter
-    !> \details
-    !>  Sets the PHOTO.no2_photolysis rate parameter for every grid cell
-    !>  to the value computed by the chemistry driver for the current timestep.
-    !------------------------------------------------------------------------
-    subroutine musica_set_photolysis(j_no2_value, error_code, error_message)
-        use iso_fortran_env, only : real64
-        use mpas_kind_types, only : RKIND
+    subroutine musica_cache_photo_indices(names, error_code, error_message)
         use mpas_log, only : mpas_log_write
 
-        real(kind=RKIND), intent(in) :: j_no2_value
-        integer, intent(out) :: error_code
-        character(len=:), allocatable, intent(out) :: error_message
+        character(len=*), intent(in)                :: names(:)
+        integer, intent(out)                        :: error_code
+        character(len=:), allocatable, intent(out)   :: error_message
 
-        real(real64) :: j_val
-        integer :: cell_stride, var_stride, cell, idx
-        character(len=256) :: msg
+        integer :: i, j, n_rp
+        character(len=:), allocatable :: rp_name, target_name
+        logical :: found
 
         error_code = 0
         error_message = ''
 
-        if (photo_no2_rp_index < 1) return
-        if (.not. associated(state)) return
-
-        j_val = real(j_no2_value, real64)
-
-        cell_stride = state%rate_parameters_strides%grid_cell
-        var_stride  = state%rate_parameters_strides%variable
-
-        do cell = 1, state%number_of_grid_cells
-            idx = 1 + (cell - 1) * cell_stride + (photo_no2_rp_index - 1) * var_stride
-            state%rate_parameters(idx) = j_val
-        end do
-
-        ! Also update reference state
-        if (associated(state_ref)) then
-            cell_stride = state_ref%rate_parameters_strides%grid_cell
-            var_stride  = state_ref%rate_parameters_strides%variable
-            do cell = 1, state_ref%number_of_grid_cells
-                idx = 1 + (cell - 1) * cell_stride + (photo_no2_rp_index - 1) * var_stride
-                state_ref%rate_parameters(idx) = j_val
-            end do
+        if (.not. associated(state)) then
+            error_code = 1
+            error_message = '[MUSICA] musica_cache_photo_indices called before state init'
+            return
         end if
 
-        write(msg, '(A,ES10.3)') '[MUSICA] j_NO2=', j_val
-        call mpas_log_write(trim(msg))
+        n_photo_rp = size(names)
 
-    end subroutine musica_set_photolysis
+        if (allocated(photo_rp_names))   deallocate(photo_rp_names)
+        if (allocated(photo_rp_indices)) deallocate(photo_rp_indices)
+        allocate(photo_rp_names(n_photo_rp))
+        allocate(photo_rp_indices(n_photo_rp))
+
+        if (state%number_of_rate_parameters == 0) then
+            error_code = 1
+            error_message = '[MUSICA] MICM state has zero rate parameters'
+            return
+        end if
+
+        n_rp = state%rate_parameters_ordering%size()
+
+        do i = 1, n_photo_rp
+            photo_rp_names(i) = trim(names(i))
+            target_name = 'PHOTO.' // trim(names(i))
+            found = .false.
+            do j = 1, n_rp
+                rp_name = trim(state%rate_parameters_ordering%name(j))
+                if (rp_name == target_name) then
+                    photo_rp_indices(i) = j
+                    found = .true.
+                    call mpas_log_write('[MUSICA] Cached ' // target_name // &
+                        ' rate param index = $i', intArgs=[j])
+                    exit
+                end if
+            end do
+            if (.not. found) then
+                error_code = 1
+                error_message = '[MUSICA] Rate parameter ' // target_name // &
+                    ' not found; TUV-x and MICM configs disagree'
+                return
+            end if
+        end do
+
+    end subroutine musica_cache_photo_indices
 
     !------------------------------------------------------------------------
-    !  subroutine musica_set_photolysis_field
+    !  subroutine musica_set_photolysis_rates
     !
-    !> \brief Updates NO2 photolysis rate parameter per cell/level from TUV-x
+    !> \brief Write photolysis rates for every cached reaction to MICM
     !> \details
-    !>  Writes the j_no2(level, cell) array into the MICM rate parameter
-    !>  array using the cached photo_no2_rp_index and stride-based indexing.
-    !>  Used by Phase 2 TUV-x path (per-cell/level values).
+    !>  Takes a (n_rates, nVertLevels, nCells) array of photolysis rates and
+    !>  writes each rate's (k,iCell) value into both state and state_ref
+    !>  using the cached stride indices. The reference state exists for
+    !>  uncoupled advection diagnostics.
     !------------------------------------------------------------------------
-    subroutine musica_set_photolysis_field(j_no2, nCells, nVertLevels, &
+    subroutine musica_set_photolysis_rates(rates, nCells, nVertLevels, n_rates, &
                                            error_code, error_message)
         use iso_fortran_env, only : real64
         use mpas_kind_types, only : RKIND
         use mpas_log, only : mpas_log_write
 
-        real(kind=RKIND), intent(in) :: j_no2(:,:)   ! (nVertLevels, nCells)
-        integer, intent(in)          :: nCells, nVertLevels
+        real(kind=RKIND), intent(in) :: rates(:,:,:) ! (n_rates, nVertLevels, nCells)
+        integer, intent(in)          :: nCells, nVertLevels, n_rates
         integer, intent(out)         :: error_code
         character(len=:), allocatable, intent(out) :: error_message
 
-        integer :: cell_stride, var_stride, iCell, k, micm_cell, idx
+        integer :: cell_stride, var_stride, iCell, k, micm_cell, idx, ir, rp_idx
         character(len=256) :: msg
+        real(real64) :: rmin, rmax
 
         error_code = 0
         error_message = ''
 
-        if (photo_no2_rp_index < 1) return
+        if (n_photo_rp < 1) return
         if (.not. associated(state)) return
+
+        if (n_rates /= n_photo_rp) then
+            error_code = 1
+            error_message = '[MUSICA] musica_set_photolysis_rates: rate-count mismatch'
+            return
+        end if
 
         cell_stride = state%rate_parameters_strides%grid_cell
         var_stride  = state%rate_parameters_strides%variable
 
-        do iCell = 1, nCells
-            do k = 1, nVertLevels
-                micm_cell = (iCell - 1) * nVertLevels + k
-                idx = 1 + (micm_cell - 1) * cell_stride + (photo_no2_rp_index - 1) * var_stride
-                state%rate_parameters(idx) = real(j_no2(k, iCell), real64)
-            end do
-        end do
-
-        ! Also update reference state
-        if (associated(state_ref)) then
-            cell_stride = state_ref%rate_parameters_strides%grid_cell
-            var_stride  = state_ref%rate_parameters_strides%variable
+        do ir = 1, n_photo_rp
+            rp_idx = photo_rp_indices(ir)
             do iCell = 1, nCells
                 do k = 1, nVertLevels
                     micm_cell = (iCell - 1) * nVertLevels + k
-                    idx = 1 + (micm_cell - 1) * cell_stride + (photo_no2_rp_index - 1) * var_stride
-                    state_ref%rate_parameters(idx) = real(j_no2(k, iCell), real64)
+                    idx = 1 + (micm_cell - 1) * cell_stride + (rp_idx - 1) * var_stride
+                    state%rate_parameters(idx) = real(rates(ir, k, iCell), real64)
                 end do
             end do
-        end if
 
-        write(msg, '(A,ES10.3,A,ES10.3)') '[MUSICA] j_NO2 field: min=', &
-            minval(j_no2(1:nVertLevels, 1:nCells)), ' max=', maxval(j_no2(1:nVertLevels, 1:nCells))
-        call mpas_log_write(trim(msg))
+            if (associated(state_ref)) then
+                do iCell = 1, nCells
+                    do k = 1, nVertLevels
+                        micm_cell = (iCell - 1) * nVertLevels + k
+                        idx = 1 + (micm_cell - 1) * cell_stride + (rp_idx - 1) * var_stride
+                        state_ref%rate_parameters(idx) = real(rates(ir, k, iCell), real64)
+                    end do
+                end do
+            end if
 
-    end subroutine musica_set_photolysis_field
+            rmin = real(minval(rates(ir, 1:nVertLevels, 1:nCells)), real64)
+            rmax = real(maxval(rates(ir, 1:nVertLevels, 1:nCells)), real64)
+            write(msg, '(A,A,A,ES10.3,A,ES10.3)') '[MUSICA] ', &
+                trim(photo_rp_names(ir)), ' min=', rmin, ' max=', rmax
+            call mpas_log_write(trim(msg))
+        end do
+
+    end subroutine musica_set_photolysis_rates
 
     subroutine set_species_profile(state, species_name, values, err)
         ! Write a 1-D profile into the contiguous concentrations array.

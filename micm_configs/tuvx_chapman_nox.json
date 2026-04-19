@@ -1,4 +1,11 @@
 {
+  "__description": [
+    "TUV-x configuration for the Chapman+NOx mechanism (chapman_nox.yaml):",
+    "four photolysis rates jO2, jO3_O, jO3_O1D, jNO2. Reaction names match",
+    "chapman_nox.yaml exactly so MICM PHOTO.<name> lookups work.",
+    "Air, O3, O2, temperature, and height profiles come from the MPAS host",
+    "state via mpas_tuvx.F; do not declare them here."
+  ],
   "enable diagnostics": false,
   "O2 absorption": {
     "cross section parameters file": "data/cross_sections/O2_parameters.txt"
@@ -54,6 +61,16 @@
         ],
         "type": "O3"
       },
+      {
+        "name": "O2",
+        "netcdf files": [
+          {
+            "file path": "data/cross_sections/O2_1.nc",
+            "lower extrapolation": { "type": "boundary" }
+          }
+        ],
+        "type": "base"
+      }
     ],
     "radiators": [
       {
@@ -62,6 +79,13 @@
         "treat as air": true,
         "cross section": "air",
         "vertical profile": "air",
+        "vertical profile units": "molecule cm-3"
+      },
+      {
+        "name": "O2",
+        "type": "base",
+        "cross section": "O2",
+        "vertical profile": "O2",
         "vertical profile units": "molecule cm-3"
       },
       {
@@ -75,6 +99,56 @@
   },
   "photolysis": {
     "reactions": [
+      {
+        "name": "jO2",
+        "__reaction": "O2 + hv -> 2 O",
+        "cross section": {
+          "apply O2 bands": true,
+          "netcdf files": [
+            {
+              "file path": "data/cross_sections/O2_1.nc",
+              "lower extrapolation": { "type": "boundary" }
+            }
+          ],
+          "type": "base"
+        },
+        "quantum yield": {
+          "type": "base",
+          "constant value": 1.0
+        }
+      },
+      {
+        "name": "jO3_O1D",
+        "__reaction": "O3 + hv -> O2 + O(1D)",
+        "cross section": {
+          "netcdf files": [
+            { "file path": "data/cross_sections/O3_1.nc" },
+            { "file path": "data/cross_sections/O3_2.nc" },
+            { "file path": "data/cross_sections/O3_3.nc" },
+            { "file path": "data/cross_sections/O3_4.nc" }
+          ],
+          "type": "O3"
+        },
+        "quantum yield": {
+          "type": "O3+hv->O2+O(1D)"
+        }
+      },
+      {
+        "name": "jO3_O",
+        "__reaction": "O3 + hv -> O2 + O(3P)",
+        "cross section": {
+          "netcdf files": [
+            { "file path": "data/cross_sections/O3_1.nc" },
+            { "file path": "data/cross_sections/O3_2.nc" },
+            { "file path": "data/cross_sections/O3_3.nc" },
+            { "file path": "data/cross_sections/O3_4.nc" }
+          ],
+          "type": "O3"
+        },
+        "quantum yield": {
+          "type": "O3+hv->O2+O(3P)"
+        }
+      },
       {
         "name": "jNO2",
         "__reaction": "NO2 + hv -> NO + O(3P)",

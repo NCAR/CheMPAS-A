@@ -5,7 +5,12 @@
 /
 
 &dimensions
-    config_nvertlevels = 40
+    config_nvertlevels = 60
+/
+
+&vertical_grid
+    config_ztop = 50000.0
+    config_specified_zeta_levels = 'supercell_zeta_levels.txt'
 /
 
 &decomposition
