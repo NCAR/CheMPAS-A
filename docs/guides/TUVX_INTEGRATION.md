@@ -260,6 +260,19 @@ synthesised `jNO2` rate equal to `config_lnox_j_no2 * max(0, cos_sza)`.
 The fallback is single-rate only; Chapman and Chapman+NOx mechanisms
 require TUV-x.
 
+### Per-cell solar geometry
+
+By default chemistry uses the namelist scalars
+`config_chemistry_latitude` / `config_chemistry_longitude` to compute a
+single `cos_sza` shared by every column — appropriate for idealized
+Cartesian-plane test cases (supercell, mountain wave, baroclinic wave).
+For real spherical-mesh runs, set `config_chemistry_use_grid_coords =
+.true.` in the `&musica` namelist; chemistry will then read `latCell`
+and `lonCell` from the mesh and compute `cos_sza` per cell. The
+per-cell path is used by both the TUV-x photolysis call and the
+fallback `cos(SZA)` `j_NO2` rate. Default is `.false.` to preserve
+exact bit-reproducibility of all idealized cases.
+
 ## Column Extension Above MPAS Top
 
 TUV-x can see a climatology column above the MPAS domain so UV attenuation
@@ -313,8 +326,6 @@ supercell this means `z_km = 50.0` is the first CSV row.
   columns at the geometric SZA, accumulate their cloud OD as above-column
   attenuation) would capture the dominant effect without full 3D radiative
   transfer.
-- fallback SZA still uses namelist coordinates; grid-aware chemistry geometry is
-  deferred
 - current TUV-x work targets `j_no2` in the tropospheric LNOx-O3 mechanism, not
   the full Chapman photolysis set
 - aerosols, earth-sun-distance refinement, and ice hydrometeors are later work

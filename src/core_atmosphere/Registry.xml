@@ -448,6 +448,9 @@
                      units="degrees"
                      description="Longitude for solar geometry in idealized cases (degrees E)"
                      possible_values="Any real between -180 and 360"/>
+                <nml_option name="config_chemistry_use_grid_coords" type="logical" default_value=".false."
+                     description="If .true., compute per-cell solar geometry from latCell/lonCell. If .false., broadcast namelist config_chemistry_latitude/longitude to every cell (preserves idealized-case behavior)."
+                     possible_values=".true. or .false."/>
                 <nml_option name="config_chemistry_ref_solve" type="logical" default_value="false"
                      units="-"
                      description="Run a duplicate MICM solve on uncoupled reference state for advection diagnostics. Doubles chemistry cost."
