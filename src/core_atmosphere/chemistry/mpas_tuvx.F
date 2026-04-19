@@ -384,11 +384,23 @@ contains
                                    * (NA / M_O3) * 1.0e-6_dk
 
         ! Extension-layer midpoint values from CSV (average adjacent edges)
-        do j = 1, n_ext_layers
-            air_nd (n_mpas_layers + j) = 0.5_dk * (ext_n_air_edges(j) + ext_n_air_edges(j + 1))
-            temp_mid(n_mpas_layers + j) = 0.5_dk * (ext_T_K_edges(j)   + ext_T_K_edges(j + 1))
-            o3_nd  (n_mpas_layers + j) = 0.5_dk * (ext_n_o3_edges(j)  + ext_n_o3_edges(j + 1))
-        end do
+        ! Anchor the extension T profile to the MPAS top-midpoint T: keep
+        ! the climatology's vertical gradient (stratopause warming,
+        ! mesopause cooling) but shift so the join is continuous. Avoids
+        ! an ~30 K step between the Weisman-Klemp sounding (no stratopause)
+        ! and the US-Std-Atm-based CSV at 50 km.
+        block
+            real(dk) :: T_anchor_offset, ext_first_mid_T
+            ext_first_mid_T = 0.5_dk * (ext_T_K_edges(1) + ext_T_K_edges(2))
+            T_anchor_offset = temp_mid(n_mpas_layers) - ext_first_mid_T
+
+            do j = 1, n_ext_layers
+                air_nd (n_mpas_layers + j) = 0.5_dk * (ext_n_air_edges(j) + ext_n_air_edges(j + 1))
+                temp_mid(n_mpas_layers + j) = 0.5_dk * (ext_T_K_edges(j)   + ext_T_K_edges(j + 1)) &
+                                              + T_anchor_offset
+                o3_nd  (n_mpas_layers + j) = 0.5_dk * (ext_n_o3_edges(j)  + ext_n_o3_edges(j + 1))
+            end do
+        end block
 
         ! O2 = 0.2095 × air [molecule/cm³] across the full column
         o2_nd = VMR_O2 * air_nd

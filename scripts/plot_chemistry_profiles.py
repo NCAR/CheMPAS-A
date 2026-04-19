@@ -6,42 +6,77 @@ altitude on the y-axis and the horizontal-mean value on the x-axis.
 Each output time gets its own coloured curve so we can see evolution.
 A shaded band shows the min/max envelope across cells at each level.
 
-Defaults: all common Chapman / Chapman+NOx species and photolysis rates
-found in the file. Missing variables are silently skipped.
-
-Usage:
-    plot_chemistry_profiles.py -i ~/Data/CheMPAS/supercell/output.nc \
-        -o chemistry_profiles.png
+Conventions (scripts/style.py):
+- NCAR brand palette via style.setup()
+- Species-specific colors via style.species_color()
+- LaTeX species labels via style.species_label() / style.format_title()
+- Chemistry tracers are shown in ppb (converted from MPAS kg/kg using
+  per-species molar masses); photolysis rates in s^{-1}
+- Units are always in axis labels.
 """
 import argparse
+import sys
 from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 
+sys.path.insert(0, str(Path(__file__).parent))
+import style  # noqa: E402
 
-# Default set of species / rates to look for. Ordered for a tidy panel layout.
+
+# Molar masses [kg/mol] for mass->ppbv conversion
+M_AIR = 0.02897
+MOLAR_MASS = {
+    "qO":   0.016,
+    "qO1D": 0.016,
+    "qO2":  0.032,
+    "qO3":  0.048,
+    "qNO":  0.030,
+    "qNO2": 0.046,
+    "qCO":  0.028,
+    "qCH4": 0.016,
+    "qOH":  0.017,
+    "qHO2": 0.033,
+}
+
 DEFAULT_SPECIES = ["qO3", "qO", "qO1D", "qNO", "qNO2", "qO2"]
 DEFAULT_JVARS   = ["j_jO2", "j_jO3_O", "j_jO3_O1D", "j_jNO2"]
 
 
-def horizontal_stats(arr, axis_cells):
-    """Return (mean, min, max) over the cells axis at every level."""
-    return (arr.mean(axis=axis_cells),
-            arr.min(axis=axis_cells),
-            arr.max(axis=axis_cells))
+def to_ppbv(q_kgkg, M_species):
+    """Convert mass mixing ratio (kg/kg) to ppbv."""
+    return q_kgkg * (M_AIR / M_species) * 1.0e9
 
 
-def read_var(ds, name):
-    if name not in ds.variables:
-        return None
-    return ds.variables[name][:]
+def rate_label(name):
+    """Return a LaTeX display label for a j_<rxn> diagnostic variable."""
+    if not name.startswith("j_"):
+        return name
+    rxn = name[2:]
+    # Known rates: jNO2, jO2, jO3_O, jO3_O1D
+    pretty = {
+        "jNO2":    r"$j_{NO_2}$",
+        "jO2":     r"$j_{O_2}$",
+        "jO3_O":   r"$j_{O_3 \to O(^3P)}$",
+        "jO3_O1D": r"$j_{O_3 \to O(^1D)}$",
+    }
+    return pretty.get(rxn, name)
+
+
+def species_panel_label(name):
+    return f"{style.species_label(name)} [ppb]"
+
+
+def rate_panel_label(name):
+    return f"{rate_label(name)} [s$^{{-1}}$]"
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("-i", "--input", default=str(Path.home() / "Data/CheMPAS/supercell/output.nc"))
+    ap.add_argument("-i", "--input",
+                    default=str(Path.home() / "Data/CheMPAS/supercell/output.nc"))
     ap.add_argument("-o", "--output", default=None,
                     help="output PNG path; default <input_dir>/plots/chemistry_profiles.png")
     ap.add_argument("--logx", choices=["auto", "always", "never"], default="auto",
@@ -49,17 +84,17 @@ def main() -> None:
     args = ap.parse_args()
 
     if args.output is None:
-        input_dir = Path(args.input).parent
-        plots_dir = input_dir / "plots"
+        plots_dir = Path(args.input).parent / "plots"
         plots_dir.mkdir(exist_ok=True)
         args.output = str(plots_dir / "chemistry_profiles.png")
 
+    style.setup()
+
     ds = Dataset(args.input, "r")
-    zgrid = ds.variables["zgrid"][0, :]  # first-cell edges (flat supercell)
+    zgrid = ds.variables["zgrid"][0, :]
     z_mid_km = 0.5 * (zgrid[:-1] + zgrid[1:]) / 1000.0
     nTimes = ds.dimensions["Time"].size
 
-    # Decide which variables are actually in the file.
     species = [v for v in DEFAULT_SPECIES if v in ds.variables]
     jvars   = [v for v in DEFAULT_JVARS   if v in ds.variables]
     variables = species + jvars
@@ -72,52 +107,71 @@ def main() -> None:
                               sharey=True)
     axes = np.atleast_2d(axes)
 
-    times = np.arange(nTimes)
+    # Time-series color ramp: viridis, one shade per output frame
     cmap = plt.cm.viridis
-    colors = [cmap(i / max(nTimes - 1, 1)) for i in range(nTimes)]
+    time_colors = [cmap(i / max(nTimes - 1, 1)) for i in range(nTimes)]
 
     for idx, name in enumerate(variables):
         ax = axes[idx // ncols, idx % ncols]
-        arr = read_var(ds, name)  # (Time, nCells, nVertLevels)
+        arr = ds.variables[name][:]  # (Time, nCells, nVertLevels)
+
+        is_species = name in species
+        if is_species:
+            Mw = MOLAR_MASS.get(name)
+            if Mw is None:
+                # Unknown species — plot raw kg/kg
+                arr_plot = arr
+                xlabel = f"{style.species_label(name)} [kg kg$^{{-1}}$]"
+            else:
+                arr_plot = to_ppbv(arr, Mw)
+                xlabel = species_panel_label(name)
+            title = style.species_label(name)
+        else:
+            arr_plot = arr
+            xlabel = rate_panel_label(name)
+            title = rate_label(name)
 
         for t in range(nTimes):
-            slab = arr[t, :, :]        # (nCells, nVertLevels)
+            slab = arr_plot[t, :, :]
             mean = slab.mean(axis=0)
             lo = slab.min(axis=0)
             hi = slab.max(axis=0)
             label = f"t={t}" if idx == 0 else None
-            ax.plot(mean, z_mid_km, color=colors[t], lw=1.5, label=label)
-            ax.fill_betweenx(z_mid_km, lo, hi, color=colors[t], alpha=0.15,
+            ax.plot(mean, z_mid_km, color=time_colors[t], lw=1.5, label=label)
+            ax.fill_betweenx(z_mid_km, lo, hi, color=time_colors[t], alpha=0.15,
                               linewidth=0)
 
-        ax.set_xlabel(name)
+        ax.set_xlabel(xlabel)
+        ax.set_title(title)
         if idx % ncols == 0:
             ax.set_ylabel("Altitude [km]")
-        ax.grid(True, alpha=0.3)
 
+        # Log-scale heuristic: 2+ orders of dynamic range in the last frame
         use_log = False
         if args.logx == "always":
-            use_log = (arr[-1] > 0).any()
+            use_log = (arr_plot[-1] > 0).any()
         elif args.logx == "auto":
-            # log when the non-zero dynamic range spans >= 2 decades
-            positive = arr[-1][arr[-1] > 0]
+            positive = arr_plot[-1][arr_plot[-1] > 0]
             if positive.size > 10:
                 lo_val, hi_val = positive.min(), positive.max()
                 if hi_val / max(lo_val, 1e-300) > 100.0:
                     use_log = True
         if use_log:
             ax.set_xscale("log")
-        ax.set_title(name)
 
-    # Hide any unused panels
+    # Hide unused panels
     for j in range(len(variables), nrows * ncols):
         axes[j // ncols, j % ncols].axis("off")
 
-    axes[0, 0].legend(loc="best", fontsize=8, title="time idx")
-    fig.suptitle(f"Horizontal-mean profiles from {Path(args.input).name} (shaded = min/max envelope)",
-                 fontsize=11)
-    plt.tight_layout(rect=[0, 0, 1, 0.97])
+    axes[0, 0].legend(loc="best",
+                       fontsize=style.FONT_SIZES_DEFAULT.legend_small,
+                       title="time idx")
 
+    fig.suptitle(
+        f"Horizontal-mean profiles from {Path(args.input).name}  |  "
+        "shaded = min/max envelope across cells"
+    )
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig(args.output, dpi=150, bbox_inches="tight")
     pdf = Path(args.output).with_suffix(".pdf")
     plt.savefig(pdf, bbox_inches="tight")
