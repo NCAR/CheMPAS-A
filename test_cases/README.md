@@ -18,11 +18,16 @@ rm *.tar.gz
 
 ## Test Cases
 
-| Case | Init Case | Mesh | Cells | Levels | dt (s) | Duration |
-|------|-----------|------|-------|--------|--------|----------|
-| `supercell/` | 5 | ~500 m | ~40k | 40 | 3 | 2 hours |
-| `mountain_wave/` | 6 | ~577 m | ~2k | 70 | 6 | 5 hours |
-| `jw_baroclinic_wave/` | 2 | 120 km | 40,962 | 26 | 450 | 16 days |
+| Case | Init Case | Mesh | Cells | Levels | dt (s) | Duration | Chemistry Use |
+|------|-----------|------|-------|--------|--------|----------|---------------|
+| `supercell/` | 5 | ~500 m | ~40k | 40 | 3 | 2 hours | LNOx-O3 dev, TUV-x |
+| `mountain_wave/` | 6 | ~577 m | ~2k | 70 | 6 | 5 hours | — |
+| `jw_baroclinic_wave/` | 2 | 120 km | 40,962 | 26 | 450 | 16 days | Chapman + NOx (planned) |
+
+### Notes
+
+- **supercell**: tropospheric domain (0–20 km), doubly-periodic. Primary dev case for LNOx-O3 mechanism and TUV-x photolysis integration.
+- **jw_baroclinic_wave**: global domain (no lateral BCs). The standard v7.0 config has 26 levels with a damping layer at 22 km, which provides only shallow stratospheric coverage. The vertical grid will be extended to higher altitude with increased resolution in the stratosphere for Chapman + NOx chemistry development.
 
 ## Setup and Initialization
 
