@@ -1,85 +1,189 @@
 CheMPAS
 =======
 
-CheMPAS (Chemistry for MPAS) is a coupled atmospheric-chemistry model built on
-the [MPAS](https://mpas-dev.github.io/) framework. It integrates
-[MUSICA/MICM](https://github.com/NCAR/musica) atmospheric chemistry into
-MPAS-Atmosphere, enabling chemical transport modeling on MPAS's unstructured
-Voronoi meshes.
+CheMPAS (Chemistry for MPAS) is an ACOM integration pilot that couples
+MUSICA/MICM atmospheric chemistry to MPAS-Atmosphere on its native
+unstructured Voronoi mesh. The repository serves as a rapid-prototyping
+ground for the chemistry coupling: runtime tracer allocation, MUSICA/MICM
+state transfer, TUV-x photolysis, and idealized chemistry test cases are
+developed here ahead of any upstream integration.
 
-CheMPAS is derived from
-[NCAR/MPAS-Model-ACOM-dev](https://github.com/NCAR/MPAS-Model-ACOM-dev)
-(a fork of [MPAS-Dev/MPAS-Model](https://github.com/MPAS-Dev/MPAS-Model)).
-It is an independent project and does not sync with the upstream repositories.
+CheMPAS is decoupled from both
+[MPAS-Dev/MPAS-Model](https://github.com/MPAS-Dev/MPAS-Model) and
+[NCAR/MPAS-Model-ACOM-dev](https://github.com/NCAR/MPAS-Model-ACOM-dev) —
+there is no sync or fork-tracking mechanism. Mature pieces are contributed
+back to `MPAS-Model-ACOM-dev` as deliberate, hand-crafted pull requests,
+which is the staging ground for eventual upstream integration into
+`MPAS-Dev/MPAS-Model`.
 
-## Development Workflow
+## Upstream Integration Path
 
-CheMPAS development uses coding agents (Claude, Codex, Gemini) as tools for
-implementation, review, and analysis. Humans set priorities, make scientific
-and architectural decisions, and review validation results. See
-[PURPOSE.md](PURPOSE.md) for the workflow and
-[AGENTS.md](AGENTS.md) for operational details.
+CheMPAS does not push its history to `MPAS-Model-ACOM-dev`. The two repos
+share ancestry but have no merge or rebase relationship. Integration
+contributions take the form of focused pull requests that reimplement a
+mature CheMPAS feature against the current `MPAS-Model-ACOM-dev` tree.
+
+In practice this means each upstream PR is:
+
+- **Scoped to one capability** — e.g., runtime tracer allocation, the
+  MUSICA/MICM coupler, or the TUV-x cloud radiator — rather than a bulk
+  port of CheMPAS state.
+- **Re-derived against the current upstream tree**, so the diff is clean
+  against `MPAS-Model-ACOM-dev`'s `Registry.xml`, build system, and module
+  layout at PR time.
+- **Backed by the prototype evidence in this repo** — test cases,
+  validation runs, and design notes — but not a literal port of every
+  CheMPAS file.
+
+This separation keeps CheMPAS free to iterate quickly while keeping
+upstream PRs reviewable as standalone changes.
+
+## What's Working
+
+The pieces below are demonstrated end-to-end in this repo and are the
+primary candidates for upstream integration PRs. Each entry points to the
+code and the relevant deeper documentation.
+
+- **Runtime chemistry tracer system** — chemistry tracers are removed from
+  `Registry.xml` and discovered at startup from the active MICM YAML
+  configuration; tracer field arrays are allocated at runtime in the block
+  setup path.
+  Code: `src/core_atmosphere/mpas_atm_core_interface.F`,
+  `src/framework/mpas_block_creator.F`.
+
+- **MUSICA/MICM coupler** — state transfer between MPAS and MICM in
+  mol/m³, unit conversion, and external rate-parameter wiring.
+  Code: `src/core_atmosphere/chemistry/musica/mpas_musica.F`,
+  `src/core_atmosphere/chemistry/mpas_atm_chemistry.F`.
+  See [docs/musica/MUSICA_INTEGRATION.md](docs/musica/MUSICA_INTEGRATION.md).
+
+- **TUV-x clear-sky photolysis** — j_NO2 computed via the delta-Eddington
+  solver with a from-host wavelength grid (CAM 102-bin grid).
+  See [docs/guides/TUVX_INTEGRATION.md](docs/guides/TUVX_INTEGRATION.md).
+
+- **TUV-x cloud opacity from host** — cloud radiator built from MPAS LWC
+  (`tau = 3·LWC·dz / (2·r_eff·ρ_water)`, SSA = 0.999999, g = 0.85),
+  attached to the TUV-x solver before construction.
+  See [docs/guides/TUVX_INTEGRATION.md](docs/guides/TUVX_INTEGRATION.md).
+
+- **Idealized chemistry test cases** — supercell (with LNOx source),
+  mountain wave, and Jablonowski–Williamson baroclinic wave configurations,
+  all wired for MUSICA tracer transport.
+  See [test_cases/](test_cases/) and
+  [docs/results/TEST_RUNS.md](docs/results/TEST_RUNS.md).
+
+- **Chemistry visualization tooling** — Python scripts for chemistry
+  tracers, LNOx/O₃ evolution, and chemistry profile plotting (frame
+  selection and time-series modes).
+  See [scripts/](scripts/) and
+  [docs/guides/VISUALIZE.md](docs/guides/VISUALIZE.md).
 
 ## Building
 
-CheMPAS builds with LLVM compilers (flang/clang) on macOS:
+CheMPAS builds on macOS (LLVM/flang) and Ubuntu (GCC/gfortran via conda).
+Both paths use the same preflight script to detect the toolchain and
+export the required environment.
+
+External dependencies: MPI, NetCDF, PnetCDF, PIO, and (for chemistry)
+MUSICA-Fortran built with the matching Fortran compiler.
 
 ```bash
-scripts/check_build_env.sh
-eval "$(scripts/check_build_env.sh --export)"
-
-make -j8 llvm \
-  CORE=atmosphere \
-  PIO=$HOME/software \
-  NETCDF=/opt/homebrew \
-  PNETCDF=$HOME/software \
-  PRECISION=double \
-  MUSICA=true
+scripts/check_build_env.sh                       # report mode
+eval "$(scripts/check_build_env.sh --export)"    # export mode
 ```
 
-See [BUILD.md](BUILD.md) for the MUSICA/pkg-config preflight notes and
-[RUN.md](RUN.md) for test case execution.
+macOS (LLVM/flang):
+
+```bash
+eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
+  CORE=atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" \
+  PRECISION=double MUSICA=true
+```
+
+Ubuntu (GCC/gfortran, requires `conda activate mpas`):
+
+```bash
+eval "$(scripts/check_build_env.sh --export)" && make -j8 gfortran \
+  CORE=atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" \
+  PRECISION=double MUSICA=true
+```
+
+Notes:
+- `PKG_CONFIG_PATH` must be present in the same shell invocation as
+  `make` — the Makefile invokes `pkg-config` at parse time.
+- Do not mix flang and gfortran `.mod` files; rebuild MUSICA-Fortran with
+  the same compiler as CheMPAS.
+
+See [BUILD.md](BUILD.md) for the full preflight, troubleshooting, and
+dependency-build notes, and [RUN.md](RUN.md) for executing test cases.
 
 ## Code Layout
 
 ```
 CheMPAS/
 ├── src/
-│   ├── driver              -- Main driver (standalone mode)
-│   ├── external            -- External dependencies
-│   ├── framework           -- MPAS framework (data types, comms, I/O)
-│   ├── operators           -- Mesh operators
+│   ├── driver                       -- Standalone driver
+│   ├── framework                    -- MPAS framework (pools, fields, I/O, MPI)
+│   ├── operators                    -- Mesh operators
+│   ├── external                     -- Vendored external dependencies
 │   ├── tools/
-│   │   ├── registry        -- Registry.xml parser
-│   │   └── input_gen       -- Stream and namelist generators
+│   │   ├── registry                 -- Registry.xml parser / code gen
+│   │   └── input_gen                -- Stream and namelist generators
 │   ├── core_atmosphere/
-│   │   ├── dynamics        -- Dynamical core
-│   │   ├── physics         -- Physics parameterizations
+│   │   ├── dynamics                 -- Dynamical core
+│   │   ├── physics                  -- Physics parameterizations
+│   │   ├── diagnostics              -- Diagnostic outputs
 │   │   └── chemistry/
-│   │       └── musica      -- MUSICA/MICM coupling
-│   └── core_init_atmosphere
-├── scripts/                -- Visualization and analysis tools
-├── testing_and_setup/      -- Test case configuration
-└── default_inputs/         -- Default stream and namelist files
+│   │       ├── mpas_atm_chemistry.F -- Generic chemistry interface
+│   │       └── musica/              -- MUSICA/MICM coupler (mpas_musica.F)
+│   ├── core_init_atmosphere         -- Initialization / preprocessing core
+│   └── core_{ocean,seaice,landice,sw,test}  -- Inherited from upstream MPAS;
+│                                              not actively maintained here
+├── micm_configs/                    -- MICM YAML mechanism configs
+├── test_cases/                      -- Idealized test case configurations
+├── default_inputs/                  -- Default streams and namelists
+├── scripts/                         -- Visualization and analysis tools
+└── docs/                            -- Documentation tree
 ```
 
 ## Documentation
 
+The most relevant docs for evaluating or extracting pieces of this pilot:
+
+**Architecture & integration**
+
 | Document | Description |
 |----------|-------------|
-| [PURPOSE.md](PURPOSE.md) | Project motivation and development philosophy |
-| [AGENTS.md](AGENTS.md) | Agent roles, workflow, and review gates |
-| [docs/README.md](docs/README.md) | Documentation index by topic |
-| [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) | System architecture |
-| [BUILD.md](BUILD.md) | Build instructions |
+| [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) | System architecture overview |
+| [docs/architecture/COMPONENTS.md](docs/architecture/COMPONENTS.md) | Component-level details |
+| [docs/musica/MUSICA_INTEGRATION.md](docs/musica/MUSICA_INTEGRATION.md) | MUSICA/MICM coupling design and implementation |
+| [docs/musica/MUSICA_API.md](docs/musica/MUSICA_API.md) | MUSICA-Fortran API reference |
+| [docs/guides/TUVX_INTEGRATION.md](docs/guides/TUVX_INTEGRATION.md) | TUV-x photolysis integration and test case |
+
+**Build, run, and validation**
+
+| Document | Description |
+|----------|-------------|
+| [BUILD.md](BUILD.md) | Build instructions and preflight notes |
 | [RUN.md](RUN.md) | Running test cases |
-| [MUSICA_INTEGRATION.md](docs/musica/MUSICA_INTEGRATION.md) | MUSICA/MICM coupling details |
-| [MUSICA_API.md](docs/musica/MUSICA_API.md) | MUSICA Fortran API reference |
-| [TEST_RUNS.md](docs/results/TEST_RUNS.md) | Recorded run outcomes and validation notes |
-| [BENCHMARKS.md](docs/results/BENCHMARKS.md) | Agent and model benchmark comparison |
-| [TUVX_INTEGRATION.md](docs/guides/TUVX_INTEGRATION.md) | TUV-x integration summary and development test case |
-| [VISUALIZE.md](docs/guides/VISUALIZE.md) | Chemistry visualization tools |
-| [User Guide](docs/users-guide/00-foreword.md) | Imported user guide chapters |
+| [docs/results/TEST_RUNS.md](docs/results/TEST_RUNS.md) | Recorded run outcomes and validation evidence |
+| [docs/guides/VISUALIZE.md](docs/guides/VISUALIZE.md) | Chemistry visualization tools |
+
+**Project context**
+
+| Document | Description |
+|----------|-------------|
+| [PURPOSE.md](PURPOSE.md) | Pilot motivation and operating approach |
+| [AGENTS.md](AGENTS.md) | Development model and review gates |
+
+The full topic-organized index lives at [docs/README.md](docs/README.md),
+including the imported MPAS user guide chapters.
+
+## Development Model
+
+The repository's governance structure is designed to support rapid PR
+turnaround when coding agent tools are employed. See [AGENTS.md](AGENTS.md)
+and [PURPOSE.md](PURPOSE.md).
 
 ## License
 
