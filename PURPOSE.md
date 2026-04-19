@@ -1,6 +1,6 @@
-# CheMPAS Development Workflow
+# CheMPAS-A Development Workflow
 
-CheMPAS is a fork of
+CheMPAS-A is a fork of
 [NCAR/MPAS-Model-ACOM-dev](https://github.com/NCAR/MPAS-Model-ACOM-dev),
 itself a fork of [MPAS-Dev/MPAS-Model](https://github.com/MPAS-Dev/MPAS-Model).
 It is maintained independently for coupled atmospheric chemistry work on MPAS

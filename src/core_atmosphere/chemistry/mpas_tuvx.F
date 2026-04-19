@@ -7,7 +7,7 @@
 !-----------------------------------------------------------------------
 !  mpas_tuvx
 !
-!> \brief TUV-x photolysis rate calculations for CheMPAS
+!> \brief TUV-x photolysis rate calculations for CheMPAS-A
 !> \author CheMPAS-A Developers
 !> \date   March 2026
 !> \details

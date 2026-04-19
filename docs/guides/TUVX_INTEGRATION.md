@@ -1,6 +1,6 @@
 # TUV-x Integration Summary
 
-This note summarizes the CheMPAS TUV-x integration work completed to date and
+This note summarizes the CheMPAS-A TUV-x integration work completed to date and
 records the development test case used to validate it. It is intended as the
 stable overview document for TUV-x work; detailed implementation planning lives
 in `docs/plans/2026-03-06-tuvx-photolysis-integration.md`, and recorded run
@@ -8,7 +8,7 @@ results live in `docs/results/TEST_RUNS.md`.
 
 ## Scope
 
-CheMPAS currently uses TUV-x to compute `j_no2` for the idealized supercell
+CheMPAS-A currently uses TUV-x to compute `j_no2` for the idealized supercell
 LNOx-O3 chemistry mechanism. The integration was developed in phases:
 
 1. Phase 0: fixed-rate LNOx-O3 chemistry and lightning-NOx source
@@ -211,7 +211,7 @@ For the complete tables, plots, and pass/fail notes, see
 
 ## Multi-Photolysis Plumbing
 
-CheMPAS couples TUV-x to MICM through a single-name convention: for every
+CheMPAS-A couples TUV-x to MICM through a single-name convention: for every
 photolysis reaction, the same string is used in four places —
 
 ```

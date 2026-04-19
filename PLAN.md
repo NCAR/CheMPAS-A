@@ -1,4 +1,4 @@
-# CheMPAS Plan Index
+# CheMPAS-A Plan Index
 
 ## Document Status
 

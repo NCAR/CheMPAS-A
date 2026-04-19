@@ -1,6 +1,6 @@
 {
   "__description": [
-    "TUV-x configuration for the Chapman-cycle mechanism used by CheMPAS:",
+    "TUV-x configuration for the Chapman-cycle mechanism used by CheMPAS-A:",
     "three photolysis rates (jO2, jO3_O, jO3_O1D). Reaction names match",
     "chapman_full.yaml exactly so the MICM PHOTO.<name> lookup works.",
     "The air, O3, O2, temperature, and height profiles are supplied from",

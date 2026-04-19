@@ -1,7 +1,7 @@
-# CheMPAS Components
+# CheMPAS-A Components
 
 This document provides detailed information about the major components of
-CheMPAS, with focus on the atmosphere core and the chemistry extensions in this
+CheMPAS-A, with focus on the atmosphere core and the chemistry extensions in this
 repository.
 
 ## Core Atmosphere (`src/core_atmosphere/`)
@@ -99,7 +99,7 @@ Physics parameterizations from multiple sources (~50 modules).
 
 ### Chemistry (`chemistry/`)
 
-CheMPAS chemistry is integrated directly into the atmosphere core. The
+CheMPAS-A chemistry is integrated directly into the atmosphere core. The
 chemistry layer manages:
 
 - runtime tracer discovery from the MICM configuration

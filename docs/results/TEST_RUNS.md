@@ -318,7 +318,7 @@ python init_tracer_sine.py -t qAB --waves-x 2 --amplitude 0.4 --offset 0.6
 
 **LNOx source validation against literature:**
 
-| Metric | CheMPAS | Literature | Reference |
+| Metric | CheMPAS-A | Literature | Reference |
 |--------|---------|------------|-----------|
 | Peak NO (updraft core) | 299 ppbv | 100-500 ppbv | Ott et al. (2010) CRM |
 | Peak NO (updraft core) | 299 ppbv | 100-200 ppbv | Barth et al. (2012) WRF-Chem |

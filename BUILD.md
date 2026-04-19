@@ -181,7 +181,7 @@ Undefined symbols for architecture arm64:
 ```
 
 `MUSICA-LLVM` bundles a flang-built `netcdf-fortran` at
-`flang-deps/netcdf-fortran-install/`. Point CheMPAS at it with `NETCDFF=`.
+`flang-deps/netcdf-fortran-install/`. Point CheMPAS-A at it with `NETCDFF=`.
 The Makefile already knows how to split `NETCDF` (C library / headers) from
 `NETCDFF` (Fortran library / `.mod`). The preflight script detects this
 tree automatically and exports `NETCDFF=`.
@@ -376,12 +376,12 @@ The `gfortran` target configures:
 1. **No `NOMPIMOD` needed.** With gfortran-built OpenMPI, the `mpi_f08` module
    is compatible. The `gfortran` make target does not pass `-DNOMPIMOD`.
 
-2. **Conda environment isolation.** All builds (PIO, MUSICA, CheMPAS) must
+2. **Conda environment isolation.** All builds (PIO, MUSICA, CheMPAS-A) must
    happen within the same conda environment to ensure consistent
    compiler/library paths.
 
 3. **NoahMP and GSL orography source files.** These are fetched from upstream
-   MPAS-Dev/MPAS-Model and are not tracked in the CheMPAS repo. If they are
+   MPAS-Dev/MPAS-Model and are not tracked in the CheMPAS-A repo. If they are
    missing, copy from upstream or the sister repo.
 
 4. **Physics data files.** The `checkout_data_files.sh` script in

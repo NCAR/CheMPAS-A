@@ -144,7 +144,7 @@ open quick.png
 
 4. **Run the model:**
    ```bash
-   mpiexec -n 8 ~/EarthSystem/CheMPAS/atmosphere_model
+   mpiexec -n 8 ~/EarthSystem/CheMPAS-A/atmosphere_model
    ```
 
 5. **Generate all visualizations:**

@@ -1,8 +1,8 @@
-# CheMPAS Ubuntu/GCC Build Plan
+# CheMPAS-A Ubuntu/GCC Build Plan
 
 **Status: COMPLETE (2026-04-05)**
 
-Ported CheMPAS from macOS/LLVM (flang/clang) to Ubuntu/GCC (gfortran/gcc).
+Ported CheMPAS-A from macOS/LLVM (flang/clang) to Ubuntu/GCC (gfortran/gcc).
 
 ## Current State
 
@@ -71,7 +71,7 @@ Verify:
 
 ---
 
-## Phase 3: Adapt CheMPAS Build System
+## Phase 3: Adapt CheMPAS-A Build System
 
 ### 3a. Makefile (Lines 884-902)
 
@@ -107,7 +107,7 @@ should be compatible, so `NOMPIMOD` may not be required.
 
 ---
 
-## Phase 4: Build CheMPAS
+## Phase 4: Build CheMPAS-A
 
 ### 4a. Build without MUSICA first
 
@@ -148,7 +148,7 @@ make -j8 gfortran \
 
 ## Key Risks and Notes
 
-1. **Compiler consistency**: MUSICA, NetCDF-Fortran, and CheMPAS must all be built
+1. **Compiler consistency**: MUSICA, NetCDF-Fortran, and CheMPAS-A must all be built
    with the same Fortran compiler. Mixing gfortran and flang `.mod` files causes
    link failures.
 

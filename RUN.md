@@ -49,7 +49,7 @@ timestamp=$(date +%Y%m%d_%H%M%S)
 [ -f log.atmosphere.0000.out ] && mv log.atmosphere.0000.out log.atmosphere.0000.${timestamp}.out
 
 # Run with 8 MPI ranks (recommended for 10-core machine)
-mpiexec -n 8 ~/EarthSystem/CheMPAS/atmosphere_model
+mpiexec -n 8 ~/EarthSystem/CheMPAS-A/atmosphere_model
 ```
 
 ### MPI Rank Selection
@@ -108,7 +108,7 @@ for f in output.nc log.atmosphere.*.out; do
 done
 
 # Run
-mpiexec -n 8 ~/EarthSystem/CheMPAS/atmosphere_model 2>&1 | tee run.out
+mpiexec -n 8 ~/EarthSystem/CheMPAS-A/atmosphere_model 2>&1 | tee run.out
 ```
 
 ## Advection Studies
@@ -182,14 +182,14 @@ are set to 0, so the default config omits them to preserve conservation.
 
 1. Copy the MICM config to the run directory:
    ```bash
-   cp ~/EarthSystem/CheMPAS/micm_configs/lnox_o3.yaml ~/Data/CheMPAS/supercell/
+   cp ~/EarthSystem/CheMPAS-A/micm_configs/lnox_o3.yaml ~/Data/CheMPAS/supercell/
    # If using NOx sink: also copy lnox_o3_sink.yaml and set config_micm_file accordingly
    ```
 
 2. Initialize tracers (O3=50 ppbv, NO=NO2=0):
    ```bash
    cd ~/Data/CheMPAS/supercell
-   ~/miniconda3/envs/mpas/bin/python ~/EarthSystem/CheMPAS/scripts/init_lnox_o3.py -i supercell_init.nc
+   ~/miniconda3/envs/mpas/bin/python ~/EarthSystem/CheMPAS-A/scripts/init_lnox_o3.py -i supercell_init.nc
    ```
 
 3. Configure `namelist.atmosphere` `&musica` section:
@@ -218,7 +218,7 @@ cd ~/Data/CheMPAS/supercell
 ts=$(date +%Y%m%d_%H%M%S)
 [ -f output.nc ] && mv output.nc output.${ts}.nc
 [ -f log.atmosphere.0000.out ] && mv log.atmosphere.0000.out log.atmosphere.0000.${ts}.out
-mpiexec -n 8 ~/EarthSystem/CheMPAS/atmosphere_model
+mpiexec -n 8 ~/EarthSystem/CheMPAS-A/atmosphere_model
 ```
 
 **Expected behavior:** NO injected in updraft core (w > 5 m/s, 5–12 km altitude),

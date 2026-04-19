@@ -1,8 +1,8 @@
-# CheMPAS Coding-Agent-Assisted Development
+# CheMPAS-A Coding-Agent-Assisted Development
 
 ## Motivation
 
-The upstream MPAS-Dev repositories rely on human PR review, which creates bottlenecks that limit development velocity. CheMPAS addresses that by using coding agents as first-class collaborators in the development lifecycle — drafting code, reviewing changes, and supporting CI — while keeping human oversight where it matters most.
+The upstream MPAS-Dev repositories rely on human PR review, which creates bottlenecks that limit development velocity. CheMPAS-A addresses that by using coding agents as first-class collaborators in the development lifecycle — drafting code, reviewing changes, and supporting CI — while keeping human oversight where it matters most.
 
 ## Agent Roles
 
@@ -23,7 +23,7 @@ The review agent evaluates PRs for correctness, style, performance, and scientif
 
 ### Deep Research Agent
 
-The deep research agent operates at a different scale than the development and review agents. With a 1M+ token context window, it can ingest the full CheMPAS source tree, scientific literature, and design documents simultaneously. It does not write or review PRs — it informs the agents and humans who do.
+The deep research agent operates at a different scale than the development and review agents. With a 1M+ token context window, it can ingest the full CheMPAS-A source tree, scientific literature, and design documents simultaneously. It does not write or review PRs — it informs the agents and humans who do.
 
 Responsibilities:
 

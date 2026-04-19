@@ -18,7 +18,7 @@ Generate and open chemistry visualization plots from MPAS output.
 
 ```bash
 TEST_DIR="$HOME/Data/CheMPAS/supercell"
-SCRIPT="$HOME/EarthSystem/CheMPAS/scripts/plot_chemistry.py"
+SCRIPT="$HOME/EarthSystem/CheMPAS-A/scripts/plot_chemistry.py"
 PYTHON="$HOME/miniconda3/envs/mpas/bin/python"
 cd "$TEST_DIR"
 ```
