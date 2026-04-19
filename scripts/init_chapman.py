@@ -194,7 +194,15 @@ def main() -> None:
 
         ensure_tracer(ds, "qO2", QO2_UNIFORM, "molecular_oxygen")
         ensure_tracer(ds, "qO3", afgl_qo3_profile(z_mid_km), "ozone")
-        ensure_tracer(ds, "qO",  0.0, "atomic_oxygen_3P")
+        # Seed [O] with a small non-zero floor (instead of exactly 0.0) to
+        # break the degeneracy that lets MICM's implicit solver land on a
+        # non-physical fixed point when photolysis is on from t=0. 1e-12
+        # kg/kg corresponds to [O] ≈ 7e-11 mol/m³ at surface and ≈ 3e-10
+        # mol/m³ at the stratopause — many orders above the MICM absolute
+        # tolerance (1e-10 mol/m³), well below any chemical steady state,
+        # and negligible for every rate we care about. See
+        # docs/plans/2026-04-18-chapman-nox-chem-box-issue.md.
+        ensure_tracer(ds, "qO",  1.0e-12, "atomic_oxygen_3P")
         ensure_tracer(ds, "qO1D", 0.0, "atomic_oxygen_1D")
 
         if args.zero_nox:

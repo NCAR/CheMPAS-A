@@ -26,32 +26,32 @@ species:
     __do advect: true
     __initial concentration: 0.0
   - name: O
-    __absolute tolerance: 1e-12
+    __absolute tolerance: 1e-10
     __molar mass: 0.016
     __long name: atomic_oxygen_3P
     __do advect: true
     __initial concentration: 0.0
   - name: O1D
-    __absolute tolerance: 1e-12
+    __absolute tolerance: 1e-10
     __molar mass: 0.016
     __long name: atomic_oxygen_1D
     __do advect: true
     __initial concentration: 0.0
   - name: O3
-    __absolute tolerance: 1e-12
+    __absolute tolerance: 1e-10
     __molar mass: 0.048
     __long name: ozone
     __atoms: 3
     __do advect: true
     __initial concentration: 0.0
   - name: NO
-    __absolute tolerance: 1e-12
+    __absolute tolerance: 1e-10
     __molar mass: 0.030
     __long name: nitric_oxide
     __do advect: true
     __initial concentration: 0.0
   - name: NO2
-    __absolute tolerance: 1e-12
+    __absolute tolerance: 1e-10
     __molar mass: 0.046
     __long name: nitrogen_dioxide
     __do advect: true
