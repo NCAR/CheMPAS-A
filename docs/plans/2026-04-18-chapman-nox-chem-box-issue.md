@@ -469,6 +469,98 @@ order of cost:
 Option 4 is closest to the MUSICA reference usage pattern and is
 the cheapest to try first.
 
+## Tests of options 1 + 2 — did NOT fix the explosion
+
+On 2026-04-18, tried options 1 and 2 together:
+
+- `scripts/init_chapman.py` changed to write `qO = 1e-12 kg/kg`
+  (uniform) instead of exactly zero. Corresponds to `[O] ≈ 7e-11
+  mol/m³` at surface and `3e-10 mol/m³` at the stratopause — well
+  above any MICM absolute tolerance but chemically negligible.
+  Committed.
+- `chapman_nox.yaml` and `chapman_nox_noO1D.yaml` changed from
+  `__absolute tolerance: 1e-12` to `1e-10` on all radical species.
+  Also tested with tolerance relaxed all the way to `1e-6`.
+  Committed at 1e-10.
+
+Result: **output is bit-for-bit identical to the pre-change
+Backward Euler run.** qO3 still jumps from 5.07e-6 → 1.52e-2
+(mean, kg/kg) in one 3 s step. The implicit fixed point Backward
+Euler lands on does not depend on the initial [O] value or the
+absolute-tolerance floor.
+
+### Why these knobs didn't matter (important correction)
+
+The reason is adaptive sub-stepping. MICM's Rosenbrock and
+Backward Euler solvers are both adaptive: within a single
+`micm%solve(dt, ...)` call for MPAS dt = 3 s, the solver takes
+multiple internal sub-steps (Rosenbrock took 9 accepted sub-steps
+per earlier logs). Which sub-step sizes the solver chooses is
+driven by its **step-size error controller**, which compares step
+estimates against the error tolerances.
+
+- `absolute_tolerance` matters mostly for species near zero; it
+  sets the floor below which error is considered negligible.
+  Loosening it 1e-12 → 1e-6 only relaxes the floor — it does not
+  force smaller sub-steps during the stiff transient.
+- `relative_tolerance` (default `1e-6`, set via the solver
+  parameters API, not the YAML) controls the per-species
+  tolerance relative to magnitude. This is what drives the
+  sub-step size through the stiff Chapman null-cycle transient.
+  Tightening it forces the adaptive controller to take smaller
+  internal steps.
+
+Options 1+2 don't touch `relative_tolerance`, which is why they
+make no difference: the adaptive controller keeps accepting the
+same ~0.3 s sub-steps that land the implicit Newton iterate on
+the wrong fixed point.
+
+## Next planned test — tighten `relative_tolerance`
+
+Extend `musica_init` in `mpas_musica.F` to call
+`micm%set_backward_euler_solver_parameters(params, error)` right
+after `get_state`, where `params` is a
+`backward_euler_solver_parameters_t` with:
+
+- `relative_tolerance = 1e-9` (or tighter, 1e-12, to bracket)
+- `max_number_of_steps = 30` (default 11 — give the adaptive
+  controller more budget to take many small sub-steps)
+- `time_step_reductions = [0.1, 0.1, 0.1, 0.1, 0.01]` (default
+  [0.5, 0.5, 0.5, 0.5, 0.1] — be more aggressive when Newton
+  fails to converge)
+
+If tighter `relative_tolerance` makes the step-1 trajectory
+physically reasonable, that both confirms the diagnosis and
+gives us a production fix. If it still lands on the wrong fixed
+point, the next move is to instrument MICM's Newton iterate
+itself (log the residual and iterate count per sub-step) —
+that's a MICM-side change and probably worth an upstream issue.
+
+### Handoff status at 2026-04-18 end-of-session
+
+Committed on `develop`:
+- `eac18d5` — solver switch Rosenbrock → Backward Euler.
+- `6f95416` — TUV-x edge values + exo layer density (coupling
+  completeness, does not affect the explosion).
+- Pending this commit — `__absolute tolerance` 1e-12 → 1e-10,
+  `qO` seed 1e-12 kg/kg in `init_chapman.py`, Line B results,
+  "tests of options 1 + 2" and "next planned test" sections.
+
+Run-directory state (`~/Data/CheMPAS/chem_box/`, not tracked):
+- `chem_box_init.nc` re-initialized with the new qO seed via
+  `python scripts/init_chapman.py --input ...`.
+- `chapman_nox.yaml` copied from repo's `chapman_nox_noO1D.yaml`
+  (for the reduced-mechanism test path).
+
+Not committed — open work:
+- Implement `set_backward_euler_solver_parameters` call in
+  `mpas_musica.F::musica_init` with tighter `relative_tolerance`
+  as described above.
+- Rebuild, rerun, compare qO3 trajectory against the
+  pre-tolerance-change baseline.
+- If successful, decide on production tolerance values and
+  whether to expose them via namelist.
+
 ## Hypotheses still on the table
 
 1. **TUV-x radiator update ordering.** `radiator_from_host_t::update_state`
