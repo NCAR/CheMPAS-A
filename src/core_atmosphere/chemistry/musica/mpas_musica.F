@@ -671,15 +671,17 @@ module mpas_musica
         use iso_fortran_env, only : real64
         use mpas_kind_types, only : RKIND
         use mpas_log, only : mpas_log_write
+        use musica_util, only : error_t
 
         type(state_t), intent(inout) :: state
         integer, intent(in)          :: number_of_grid_cells
         real(kind=RKIND), intent(in) :: nox_tau     ! [s] NOx sink timescale (0 = disabled)
 
-        integer :: cell_stride, var_stride, rp_index, cell, idx, n_rp
+        integer :: cell_stride, var_stride, rp_index, storage_index, cell, idx, n_rp
         character(len=256) :: msg
         character(len=:), allocatable :: rp_name
         real(real64) :: rate_val
+        type(error_t) :: error
 
         if (state%number_of_rate_parameters == 0) return
 
@@ -689,6 +691,12 @@ module mpas_musica
 
         do rp_index = 1, n_rp
             rp_name = trim(state%rate_parameters_ordering%name(rp_index))
+            storage_index = state%rate_parameters_ordering%index(rp_name, error)
+            if (.not. error%is_success()) then
+                call mpas_log_write('[MUSICA] Could not resolve storage index for rate param "' // &
+                    rp_name // '"')
+                cycle
+            end if
 
             ! Set rate based on parameter name.
             ! USER_DEFINED reactions: host multiplier — default 1.0 so the
@@ -706,7 +714,7 @@ module mpas_musica
             end if
 
             do cell = 1, number_of_grid_cells
-                idx = 1 + (cell - 1) * cell_stride + (rp_index - 1) * var_stride
+                idx = 1 + (cell - 1) * cell_stride + (storage_index - 1) * var_stride
                 state%rate_parameters(idx) = rate_val
             end do
 
@@ -729,14 +737,15 @@ module mpas_musica
     !------------------------------------------------------------------------
     subroutine musica_cache_photo_indices(names, error_code, error_message)
         use mpas_log, only : mpas_log_write
+        use musica_util, only : error_t
 
         character(len=*), intent(in)                :: names(:)
         integer, intent(out)                        :: error_code
         character(len=:), allocatable, intent(out)   :: error_message
 
-        integer :: i, j, n_rp
-        character(len=:), allocatable :: rp_name, target_name
-        logical :: found
+        integer :: i
+        character(len=:), allocatable :: target_name
+        type(error_t) :: error
 
         error_code = 0
         error_message = ''
@@ -760,28 +769,18 @@ module mpas_musica
             return
         end if
 
-        n_rp = state%rate_parameters_ordering%size()
-
         do i = 1, n_photo_rp
             photo_rp_names(i) = trim(names(i))
             target_name = 'PHOTO.' // trim(names(i))
-            found = .false.
-            do j = 1, n_rp
-                rp_name = trim(state%rate_parameters_ordering%name(j))
-                if (rp_name == target_name) then
-                    photo_rp_indices(i) = j
-                    found = .true.
-                    call mpas_log_write('[MUSICA] Cached ' // target_name // &
-                        ' rate param index = $i', intArgs=[j])
-                    exit
-                end if
-            end do
-            if (.not. found) then
+            photo_rp_indices(i) = state%rate_parameters_ordering%index(target_name, error)
+            if (.not. error%is_success()) then
                 error_code = 1
                 error_message = '[MUSICA] Rate parameter ' // target_name // &
                     ' not found; TUV-x and MICM configs disagree'
                 return
             end if
+            call mpas_log_write('[MUSICA] Cached ' // target_name // &
+                ' rate param index = $i', intArgs=[photo_rp_indices(i)])
         end do
 
     end subroutine musica_cache_photo_indices

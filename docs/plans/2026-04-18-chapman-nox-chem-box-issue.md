@@ -1190,6 +1190,139 @@ MPAS/TUV/copy-back path. Use it to bracket solver choice,
 time-step length, tolerance, and mechanism variants before making any
 scientific mechanism change.
 
+### 2026-04-19 root cause: MICM rate-parameter storage order
+
+The one-cell level-2 reproducer is now tracked:
+
+- `test_cases/chem_box/reproducers/chapman_nox_level2_reproducer.F90`
+- `test_cases/chem_box/reproducers/run_chapman_nox_level2_reproducer.sh`
+
+It exposed the actual issue: the failure is not a physical
+level-2 MICM instability. It is a CheMPAS rate-parameter storage-order
+mismatch.
+
+For `chapman_nox.yaml`, `state%rate_parameters_ordering%name(i)` and
+`state%rate_parameters_ordering%index(name)` are not the same order.
+TUV-x enumerates reactions as:
+
+```
+jO2, jO3_O1D, jO3_O, jNO2
+```
+
+but MICM stores `chapman_nox` rate parameters at:
+
+```
+PHOTO.jO2     -> 1
+PHOTO.jO3_O   -> 2
+PHOTO.jO3_O1D -> 3
+PHOTO.jNO2    -> 4
+```
+
+Before the fix, `musica_cache_photo_indices` searched the names by
+iteration and cached the loop counter `j`, not the MICM storage index.
+That wrote the physically correct TUV-x rates into the wrong slots:
+
+```
+MICM PHOTO.jO2     received jNO2    = 6.914e-3 s-1
+MICM PHOTO.jO3_O   received jO2     = 3.543e-37 s-1
+MICM PHOTO.jO3_O1D received jO3_O   = 3.664e-4 s-1
+MICM PHOTO.jNO2    received jO3_O1D = 9.254e-6 s-1
+```
+
+The tracked reproducer has modes that make this explicit:
+
+```
+# current-code pre-fix equivalent: species by MICM name, rates by raw slots
+test_cases/chem_box/reproducers/run_chapman_nox_level2_reproducer.sh \
+  3.0 rosenbrock 1e-15 name_species_raw_rates
+
+# corrected physical state: species and rates by MICM name/index
+test_cases/chem_box/reproducers/run_chapman_nox_level2_reproducer.sh \
+  3.0 rosenbrock 1e-15 name_mapped
+```
+
+Results:
+
+```
+mode                    dt       solver       O3 after (mol/m3)
+name_species_raw_rates  3.0 s    Rosenbrock   3.13020686479e-1
+name_mapped             3.0 s    Rosenbrock   1.03580833021e-6
+```
+
+The raw-rate state also explodes with `BackwardEulerStandardOrder`
+(`O3 = 2.982e-1 mol/m3` after 3 s), and remains strongly
+timestep-sensitive under Rosenbrock:
+
+```
+dt (s)   raw-rate O3 after (mol/m3)
+3.0      3.130e-1
+0.1      1.098e-2
+0.01     1.099e-3
+0.001    1.094e-4
+0.0001   1.040e-5
+0.00001  1.336e-6
+```
+
+That bracket explains why the original debugging looked like a stiff
+timestep/implicit-root problem: the miswired rates put the NO2
+photolysis rate into the O2 photolysis slot, creating a large atomic-O
+source.
+
+### Fix and verification
+
+`src/core_atmosphere/chemistry/musica/mpas_musica.F` now resolves
+rate-parameter storage with
+`state%rate_parameters_ordering%index(name, error)` in both:
+
+- `musica_cache_photo_indices` for TUV-x photolysis rates.
+- `assign_rate_parameters` for generic USER/LOSS/PHOTO defaults.
+
+This is a chemistry coupling change and should be reviewed under the
+project's human review gates.
+
+Verification:
+
+```
+test_cases/chem_box/reproducers/run_chapman_nox_level2_reproducer.sh \
+  3.0 rosenbrock 1e-15 name_species_raw_rates
+```
+
+reproduces the old bad slot assignment. The same state with
+`name_mapped` is stable.
+
+The MUSICA atmosphere build was checked with:
+
+```bash
+eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
+  CORE=atmosphere \
+  PIO="$PIO" \
+  NETCDF="$NETCDF" \
+  PNETCDF="$PNETCDF" \
+  PRECISION=double \
+  MUSICA=true
+```
+
+The first sandboxed build compiled `mpas_musica.F` but failed later
+when `checkout_externals` could not resolve GitHub for `MMM-physics`.
+The rerun with network access completed and linked `atmosphere_model`
+against MUSICA-Fortran 0.13.0.
+
+Coupled chem_box verification with the rebuilt executable:
+
+- 3 s run in `/tmp/chem_box_rate_index_fix_run`:
+  - Cached indices in the log are now `jO2 -> 1`,
+    `jO3_O1D -> 3`, `jO3_O -> 2`, `jNO2 -> 4`.
+  - `qO3` max in `output.nc`: initial `3.96927497467e-5 kg/kg`,
+    after 3 s `3.96024675947e-5 kg/kg`.
+  - Old pre-fix first-step log for the same case had
+    `global min, max scalar 9 ... 0.211200176249252E-01`.
+- 5 min run in `/tmp/chem_box_rate_index_fix_5min_run`:
+  - `qO3` max in `output.nc`: initial `3.96927497467e-5 kg/kg`,
+    after 5 min `3.91480558608e-5 kg/kg`.
+  - Final log line for scalar 9:
+    `global min, max scalar 9 ... 0.391480558608163E-04`.
+  - The run finished with 0 logged errors and 0 critical errors.
+
 ### Current state shipped
 
 - `SetRelativeTolerance` API in MUSICA-LLVM (generally useful for
@@ -1201,6 +1334,8 @@ scientific mechanism change.
 - Solver default in `mpas_musica.F` flipped to
   `RosenbrockStandardOrder`; revert to `BackwardEulerStandardOrder`
   if mass balance becomes a concern in production runs.
+- Rate-parameter mapping in `mpas_musica.F` now uses MICM storage
+  indices instead of ordering iteration positions.
 
-None of these solve chapman_nox in chem_box. They stand as
-infrastructure for the next round of coupling diagnostics.
+The Chapman + NOx chem_box explosion is fixed by the rate-parameter
+mapping change in the 3 s and 5 min daylight verification runs above.
