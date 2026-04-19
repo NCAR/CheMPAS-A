@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Phase-gate checks for CheMPAS LNOx-O3 / TUV-x integration.
+Phase-gate checks for CheMPAS-A LNOx-O3 / TUV-x integration.
 
 Imported from the ancestor MPAS-Model-ACOM-dev tooling and adapted for the
-CheMPAS phase matrix. Each subcommand prints a compact report and exits
+CheMPAS-A phase matrix. Each subcommand prints a compact report and exits
 non-zero on failure.
 """
 
@@ -655,7 +655,7 @@ def run_check(result: CheckResult) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run CheMPAS TUV-x phase-gate checks.")
+    parser = argparse.ArgumentParser(description="Run CheMPAS-A TUV-x phase-gate checks.")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_nonneg = sub.add_parser("nonnegative", help="Check tracers are non-negative.")

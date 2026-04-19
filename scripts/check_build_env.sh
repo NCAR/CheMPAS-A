@@ -8,7 +8,7 @@ Usage:
   scripts/check_build_env.sh
   eval "$(scripts/check_build_env.sh --export)"
 
-Checks the local build prerequisites used by CheMPAS.
+Checks the local build prerequisites used by CheMPAS-A.
 Auto-detects the Fortran compiler toolchain (LLVM/flang or GCC/gfortran).
 
 Options:
@@ -194,7 +194,7 @@ EOF
     return 1
 }
 
-report "CheMPAS build environment preflight"
+report "CheMPAS-A build environment preflight"
 
 if [[ -n "${fc_compiler}" ]]; then
     pass "Fortran compiler: ${fc_compiler} ($(command -v ${fc_compiler}))"

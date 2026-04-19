@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-CheMPAS (Chemistry for MPAS) is a standalone project derived from [NCAR/MPAS-Model-ACOM-dev](https://github.com/NCAR/MPAS-Model-ACOM-dev), itself a fork of [MPAS-Dev/MPAS-Model](https://github.com/MPAS-Dev/MPAS-Model). It extends the Model for Prediction Across Scales (MPAS) with integrated MUSICA/MICM atmospheric chemistry, enabling coupled atmospheric-chemistry modeling on MPAS's unstructured mesh. CheMPAS is an independent project and is not intended to sync with the upstream repositories.
+CheMPAS-A (Chemistry for MPAS - Atmosphere) is a standalone project derived from [NCAR/MPAS-Model-ACOM-dev](https://github.com/NCAR/MPAS-Model-ACOM-dev), itself a fork of [MPAS-Dev/MPAS-Model](https://github.com/MPAS-Dev/MPAS-Model). It extends the Model for Prediction Across Scales (MPAS) with integrated MUSICA/MICM atmospheric chemistry, enabling coupled atmospheric-chemistry modeling on MPAS's unstructured mesh. CheMPAS-A is an independent project and is not intended to sync with the upstream repositories.
 
 ## Key Documentation
 
@@ -30,7 +30,7 @@ CheMPAS (Chemistry for MPAS) is a standalone project derived from [NCAR/MPAS-Mod
 
 ## Build Configuration
 
-CheMPAS builds on two platforms. The preflight script auto-detects the
+CheMPAS-A builds on two platforms. The preflight script auto-detects the
 compiler toolchain (flang or gfortran) and sets paths accordingly:
 
 ```bash
@@ -89,7 +89,7 @@ PIO and MUSICA built from source into `~/software`.
 ### Important (both platforms)
 
 - Always use `-j8` for parallel compilation.
-- MUSICA-Fortran must be built with the same Fortran compiler as CheMPAS.
+- MUSICA-Fortran must be built with the same Fortran compiler as CheMPAS-A.
   Mixing flang and gfortran `.mod` files causes link failures.
 - `PNETCDF` is required for the normal top-level build.
 - A full atmosphere build may still stop later if `src/core_atmosphere/physics/physics_mmm`
@@ -137,11 +137,11 @@ Skills are defined in `.claude/commands/` and can be invoked with `/skillname`:
 
 ## Development Approach
 
-CheMPAS uses a coding-agent-assisted development model. Agents are used for implementation, review support, and verification, while humans retain responsibility for scientific judgment and final technical direction. See `AGENTS.md` for the full workflow, agent roles, and human review gates.
+CheMPAS-A uses a coding-agent-assisted development model. Agents are used for implementation, review support, and verification, while humans retain responsibility for scientific judgment and final technical direction. See `AGENTS.md` for the full workflow, agent roles, and human review gates.
 
 ## Multi-Agent Workflow
 
-CheMPAS uses three agents from three vendors (see `AGENTS.md`). Codex 5.4 reviews Claude's work and may push doc edits or review findings directly to the repo, but that review remains part of a human-directed workflow rather than a fully automated merge path.
+CheMPAS-A uses three agents from three vendors (see `AGENTS.md`). Codex 5.4 reviews Claude's work and may push doc edits or review findings directly to the repo, but that review remains part of a human-directed workflow rather than a fully automated merge path.
 
 **Convention for cross-agent communication:**
 - Codex writes review findings to `CODEX_REVIEW.md` and pushes to `develop`

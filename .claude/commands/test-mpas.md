@@ -44,7 +44,7 @@ rm -f output.nc log.atmosphere.*.out
 Run with 8 MPI ranks:
 
 ```bash
-mpiexec -n 8 ~/EarthSystem/CheMPAS/atmosphere_model 2>&1 | tee run.out
+mpiexec -n 8 ~/EarthSystem/CheMPAS-A/atmosphere_model 2>&1 | tee run.out
 ```
 
 **Note:** If user requests different rank count, verify the corresponding partition file exists.

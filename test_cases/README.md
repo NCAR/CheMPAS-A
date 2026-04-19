@@ -46,8 +46,8 @@ After downloading, copy the tracked configs and initialize each case:
 # the init step reads when building the 60-level stretched grid.
 for case in supercell mountain_wave jw_baroclinic_wave; do
   cp test_cases/$case/* ~/Data/CheMPAS/$case/
-  ln -sf ~/EarthSystem/CheMPAS/init_atmosphere_model ~/Data/CheMPAS/$case/
-  ln -sf ~/EarthSystem/CheMPAS/atmosphere_model ~/Data/CheMPAS/$case/
+  ln -sf ~/EarthSystem/CheMPAS-A/init_atmosphere_model ~/Data/CheMPAS/$case/
+  ln -sf ~/EarthSystem/CheMPAS-A/atmosphere_model ~/Data/CheMPAS/$case/
 done
 
 # Initialize each case

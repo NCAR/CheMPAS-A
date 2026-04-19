@@ -11,7 +11,7 @@ Replays the smallest currently known failing state: one local
 Chapman + NOx MICM solve.
 
 The default run uses the raw concentration and photolysis-rate slots
-captured from CheMPAS. It is expected to reproduce the bad solve, not
+captured from CheMPAS-A. It is expected to reproduce the bad solve, not
 pass a physical acceptance test:
 
 - solver: `RosenbrockStandardOrder`

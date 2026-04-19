@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Visualize CheMPAS LNOx-O3 output from the MPAS supercell test case.
+Visualize CheMPAS-A LNOx-O3 output from the MPAS supercell test case.
 
 Plots NO, NO2, O3, and NOx diagnostics: vertical cross-sections through the
 updraft, time evolution of peak/mean concentrations, horizontal slices,
@@ -733,7 +733,7 @@ def plot_photolysis(data, output_file, dt_seconds=60.0):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Visualize CheMPAS LNOx-O3 output')
+        description='Visualize CheMPAS-A LNOx-O3 output')
     parser.add_argument('-i', '--input', default='output.nc',
                         help='MPAS output file')
     parser.add_argument('-o', '--output', default='lightning_nox',

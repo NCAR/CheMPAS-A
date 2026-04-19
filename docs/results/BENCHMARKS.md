@@ -1,6 +1,6 @@
 # Agent Model Benchmarks
 
-Comparison of the AI models used in CheMPAS agent-driven development.
+Comparison of the AI models used in CheMPAS-A agent-driven development.
 
 ## Model Roles
 
@@ -10,7 +10,7 @@ Comparison of the AI models used in CheMPAS agent-driven development.
 | Review | Codex 5.4 (Extra High) | OpenAI |
 | Deep Research | Gemini 3 Pro (Deep Think) | Google DeepMind |
 
-## Why This Three-Model Approach Works for CheMPAS
+## Why This Three-Model Approach Works for CheMPAS-A
 
 - **Claude Opus 4.6 for development**: Strong SWE-bench performance, debugging
   accuracy, and terminal proficiency — relevant for writing and testing

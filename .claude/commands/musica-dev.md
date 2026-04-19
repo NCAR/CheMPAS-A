@@ -30,7 +30,7 @@ Replace `TARGET` with the make target reported by the preflight script
 
 ## MUSICA Requirements
 
-- MUSICA-Fortran must be built with the same Fortran compiler as CheMPAS
+- MUSICA-Fortran must be built with the same Fortran compiler as CheMPAS-A
   (flang on macOS, gfortran on Ubuntu). Mixing `.mod` files causes link failures.
 - Use `scripts/check_build_env.sh` before building
 - The preferred pkg-config file is `~/software/lib/pkgconfig/musica-fortran.pc`

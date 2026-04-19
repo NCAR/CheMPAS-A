@@ -8,7 +8,7 @@
 !  mpas_lightning_nox
 !
 !> \brief Lightning NOx source parameterization
-!> \author CheMPAS Developers
+!> \author CheMPAS-A Developers
 !> \date   March 2026
 !> \details
 !>  Injects NO into MPAS scalars where vertical velocity exceeds a

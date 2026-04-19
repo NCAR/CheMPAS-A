@@ -1,6 +1,6 @@
-# CheMPAS Architecture
+# CheMPAS-A Architecture
 
-This document describes the high-level architecture of CheMPAS: the MPAS
+This document describes the high-level architecture of CheMPAS-A: the MPAS
 (Model for Prediction Across Scales) framework plus the chemistry extensions in
 this repository.
 
@@ -95,7 +95,7 @@ Current chemistry-specific modules under `src/core_atmosphere/chemistry/` are:
 ## Directory Structure
 
 ```
-CheMPAS/
+CheMPAS-A/
 ├── CMakeLists.txt          # Main CMake build configuration
 ├── Makefile                # Legacy Makefile build system
 ├── cmake/                  # CMake modules and functions
