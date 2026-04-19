@@ -1042,13 +1042,70 @@ Do **not** proceed directly to QSS substitution as the next primary
 fix. QSS substitution may still be useful eventually, but it would be
 a scientific mechanism change and must go through human review.
 
-Immediate next discriminator: run a tiny standalone MICM solve using
-the exact cell-1 / level-1 step-1 inputs already logged from chem_box
-(`T=299.09 K`, `P=98321 Pa`, `air_density=39.2 mol/m3`, the logged
-species concentrations, and the logged four photolysis rates). If
-that standalone solve explodes, the problem is in MICM behavior for
-those exact inputs. If it stays stable, the bug is in CheMPAS state
-layout, mapping, or per-column host-state construction.
+### 2026-04-19 exact-input MICM discriminator
+
+The immediate discriminator above was run on macOS with a tiny
+standalone MICM program using the exact cell-1 / level-1 step-1
+chem_box inputs:
+
+```
+T = 299.09 K
+P = 98321 Pa
+air_density = 39.2 mol/m3
+O2 = 8.21 mol/m3
+O = 0
+O1D = 0
+O3 = 1.05e-6 mol/m3
+NO = 5.88e-10 mol/m3
+NO2 = 1.37e-9 mol/m3
+jO2 = 3.92e-38 s-1
+jO3_O = 3.63e-4 s-1
+jO3_O1D = 8.87e-6 s-1
+jNO2 = 6.74e-3 s-1
+dt = 3.0 s
+solver = RosenbrockStandardOrder
+relative_tolerance = 1e-15
+```
+
+Result: no explosion. MICM advanced the full 3 s in one call
+(`Converged`, 9 accepted, 0 rejected) and produced:
+
+```
+before: O3 = 1.05000000e-06, O = 0,              NO = 5.88000000e-10, NO2 = 1.37000000e-09
+after : O3 = 1.05000692e-06, O = 5.66545016e-15, NO = 5.94930308e-10, NO2 = 1.36306969e-09
+```
+
+O-atom and N-atom totals were conserved. A second standalone run
+cloned the same exact state over 3,840 MICM cells (matching the
+64-cell × 60-level chem_box count) and used the same MICM stride
+formulae as the CheMPAS coupler:
+
+```
+after: O3 mean/range = 1.05000692e-06 / 1.05000692e-06 .. 1.05000692e-06
+       O max         = 5.66545016e-15
+       NO mean       = 5.94930308e-10
+       NO2 mean      = 1.36306969e-09
+```
+
+The temporary files were:
+
+- `/tmp/micm_exact_chapman_nox.F90`
+- `/tmp/micm_exact_chapman_nox_3840.F90`
+- `/tmp/micm_exact_run/configs/v1/chapman_nox.yaml`
+
+This rules out MICM behavior for the logged surface cell and rules
+out a generic vector-size/stride failure for a CheMPAS-sized MICM
+state. The chem_box explosion must depend on some part of the full
+CheMPAS host state that the single-cell exact replay did not cover:
+another level/cell, a whole-column layout/profile issue, a
+post-solve CheMPAS copy-back issue, or a difference in how the
+CheMPAS driver calls/logs the solve.
+
+Next discriminator: dump the full 3,840-cell MICM state immediately
+before the first CheMPAS `micm%solve` call (conditions,
+concentrations, and rate parameters), replay that exact state in a
+standalone program, and compare the full-state post-solve values
+against CheMPAS before any MPAS copy-back.
 
 ### Current state shipped
 
