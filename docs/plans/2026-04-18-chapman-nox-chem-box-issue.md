@@ -1107,6 +1107,89 @@ concentrations, and rate parameters), replay that exact state in a
 standalone program, and compare the full-state post-solve values
 against CheMPAS before any MPAS copy-back.
 
+### 2026-04-19 full-state replay: MICM reproduces the failure
+
+The full-state discriminator above was run with temporary
+rank-qualified dump instrumentation around the first coupled
+`micm%solve` call in `mpas_musica.F`. Because CheMPAS is MPI
+decomposed, each rank owns a local MICM state:
+
+```
+rank 0: 2400 MICM cells  (40 local MPAS columns x 60 levels)
+rank 1: 2400 MICM cells
+rank 2: 2520 MICM cells  (42 local MPAS columns x 60 levels)
+rank 3: 2520 MICM cells
+rank 4: 2400 MICM cells
+rank 5: 2520 MICM cells
+rank 6: 2520 MICM cells
+rank 7: 2520 MICM cells
+```
+
+A standalone replay driver loaded each rank's dumped conditions,
+concentrations, and rate parameters into a fresh MICM state, ran the
+same 3 s `RosenbrockStandardOrder` solve at `relative_tolerance =
+1e-15`, and wrote its post-solve state. The replayed concentration
+arrays matched the CheMPAS post-solve dumps bit-for-bit on every
+rank (`max_abs_diff = 0` for all ranks).
+
+All ranks reproduce the explosion outside MPAS:
+
+```
+rank  cells  O3_mean before  O3_mean after  O3_max after
+0     2400   2.871e-06       9.507e-02      3.150e-01
+1     2400   2.871e-06       9.507e-02      3.150e-01
+2     2520   2.871e-06       9.507e-02      3.150e-01
+3     2520   2.871e-06       9.507e-02      3.150e-01
+4     2400   2.871e-06       9.507e-02      3.150e-01
+5     2520   2.871e-06       9.507e-02      3.150e-01
+6     2520   2.871e-06       9.507e-02      3.150e-01
+7     2520   2.871e-06       9.507e-02      3.150e-01
+```
+
+This rules out MPAS copy-back and CheMPAS-specific solve-call
+plumbing. The exact state handed to MICM is sufficient to reproduce
+the first-step failure in a standalone program.
+
+The failure was reduced further. Rank 0, local cell 1 / level 1
+still stays stable as before, but rank 0, local cell 2 / level 2
+explodes by itself as a one-cell standalone MICM solve. Its inputs
+are nearly identical to the stable surface cell:
+
+```
+T = 296.542333817 K
+P = 94417.324400994 Pa
+air_density = 37.9828906717 mol/m3
+O = 0
+O2 = 7.95587740009 mol/m3
+O3 = 1.03579990236e-6 mol/m3
+O1D = 4.06074210566e-22 mol/m3
+NO = 5.69633226737e-10 mol/m3
+NO2 = 1.32914419572e-9 mol/m3
+jNO2 = 6.91433685646e-3 s-1
+jO2 = 3.54345945701e-37 s-1
+jO3_O = 3.66372021585e-4 s-1
+jO3_O1D = 9.25367724139e-6 s-1
+```
+
+One 3 s MICM solve gives:
+
+```
+O = 1.51774137591e-13
+O2 = 7.48634752522
+O3 = 3.13020686479e-1
+O1D = 1.59265660751e-6
+NO = 7.95534515703e-7
+NO2 = 0
+```
+
+The surface-level exact replay used earlier (`T=299.09 K`, `O2=8.21`,
+`jNO2=6.74e-3`, `jO3_O1D=8.87e-6`) is stable, while the immediately
+adjacent level-2 state is not. The next debugging target is therefore
+a minimal one-cell MICM reproducer for this level-2 state, not any
+MPAS/TUV/copy-back path. Use it to bracket solver choice,
+time-step length, tolerance, and mechanism variants before making any
+scientific mechanism change.
+
 ### Current state shipped
 
 - `SetRelativeTolerance` API in MUSICA-LLVM (generally useful for
