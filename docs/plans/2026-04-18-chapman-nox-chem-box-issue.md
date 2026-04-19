@@ -49,6 +49,68 @@ Run directory: `~/Data/CheMPAS/chem_box/`. Init file
 at the stratopause), qO2 = 0.23141 kg/kg (dry air VMR 0.2095), qNO
 and qNO2 with small smooth profiles, qO = qO1D = 0.
 
+### Mesh and grid build (how the 64-cell case was constructed)
+
+The chem_box mesh is a doubly-periodic planar hexagonal mesh, 8×8
+cells at 500 m centre-to-centre spacing (domain 4000 m × 3464 m,
+`on_a_sphere = "NO"`, `is_periodic = "YES"`). Vertical grid is 60
+stretched levels to 50 km, reusing the supercell zeta profile. All
+tools come from the `mpas` conda env (`mpas-tools` + `metis`
+packages on conda-forge).
+
+Exact reproduction from scratch, run in the chem_box run directory:
+
+```bash
+# 1. Build the 64-cell periodic hex mesh (8x8 at 500 m).
+#    planar_hex writes an MPAS-format grid directly — no conversion
+#    needed for atmosphere_model input.
+~/miniconda3/envs/mpas/bin/planar_hex --nx 8 --ny 8 --dc 500 \
+    -o chem_box_grid.nc
+
+# 2. Derive the METIS graph description from the grid. MpasMeshConverter
+#    writes a graph.info file as a side effect of converting; we use
+#    the graph.info and discard the "converted" grid file since the
+#    planar_hex output already matches MPAS format exactly.
+~/miniconda3/envs/mpas/bin/MpasMeshConverter.x \
+    chem_box_grid.nc /tmp/_converted.nc
+mv graph.info chem_box.graph.info
+rm -f /tmp/_converted.nc
+
+# 3. Partition the graph for the MPI rank counts you'll run.
+#    gpmetis is from conda-forge's `metis` package. The partition is
+#    randomized, so the .part.N files won't byte-match another run,
+#    but any valid 8-way partition works identically at runtime.
+~/miniconda3/envs/mpas/bin/gpmetis chem_box.graph.info 8
+~/miniconda3/envs/mpas/bin/gpmetis chem_box.graph.info 4
+
+# 4. Copy the reference configs from the repo.
+cp ~/EarthSystem/CheMPAS/test_cases/chem_box/* .
+
+# 5. Initialize. init_case = 5 is the supercell (Weisman-Klemp)
+#    thermodynamic sounding; chem_box reuses it for its moisture
+#    column and as a background state for chemistry. Runs with
+#    any of the partitions you generated (use -n matching a
+#    .part.N file).
+ln -sf ~/EarthSystem/CheMPAS/init_atmosphere_model .
+mpiexec -n 4 ./init_atmosphere_model
+
+# 6. Stage chemistry config + atmosphere executable.
+ln -sf ~/EarthSystem/CheMPAS/atmosphere_model .
+ln -sf ~/EarthSystem/CheMPAS/LANDUSE.TBL .
+cp ~/EarthSystem/CheMPAS/micm_configs/chapman_nox.yaml .
+cp ~/EarthSystem/CheMPAS/micm_configs/tuvx_chapman_nox.json .
+cp ~/EarthSystem/CheMPAS/micm_configs/tuvx_upper_atm.csv .
+```
+
+Run the model with `mpiexec -n 8 ./atmosphere_model`. Outputs land
+in `output.nc` (one snapshot per `output_interval` in
+`streams.atmosphere`; set to `00:00:03` when debugging step-by-step
+photolysis behaviour, `00:05:00` for normal runs).
+
+Global attributes on `chem_box_grid.nc` captured by `ncdump -h` for
+verification: `dc = 500.0 m`, `nx = 8`, `ny = 8`, `x_period = 4000 m`,
+`y_period ≈ 3464.1 m`, 64 cells, 192 edges, 128 vertices.
+
 ## What was verified (facts, not hypotheses)
 
 **Rate constants are correct.** Every ARRHENIUS rate, at T = 220 K,

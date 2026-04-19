@@ -23,10 +23,18 @@ rm *.tar.gz
 | `supercell/` | 5 | ~500 m | ~40k | 60 (stretched 0–50 km) | 3 | 2 hours |
 | `mountain_wave/` | 6 | ~577 m | ~2k | 70 | 6 | 5 hours |
 | `jw_baroclinic_wave/` | 2 | 120 km | 40,962 | 26 | 450 | 16 days |
+| `chem_box/` | 5 | 500 m periodic 8×8 | 64 | 60 (stretched 0–50 km) | 3 | 1 hour |
 
 The supercell vertical grid is read from `test_cases/supercell/supercell_zeta_levels.txt`
 (61 edge heights in metres) via the `config_specified_zeta_levels` namelist option.
 Regenerate with `scripts/gen_zeta_levels.py --top 50000 --nlevels 60 --stretch 1.25`.
+
+The chem_box case is a chemistry-focused 64-cell periodic box that
+reuses the supercell sounding and zeta profile. There is no NCAR
+tarball — build the mesh and partitions locally with `planar_hex`
++ `MpasMeshConverter.x` + `gpmetis` (all in the `mpas` conda env).
+See `docs/plans/2026-04-18-chapman-nox-chem-box-issue.md` for the
+exact reproduction steps and the chemistry configs it pairs with.
 
 ## Setup and Initialization
 
