@@ -1,20 +1,36 @@
 version: "1.0.0"
 name: Chapman
 species:
+  # MICM requires __molar mass and __initial concentration for every species;
+  # the initial value is overwritten by MPAS state transfer every step, so we
+  # set it to 0 here. Actual ICs live in the MPAS init file (kg/kg).
   - name: M
     is third body: true
   - name: O2
     __tracer type: CONSTANT
+    __molar mass: 0.032
+    __long name: molecular_oxygen
+    __do advect: true
+    __initial concentration: 0.0
   - name: O
     __absolute tolerance: 1e-12
+    __molar mass: 0.016
+    __long name: atomic_oxygen_3P
+    __do advect: true
+    __initial concentration: 0.0
   - name: O1D
     __absolute tolerance: 1e-12
+    __molar mass: 0.016
+    __long name: atomic_oxygen_1D
+    __do advect: true
+    __initial concentration: 0.0
   - name: O3
-    molecular weight [kg mol-1]: 0.048
     __absolute tolerance: 1e-12
+    __molar mass: 0.048
     __long name: ozone
     __atoms: 3
     __do advect: true
+    __initial concentration: 0.0
 
 phases:
   - name: gas
