@@ -100,10 +100,6 @@ module mpas_musica
 
         type(error_t)  :: error
         type(string_t) :: micm_version
-        ! Rosenbrock's embedded error estimator (step-doubling) responds to
-        ! relative_tolerance via adaptive step-size control, unlike BE whose
-        ! Newton-convergence check is insensitive to rel_tol at the wrong root.
-        ! See docs/plans/2026-04-18-chapman-nox-chem-box-issue.md.
         integer :: solver_type = RosenbrockStandardOrder
         integer :: i_species, spec_idx
         character(len=:), allocatable :: sp_name
@@ -120,19 +116,7 @@ module mpas_musica
         state => micm%get_state(number_of_grid_cells, error)
         if (has_error_occurred(error, error_message, error_code)) return
 
-        ! Apply relative tolerance override (MICM default is 1e-6). Tightening
-        ! forces the adaptive controller to sub-divide internal steps, which
-        ! prevents Newton from converging to non-physical implicit roots in
-        ! stiff mechanisms (e.g. Chapman's microsecond [O]/[O3] null cycle).
-        call state%set_relative_tolerance(relative_tolerance, error)
-        if (has_error_occurred(error, error_message, error_code)) return
-        call mpas_log_write('[MUSICA] MICM state relative_tolerance set to $r', &
-            realArgs=[real(relative_tolerance, RKIND)])
-
-        ! Create reference state (uncoupled, for advection diagnostics)
         state_ref => micm%get_state(number_of_grid_cells, error)
-        if (has_error_occurred(error, error_message, error_code)) return
-        call state_ref%set_relative_tolerance(relative_tolerance, error)
         if (has_error_occurred(error, error_message, error_code)) return
         call mpas_log_write('[MUSICA] Created reference state for advection diagnostics')
 
