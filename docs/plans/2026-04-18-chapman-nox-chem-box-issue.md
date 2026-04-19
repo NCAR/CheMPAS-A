@@ -346,6 +346,42 @@ This leaves TWO independent problems to fix:
    fragile. Worth testing loosened `__absolute tolerance`, a small
    non-zero seed for [O], or a different solver family.
 
+### Backward Euler solver test
+
+Swapped `musica_init` from `RosenbrockStandardOrder` to
+`BackwardEulerStandardOrder` in `mpas_musica.F` and reran the same
+chem_box + `chapman_nox_noO1D.yaml` case. Result:
+
+```
+              qO3 mean (kg/kg)       Total N (mol N / kg air)
+t=0           5.07e-6                1.19e-7
+t=3 s         1.52e-2  (3000× up)    1.19e-7  (conserved)
+t=6 s         1.98e-2                1.19e-7
+```
+
+**Backward Euler preserves nitrogen mass balance at step 1.** The
+32×-column-mean N-creation that Rosenbrock produces is gone
+entirely with BE. This is direct evidence that the step-1 N
+imbalance was a Rosenbrock-specific numerical artifact (probably
+the implicit step evaluating the Jacobian at a near-degenerate
+state with tight 1e-12 absolute tolerances and zero initial [O]),
+NOT a mechanism or coupler bug.
+
+**Backward Euler does not prevent the qO3 explosion.** qO3 still
+jumps from 5e-6 to 1.5e-2 kg/kg (mean) in one 3 s step — slightly
+less than Rosenbrock's ~5× bigger jump, but still ~3000× too high.
+BE faithfully integrates the rate equations; it can't compensate
+for a physical photolysis forcing that is 5 orders of magnitude too
+strong. The step-1 TOA-photolysis problem is the primary driver of
+the O3 blowup, not the solver.
+
+**Decision:** keep Backward Euler as the production solver for now.
+It removes the N-balance violation, makes MICM's output physically
+interpretable under every condition we've tested, and has no
+apparent downsides for this mechanism (3 s dt, tightly-coupled
+null cycles). The Rosenbrock path can be revisited if/when we find
+a mechanism that demonstrably needs higher-order stiff accuracy.
+
 ## Hypotheses still on the table
 
 1. **TUV-x radiator update ordering.** `radiator_from_host_t::update_state`
