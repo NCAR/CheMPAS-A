@@ -40,6 +40,7 @@ status=0
 override_pkgconfig=""
 pkg_config_path_value="${PKG_CONFIG_PATH:-}"
 netcdf_root=""
+netcdff_root=""
 pnetcdf_root=""
 pio_root=""
 musica_status=""
@@ -229,6 +230,20 @@ else
     fail "NETCDF not found; expected include/netcdf.mod and lib/libnetcdff.*"
 fi
 
+# NETCDFF override for flang: Homebrew's libnetcdff is gfortran-mangled and
+# cannot resolve flang-mangled __QMnetcdfP* symbols from libmusica.a (pulled in
+# via TUV-x). MUSICA-LLVM ships a flang-built netcdf-fortran at flang-deps/
+# that matches. Detect and export NETCDFF so the Makefile links against it.
+if [[ "${fc_compiler}" == "flang" ]]; then
+    if netcdff_root="$(resolve_root "include/netcdf.mod" "lib/libnetcdff.a" "${NETCDFF:-}" "${HOME}/EarthSystem/MUSICA-LLVM/flang-deps/netcdf-fortran-install")"; then
+        pass "NETCDFF=${netcdff_root} (flang-built netcdf-fortran for MUSICA+TUV-x)"
+    else
+        report "[note] No flang-built netcdf-fortran found; MUSICA+TUV-x builds will fail to link."
+        report "       Build one at ~/EarthSystem/MUSICA-LLVM/flang-deps/netcdf-fortran-install,"
+        report "       or set NETCDFF to an existing flang-built tree."
+    fi
+fi
+
 if pnetcdf_root="$(resolve_root "include/pnetcdf.h" "lib/libpnetcdf.a" "${PNETCDF:-}" "${HOME}/software" "${CONDA_PREFIX:-}")" || \
    pnetcdf_root="$(resolve_root "include/pnetcdf.h" "lib/libpnetcdf.so" "${PNETCDF:-}" "${HOME}/software" "${CONDA_PREFIX:-}")"; then
     pass "PNETCDF=${pnetcdf_root}"
@@ -290,6 +305,9 @@ if [[ "${mode}" == "export" ]]; then
     fi
 
     printf 'export NETCDF=%q\n' "${netcdf_root}"
+    if [[ -n "${netcdff_root}" ]]; then
+        printf 'export NETCDFF=%q\n' "${netcdff_root}"
+    fi
     printf 'export PNETCDF=%q\n' "${pnetcdf_root}"
     printf 'export PIO=%q\n' "${pio_root}"
     printf 'export PKG_CONFIG_PATH=%q\n' "${pkg_config_path_value}"
@@ -303,7 +321,11 @@ if [[ ${status} -eq 0 ]]; then
     report ""
     report "Suggested next command:"
     report "  eval \"\$(scripts/check_build_env.sh --export)\""
-    report "  make -j8 ${make_target} CORE=atmosphere PIO=${pio_root} NETCDF=${netcdf_root} PNETCDF=${pnetcdf_root} PRECISION=double MUSICA=true"
+    if [[ -n "${netcdff_root}" ]]; then
+        report "  make -j8 ${make_target} CORE=atmosphere PIO=${pio_root} NETCDF=${netcdf_root} NETCDFF=${netcdff_root} PNETCDF=${pnetcdf_root} PRECISION=double MUSICA=true"
+    else
+        report "  make -j8 ${make_target} CORE=atmosphere PIO=${pio_root} NETCDF=${netcdf_root} PNETCDF=${pnetcdf_root} PRECISION=double MUSICA=true"
+    fi
 fi
 
 exit ${status}

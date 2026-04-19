@@ -41,6 +41,12 @@ module mpas_atm_chemistry
         ! Reference solve (doubles chemistry cost; off by default)
         logical, save :: use_ref_solve = .false.
 
+        ! Number of MICM sub-steps per MPAS dt (1 = no sub-stepping)
+        integer, save :: chem_substeps_val = 1
+
+        ! MICM state relative tolerance (MICM default is 1e-6)
+        real(kind=RKIND), save :: micm_relative_tolerance_val = 1.0e-6_RKIND
+
         ! TUV-x state
         logical, save :: use_tuvx = .false.
         integer, save :: idx_qO3 = -1
@@ -131,6 +137,23 @@ module mpas_atm_chemistry
             if (associated(ref_solve_ptr)) use_ref_solve = ref_solve_ptr
         end block
 
+        ! Read chemistry sub-step count (split MICM dt for stiff mechanisms)
+        block
+            integer, pointer :: chem_substeps_ptr
+            nullify(chem_substeps_ptr)
+            call mpas_pool_get_config(configs, 'config_chem_substeps', chem_substeps_ptr)
+            if (associated(chem_substeps_ptr)) chem_substeps_val = chem_substeps_ptr
+            if (chem_substeps_val < 1) chem_substeps_val = 1
+        end block
+
+        ! Read MICM relative tolerance (tighten from default 1e-6 for stiff mechanisms)
+        block
+            real(kind=RKIND), pointer :: reltol_ptr
+            nullify(reltol_ptr)
+            call mpas_pool_get_config(configs, 'config_micm_relative_tolerance', reltol_ptr)
+            if (associated(reltol_ptr)) micm_relative_tolerance_val = reltol_ptr
+        end block
+
         ! Cache solar geometry config values for per-step SZA computation
         chem_j_no2_max = j_no2_val
         nullify(lat_ptr)
@@ -142,7 +165,9 @@ module mpas_atm_chemistry
 
         ! Initialize MICM (species already injected into scalars by atm_setup_block)
         call musica_init(filepath_ptr, nCells * nVertLevels, &
-                         nox_tau_val, error_code, error_message)
+                         nox_tau_val, &
+                         real(micm_relative_tolerance_val, kind(1.0d0)), &
+                         error_code, error_message)
 
         if (error_code /= 0) then
             call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
@@ -471,27 +496,42 @@ module mpas_atm_chemistry
             first_call = .false.
         end if
 
-        ! Step 2: Solve chemistry (coupled state)
-        call mpas_timer_start('chem MICM solve')
-        call musica_step(time_step, error_code, error_message)
-        call mpas_timer_stop('chem MICM solve')
-        if (error_code /= 0) then
-            call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
-            return
-        end if
+        ! Step 2: Solve chemistry (coupled state). Split the MPAS dt into
+        ! config_chem_substeps MICM calls. TUV-x photolysis rates were set
+        ! once above and stay frozen across sub-steps. Sub-stepping is needed
+        ! for stiff mechanisms where Backward Euler at the full dt lands on
+        ! a non-physical implicit fixed point (see
+        ! docs/plans/2026-04-18-chapman-nox-chem-box-issue.md).
+        block
+            real(kind=RKIND) :: sub_dt
+            integer          :: i_sub
+            sub_dt = time_step / real(chem_substeps_val, RKIND)
+            call mpas_timer_start('chem MICM solve')
+            do i_sub = 1, chem_substeps_val
+                call musica_step(real(sub_dt, kind(time_step)), error_code, error_message)
+                if (error_code /= 0) then
+                    call mpas_timer_stop('chem MICM solve')
+                    call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
+                    return
+                end if
+            end do
+            call mpas_timer_stop('chem MICM solve')
 
-        ! Step 2b: Solve chemistry on reference state (uncoupled, for advection diagnostics)
-        if (use_ref_solve) then
-            call mpas_timer_start('chem MICM ref solve')
-            call musica_step_ref(time_step, error_code, error_message)
-            call mpas_timer_stop('chem MICM ref solve')
-            if (error_code /= 0) then
-                call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
+            ! Step 2b: Reference state (uncoupled, for advection diagnostics)
+            if (use_ref_solve) then
+                call mpas_timer_start('chem MICM ref solve')
+                do i_sub = 1, chem_substeps_val
+                    call musica_step_ref(real(sub_dt, kind(time_step)), error_code, error_message)
+                    if (error_code /= 0) then
+                        call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
+                        exit
+                    end if
+                end do
+                call mpas_timer_stop('chem MICM ref solve')
+
+                call log_column_comparison(probe_cell, nVertLevels)
             end if
-
-            ! Log comparison of coupled vs reference at probe cell
-            call log_column_comparison(probe_cell, nVertLevels)
-        end if
+        end block
 
         ! Step 3: Copy MICM state back to MPAS (MICM -> MPAS)
         call mpas_timer_start('chem MICM->MPAS')

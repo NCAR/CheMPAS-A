@@ -83,6 +83,42 @@ AFGL_MLS_AIR = [
 ]
 
 
+# Matching temperature profile [K] at the same altitudes (AFGL MLS).
+AFGL_MLS_T = [
+    ( 0.0, 294.0),
+    ( 5.0, 267.0),
+    (10.0, 229.0),
+    (15.0, 217.0),
+    (20.0, 217.0),
+    (25.0, 221.0),
+    (30.0, 227.0),
+    (35.0, 237.0),
+    (40.0, 250.0),
+    (45.0, 264.0),
+    (50.0, 270.0),
+]
+
+
+# Daytime mid-latitude photolysis rates [s^-1] extracted from a completed
+# chapman_nox.yaml run at SZA ~58 deg (see plan doc's j-value table,
+# docs/plans/2026-04-18-chapman-nox-chem-box-issue.md). Used only at init to
+# estimate [O]_QSS; MPAS recomputes j via TUV-x at runtime.
+CLIMO_JO3_O = [
+    ( 0.1, 2.76e-11),
+    ( 9.2, 3.88e-10),
+    (21.5, 2.39e-08),
+    (35.4, 4.56e-06),
+    (49.5, 4.41e-04),
+]
+
+CLIMO_JO2 = [
+    ( 0.1, 1.0e-50),
+    (35.0, 1.0e-40),
+    (45.0, 1.0e-30),
+    (50.0, 1.7e-10),
+]
+
+
 # NOx total volume mixing ratio [ppb] as a function of altitude [km].
 # Approximate mid-latitude daytime climatology: low tropospheric
 # background, rise through the tropopause, broad stratospheric peak at
@@ -131,6 +167,43 @@ def afgl_qo3_profile(z_mid_km):
     return out
 
 
+def chapman_qo_qss(z_mid_km):
+    """Chapman quasi-steady-state [O] converted to qO (kg/kg).
+
+    [O]_ss = (2*jO2*[O2] + jO3_O*[O3]) / (k2*[O2]*[M] + k3*[O3])
+    Ignoring O1D paths (dominated by R6 quenching back to O and recycled).
+
+    Rate constants from chapman_nox.yaml (SI mol/m^3 basis):
+      k2 = 2.17597e2 * (T/300)^(-2.4)
+      k3 = 4.81771e6 * exp(-2059.03/T)
+
+    j-values from CLIMO_* tables (daytime mid-lat, chem_box 18 UTC SZA ~58 deg).
+    Per-level densities derived from AFGL MLS profiles.
+    Result scales with [O3] — using AFGL qO3 profile gives a consistent seed.
+    """
+    from math import exp
+    N_A = 6.022e23
+    out = np.zeros_like(z_mid_km, dtype=float)
+    for i, z in enumerate(z_mid_km):
+        T = loglin(z, AFGL_MLS_T)
+        n_air_cm3 = loglin(z, AFGL_MLS_AIR)           # molec / cm^3
+        n_o3_cm3  = loglin(z, AFGL_MLS_O3)            # molec / cm^3
+        M_mol_m3  = n_air_cm3 * 1.0e6 / N_A           # mol / m^3
+        O2_mol_m3 = 0.2095 * M_mol_m3
+        O3_mol_m3 = n_o3_cm3 * 1.0e6 / N_A
+        rho_kg_m3 = M_mol_m3 * M_AIR
+
+        k2 = 2.17597e2  * (T / 300.0) ** (-2.4)
+        k3 = 4.81771e6  * exp(-2059.03 / T)
+        jO3_O = loglin(z, CLIMO_JO3_O)
+        jO2   = loglin(z, CLIMO_JO2)
+
+        O_ss_mol_m3 = (2.0 * jO2 * O2_mol_m3 + jO3_O * O3_mol_m3) / \
+                      (k2 * O2_mol_m3 * M_mol_m3 + k3 * O3_mol_m3)
+        out[i] = O_ss_mol_m3 * M_O / rho_kg_m3
+    return out
+
+
 def nox_vmr_profile(z_mid_km, peak_scale=1.0):
     """Return total NOx volume mixing ratio (dimensionless, e.g. 1e-9 = 1 ppb)
     at the given MPAS midpoint altitudes. Scaled by peak_scale."""
@@ -175,6 +248,10 @@ def main() -> None:
                     help="Scale factor on the stratospheric NOx peak (default 1.0 = ~10 ppb)")
     ap.add_argument("--zero-nox", action="store_true",
                     help="Seed qNO = qNO2 = 0 (for chapman_full.yaml without NOx)")
+    ap.add_argument("--qo-mode", choices=["qss", "uniform", "zero"], default="qss",
+                    help="qO seeding mode: 'qss' = altitude-dependent Chapman QSS "
+                         "(default), 'uniform' = 1e-12 kg/kg everywhere, "
+                         "'zero' = exactly 0.")
     args = ap.parse_args()
 
     path = Path(args.input)
@@ -194,7 +271,17 @@ def main() -> None:
 
         ensure_tracer(ds, "qO2", QO2_UNIFORM, "molecular_oxygen")
         ensure_tracer(ds, "qO3", afgl_qo3_profile(z_mid_km), "ozone")
-        ensure_tracer(ds, "qO",  0.0, "atomic_oxygen_3P")
+        # Seed [O] per --qo-mode. 'qss' puts Newton's starting guess on the
+        # Chapman attractor, avoiding the degenerate [O]=0 state that lets
+        # BE/Rosenbrock's implicit iterate converge to a non-physical root.
+        # See docs/plans/2026-04-18-chapman-nox-chem-box-issue.md.
+        if args.qo_mode == "qss":
+            qo_vals = chapman_qo_qss(z_mid_km)
+            ensure_tracer(ds, "qO", qo_vals, "atomic_oxygen_3P")
+        elif args.qo_mode == "uniform":
+            ensure_tracer(ds, "qO", 1.0e-12, "atomic_oxygen_3P")
+        else:  # zero
+            ensure_tracer(ds, "qO", 0.0, "atomic_oxygen_3P")
         ensure_tracer(ds, "qO1D", 0.0, "atomic_oxygen_1D")
 
         if args.zero_nox:

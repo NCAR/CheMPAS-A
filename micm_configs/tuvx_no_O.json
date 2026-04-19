@@ -1,0 +1,136 @@
+{
+  "__description": [
+    "TUV-x configuration for the chapman_nox_no_O.yaml sanity-check mechanism.",
+    "Emits only jO3_O and jNO2 (matches the MICM mechanism exactly).",
+    "jO2 and jO3_O1D are omitted because the mechanism has no reactions",
+    "depending on them; the coupler would error out otherwise.",
+    "Air, O3, O2, temperature, and height profiles come from the MPAS host",
+    "state via mpas_tuvx.F; do not declare them here."
+  ],
+  "enable diagnostics": false,
+  "O2 absorption": {
+    "cross section parameters file": "data/cross_sections/O2_parameters.txt"
+  },
+  "grids": [
+    {
+      "name": "wavelength",
+      "type": "from csv file",
+      "units": "nm",
+      "file path": "data/grids/wavelength/cam.csv"
+    }
+  ],
+  "profiles": [
+    {
+      "name": "surface albedo",
+      "type": "from config file",
+      "units": "none",
+      "uniform value": 0.10,
+      "grid": {
+        "name": "wavelength",
+        "units": "nm"
+      }
+    },
+    {
+      "name": "extraterrestrial flux",
+      "type": "extraterrestrial flux",
+      "units": "photon cm-2 s-1",
+      "file path": [
+        "data/profiles/solar/susim_hi.flx",
+        "data/profiles/solar/atlas3_1994_317_a.dat",
+        "data/profiles/solar/sao2010.solref.converted",
+        "data/profiles/solar/neckel.flx"
+      ],
+      "interpolator": ["", "", "", "fractional target"]
+    }
+  ],
+  "radiative transfer": {
+    "solver": {
+      "type": "delta eddington"
+    },
+    "cross sections": [
+      {
+        "name": "air",
+        "type": "air"
+      },
+      {
+        "name": "O3",
+        "netcdf files": [
+          { "file path": "data/cross_sections/O3_1.nc" },
+          { "file path": "data/cross_sections/O3_2.nc" },
+          { "file path": "data/cross_sections/O3_3.nc" },
+          { "file path": "data/cross_sections/O3_4.nc" }
+        ],
+        "type": "O3"
+      },
+      {
+        "name": "O2",
+        "netcdf files": [
+          {
+            "file path": "data/cross_sections/O2_1.nc",
+            "lower extrapolation": { "type": "boundary" }
+          }
+        ],
+        "type": "base"
+      }
+    ],
+    "radiators": [
+      {
+        "name": "air",
+        "type": "base",
+        "treat as air": true,
+        "cross section": "air",
+        "vertical profile": "air",
+        "vertical profile units": "molecule cm-3"
+      },
+      {
+        "name": "O2",
+        "type": "base",
+        "cross section": "O2",
+        "vertical profile": "O2",
+        "vertical profile units": "molecule cm-3"
+      },
+      {
+        "name": "O3",
+        "type": "base",
+        "cross section": "O3",
+        "vertical profile": "O3",
+        "vertical profile units": "molecule cm-3"
+      }
+    ]
+  },
+  "photolysis": {
+    "reactions": [
+      {
+        "name": "jO3_O",
+        "__reaction": "O3 + hv -> O2 + O(3P)",
+        "cross section": {
+          "netcdf files": [
+            { "file path": "data/cross_sections/O3_1.nc" },
+            { "file path": "data/cross_sections/O3_2.nc" },
+            { "file path": "data/cross_sections/O3_3.nc" },
+            { "file path": "data/cross_sections/O3_4.nc" }
+          ],
+          "type": "O3"
+        },
+        "quantum yield": {
+          "type": "O3+hv->O2+O(3P)"
+        }
+      },
+      {
+        "name": "jNO2",
+        "__reaction": "NO2 + hv -> NO + O(3P)",
+        "cross section": {
+          "netcdf files": [
+            { "file path": "data/cross_sections/NO2_1.nc" }
+          ],
+          "type": "NO2 tint"
+        },
+        "quantum yield": {
+          "netcdf files": ["data/quantum_yields/NO2_1.nc"],
+          "type": "NO2 tint",
+          "lower extrapolation": { "type": "boundary" }
+        }
+      }
+    ]
+  }
+}

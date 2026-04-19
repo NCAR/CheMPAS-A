@@ -452,6 +452,14 @@
                      units="-"
                      description="Run a duplicate MICM solve on uncoupled reference state for advection diagnostics. Doubles chemistry cost."
                      possible_values=".true. or .false."/>
+                <nml_option name="config_chem_substeps" type="integer" default_value="1"
+                     units="-"
+                     description="Number of MICM sub-steps per MPAS dt. MICM is called N times with dt/N; needed when mechanisms with fast null cycles (e.g. Chapman [O]/[O3]) cause Backward Euler to land on unphysical implicit roots at the full outer dt."
+                     possible_values="Any positive integer"/>
+                <nml_option name="config_micm_relative_tolerance" type="real" default_value="1.0e-6"
+                     units="-"
+                     description="MICM state relative tolerance. MICM's default (1e-6) is too loose for stiff mechanisms with fast null cycles; tightening (e.g. 1e-9) forces the adaptive controller to sub-divide internal steps aggressively and prevents Newton from converging to non-physical implicit roots."
+                     possible_values="Any positive real"/>
         </nml_record>
 #endif
 

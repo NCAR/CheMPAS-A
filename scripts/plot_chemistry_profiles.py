@@ -222,6 +222,17 @@ def main() -> None:
                     default=str(Path.home() / "Data/CheMPAS/supercell/output.nc"))
     ap.add_argument("-o", "--output", default=None,
                     help="output PNG path; default <input_dir>/plots/chemistry_profiles.png")
+    ap.add_argument("--endpoints", action="store_true",
+                    help="profile plot shows only the first and last frames "
+                         "(skipping frame 0 if its j-rates are all zero, which "
+                         "happens because MPAS writes the initial snapshot before "
+                         "the first chemistry call)")
+    ap.add_argument("--frames", default=None,
+                    help="comma-separated frame indices for the profile plot "
+                         "(supports negatives), e.g. --frames 1,20,40,-1")
+    ap.add_argument("--time-series", default=None,
+                    help="comma-separated altitudes [km] for a companion time-series "
+                         "plot, e.g. --time-series 1,5,10,20,30,40")
     args = ap.parse_args()
 
     if args.output is None:
@@ -260,9 +271,32 @@ def main() -> None:
                               sharey=True)
     axes = np.atleast_2d(axes)
 
-    # Time-series colours from the NCAR palette so they match the rest of
-    # the project. If there are more frames than palette colours we cycle.
-    time_colors = style.get_palette(nTimes)
+    # Frame selection: --frames > --endpoints > all frames.
+    if args.frames:
+        raw = [int(x) for x in args.frames.split(",") if x.strip()]
+        frame_idx = [i if i >= 0 else nTimes + i for i in raw]
+    elif args.endpoints and nTimes >= 2:
+        # Skip frame 0 if its j-rates are all zero (pre-first-chem-call snapshot).
+        first = 0
+        jvars_present = [v for v in ("j_jO2", "j_jO3_O", "j_jO3_O1D", "j_jNO2")
+                         if v in ds.variables]
+        if jvars_present and all(
+            float(np.asarray(ds.variables[v][0]).max()) == 0.0
+            for v in jvars_present
+        ):
+            first = 1
+        frame_idx = [first, nTimes - 1]
+    else:
+        frame_idx = list(range(nTimes))
+    n_frames = len(frame_idx)
+
+    # Time-series colours: NCAR palette for small frame counts (distinct,
+    # brand-aligned), continuous viridis for larger counts so adjacent frames
+    # remain visually distinguishable instead of wrapping the 8-colour palette.
+    if n_frames <= len(style.NCAR_PALETTE):
+        time_colors = style.get_palette(n_frames)
+    else:
+        time_colors = [plt.cm.viridis(x) for x in np.linspace(0.0, 0.95, n_frames)]
 
     have_ss_inputs = all(v in ds.variables for v in
                          ("rho", "theta", "pressure", "qO2", "qO3",
@@ -272,14 +306,14 @@ def main() -> None:
         ax = axes[idx // ncols, idx % ncols]
         arr_plot = load_panel_data(ds, name)
 
-        for t in range(nTimes):
+        for k, t in enumerate(frame_idx):
             slab = arr_plot[t, :, :]
             mean = slab.mean(axis=0)
             lo = slab.min(axis=0)
             hi = slab.max(axis=0)
             label = _format_seconds(time_s[t]) if idx == 0 else None
-            ax.plot(mean, z_mid_km, color=time_colors[t], lw=1.8, label=label)
-            ax.fill_betweenx(z_mid_km, lo, hi, color=time_colors[t], alpha=0.12,
+            ax.plot(mean, z_mid_km, color=time_colors[k], lw=1.8, label=label)
+            ax.fill_betweenx(z_mid_km, lo, hi, color=time_colors[k], alpha=0.12,
                               linewidth=0)
 
         # Chapman analytic steady-state [O] reference for the O panel
@@ -319,9 +353,11 @@ def main() -> None:
             ax_o.legend([ss[0][0]], [ss[0][1]], loc="best",
                         fontsize=style.FONT_SIZES_DEFAULT.legend_small)
 
+    subtitle = "shaded = min/max envelope across cells"
+    if args.endpoints and nTimes > 2:
+        subtitle = f"endpoints only (t=0, t={int(round(time_s[-1]))} s); " + subtitle
     fig.suptitle(
-        f"Horizontal-mean profiles from {Path(args.input).name}  |  "
-        "shaded = min/max envelope across cells"
+        f"Horizontal-mean profiles from {Path(args.input).name}  |  {subtitle}"
     )
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig(args.output, dpi=150, bbox_inches="tight")
@@ -331,7 +367,78 @@ def main() -> None:
     print(f"panels: {', '.join(variables)}")
     print(f"times [s]: {time_s.tolist()}")
 
+    if args.time_series:
+        ts_alts = [float(x) for x in args.time_series.split(",") if x.strip()]
+        ts_path = Path(args.output).with_name(
+            Path(args.output).stem + "_timeseries.png"
+        )
+        _plot_time_series_at_levels(
+            ds, variables, time_s, z_mid_km, ts_alts, str(ts_path)
+        )
+
     ds.close()
+
+
+def _plot_time_series_at_levels(ds, variables, time_s, z_mid_km,
+                                 target_alts_km, output_path):
+    """Companion plot: domain-mean time series at a set of altitudes."""
+    level_idx = [int(np.argmin(np.abs(z_mid_km - a))) for a in target_alts_km]
+    actual_alts = [z_mid_km[i] for i in level_idx]
+
+    ncols = 4
+    nrows = int(np.ceil(len(variables) / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4.0 * ncols, 3.2 * nrows),
+                              sharex=True)
+    axes = np.atleast_2d(axes)
+
+    level_colors = style.get_palette(len(level_idx))
+
+    t_min = time_s / 60.0
+
+    for idx, name in enumerate(variables):
+        ax = axes[idx // ncols, idx % ncols]
+        arr_plot = load_panel_data(ds, name)
+        for k, (li, za) in enumerate(zip(level_idx, actual_alts)):
+            series = arr_plot[:, :, li].mean(axis=1)
+            label = f"{za:.1f} km" if idx == 0 else None
+            ax.plot(t_min, series, color=level_colors[k], lw=1.8, label=label)
+
+        ax.set_title(panel_title(name))
+        ax.set_xlabel("Time [min]")
+        # Each panel carries its own units (ppb vs s^-1), so label every one.
+        ax.set_ylabel(panel_xlabel(name))
+        spec = AXIS_SPECS.get(name)
+        if spec is not None and spec["log"]:
+            # Log scale is useful for wide column-range plots (profiles), but in
+            # a time-series at a single level the range is bounded. Matplotlib's
+            # log autoscaler latches onto tiny nighttime zeros and stretches the
+            # axis over ~120 decades, so clamp the lower bound to the smallest
+            # physically meaningful value across the plotted panels.
+            positives = arr_plot[:, :, level_idx].ravel()
+            positives = positives[positives > 0]
+            if positives.size > 0:
+                ymin = max(positives.min(), 10 ** np.floor(
+                    np.log10(positives.max()) - 4))
+                ax.set_ylim(bottom=ymin)
+            ax.set_yscale("log")
+        ax.grid(True, alpha=0.3)
+
+    for j in range(len(variables), nrows * ncols):
+        axes[j // ncols, j % ncols].axis("off")
+
+    axes[0, 0].legend(loc="best",
+                       fontsize=style.FONT_SIZES_DEFAULT.legend_small,
+                       title="altitude")
+
+    fig.suptitle(
+        f"Domain-mean time series from {Path(ds.filepath()).name}"
+    )
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    pdf = Path(output_path).with_suffix(".pdf")
+    plt.savefig(pdf, bbox_inches="tight")
+    print(f"saved {output_path} and {pdf}")
+    print(f"levels picked [km]: {[round(a, 2) for a in actual_alts]}")
 
 
 if __name__ == "__main__":

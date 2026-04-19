@@ -347,6 +347,7 @@ contains
         real(dk) :: air_nd(n_total_layers), air_edges(n_total_layers + 1)
         real(dk) :: temp_mid(n_total_layers), temp_edges(n_total_layers + 1)
         real(dk) :: o3_nd(n_total_layers), o2_nd(n_total_layers)
+        real(dk) :: o3_edges(n_total_layers + 1), o2_edges(n_total_layers + 1)
         real(dk) :: air_ld(n_total_layers), o3_ld(n_total_layers), o2_ld(n_total_layers)
         real(dk) :: dz_cm(n_total_layers), dz_m_mpas(n_mpas_layers)
         real(dk) :: cloud_tau_1d(n_mpas_layers)
@@ -408,14 +409,21 @@ contains
         ! Edge values (simple extrapolation from adjacent midpoints).
         ! At the MPAS/extension join (edge n_mpas+1), blend the top MPAS midpoint
         ! with the first extension midpoint instead of the plain extrapolation.
+        ! Compute edges for all midpoint-defined profiles: air, T, O3, O2.
         air_edges (1) = air_nd (1)
         temp_edges(1) = temp_mid(1)
+        o3_edges  (1) = o3_nd  (1)
+        o2_edges  (1) = o2_nd  (1)
         do k = 2, n_total_layers
             air_edges (k) = 0.5_dk * (air_nd (k - 1) + air_nd (k))
             temp_edges(k) = 0.5_dk * (temp_mid(k - 1) + temp_mid(k))
+            o3_edges  (k) = 0.5_dk * (o3_nd  (k - 1) + o3_nd  (k))
+            o2_edges  (k) = 0.5_dk * (o2_nd  (k - 1) + o2_nd  (k))
         end do
         air_edges (n_total_layers + 1) = air_nd (n_total_layers)
         temp_edges(n_total_layers + 1) = temp_mid(n_total_layers)
+        o3_edges  (n_total_layers + 1) = o3_nd  (n_total_layers)
+        o2_edges  (n_total_layers + 1) = o2_nd  (n_total_layers)
 
         ! Layer thickness in metres (MPAS slice, for cloud OD only)
         dz_m_mpas = (z_km(2:n_mpas_layers + 1) - z_km(1:n_mpas_layers)) * 1.0e3_dk
@@ -439,6 +447,16 @@ contains
         call air_profile%set_layer_densities(air_ld, err)
         if (tuvx_has_error(err, error_code, error_message)) return
 
+        ! Populate the "exo" layer density above the top of the grid so
+        ! spherical-geometry slant-path air mass accounts for air above
+        ! the extension top (100 km) rather than treating it as vacuum.
+        ! Use a scale-height approximation: layer_dens_exo = n_air_top *
+        ! scale_height. Pick H = 7 km, representative of the mesosphere/
+        ! lower-thermosphere around the extension top (T ≈ 195 K →
+        ! H = R T / (M_air g) ≈ 5.7 km; rounded up).
+        call air_profile%calculate_exo_layer_density(7.0_dk, err)
+        if (tuvx_has_error(err, error_code, error_message)) return
+
         call temp_profile%set_midpoint_values(temp_mid, err)
         if (tuvx_has_error(err, error_code, error_message)) return
         call temp_profile%set_edge_values(temp_edges, err)
@@ -446,10 +464,14 @@ contains
 
         call o3_profile%set_midpoint_values(o3_nd, err)
         if (tuvx_has_error(err, error_code, error_message)) return
+        call o3_profile%set_edge_values(o3_edges, err)
+        if (tuvx_has_error(err, error_code, error_message)) return
         call o3_profile%set_layer_densities(o3_ld, err)
         if (tuvx_has_error(err, error_code, error_message)) return
 
         call o2_profile%set_midpoint_values(o2_nd, err)
+        if (tuvx_has_error(err, error_code, error_message)) return
+        call o2_profile%set_edge_values(o2_edges, err)
         if (tuvx_has_error(err, error_code, error_message)) return
         call o2_profile%set_layer_densities(o2_ld, err)
         if (tuvx_has_error(err, error_code, error_message)) return

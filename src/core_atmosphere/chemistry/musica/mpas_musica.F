@@ -74,12 +74,13 @@ module mpas_musica
     subroutine musica_init(filename_of_micm_configuration, &
             number_of_grid_cells, &
             nox_tau, &
+            relative_tolerance, &
             error_code, error_message)
 
         use iso_fortran_env, only: real64
         use mpas_kind_types, only: RKIND
 
-        use musica_micm, only : RosenbrockStandardOrder
+        use musica_micm, only : BackwardEulerStandardOrder, RosenbrockStandardOrder
         use musica_util, only : error_t, string_t
 
         use mpas_log, only : mpas_log_write
@@ -87,6 +88,7 @@ module mpas_musica
         character(len=*),              intent(in)  :: filename_of_micm_configuration
         integer,                       intent(in)  :: number_of_grid_cells
         real(kind=RKIND),              intent(in)  :: nox_tau           ! [s] NOx sink timescale (0 = disabled)
+        real(real64),                  intent(in)  :: relative_tolerance ! MICM adaptive solver tolerance
         integer,                       intent(out) :: error_code
         character(len=:), allocatable, intent(out) :: error_message
 
@@ -98,6 +100,10 @@ module mpas_musica
 
         type(error_t)  :: error
         type(string_t) :: micm_version
+        ! Rosenbrock's embedded error estimator (step-doubling) responds to
+        ! relative_tolerance via adaptive step-size control, unlike BE whose
+        ! Newton-convergence check is insensitive to rel_tol at the wrong root.
+        ! See docs/plans/2026-04-18-chapman-nox-chem-box-issue.md.
         integer :: solver_type = RosenbrockStandardOrder
         integer :: i_species, spec_idx
         character(len=:), allocatable :: sp_name
@@ -114,8 +120,19 @@ module mpas_musica
         state => micm%get_state(number_of_grid_cells, error)
         if (has_error_occurred(error, error_message, error_code)) return
 
+        ! Apply relative tolerance override (MICM default is 1e-6). Tightening
+        ! forces the adaptive controller to sub-divide internal steps, which
+        ! prevents Newton from converging to non-physical implicit roots in
+        ! stiff mechanisms (e.g. Chapman's microsecond [O]/[O3] null cycle).
+        call state%set_relative_tolerance(relative_tolerance, error)
+        if (has_error_occurred(error, error_message, error_code)) return
+        call mpas_log_write('[MUSICA] MICM state relative_tolerance set to $r', &
+            realArgs=[real(relative_tolerance, RKIND)])
+
         ! Create reference state (uncoupled, for advection diagnostics)
         state_ref => micm%get_state(number_of_grid_cells, error)
+        if (has_error_occurred(error, error_message, error_code)) return
+        call state_ref%set_relative_tolerance(relative_tolerance, error)
         if (has_error_occurred(error, error_message, error_code)) return
         call mpas_log_write('[MUSICA] Created reference state for advection diagnostics')
 
@@ -294,23 +311,67 @@ module mpas_musica
         use musica_util, only : error_t, string_t
 
         use mpas_log, only : mpas_log_write
+        use mpas_kind_types, only : RKIND
 
         real(real64), intent(in) :: time_step
 
         integer,                       intent(out) :: error_code
         character(len=:), allocatable, intent(out) :: error_message
 
-        type(string_t)       :: solver_state 
+        type(string_t)       :: solver_state
         type(solver_stats_t) :: solver_stats
         type(error_t)        :: error
 
+        real(real64)       :: elapsed, remaining, advanced
+        integer            :: sub_call
+        integer, parameter :: MAX_SUB_CALLS = 100
+
+        ! Re-entrant solve loop: MICM's adaptive controller returns early when
+        ! it exhausts its internal step budget (max_number_of_steps, default 11)
+        ! before reaching the requested interval. solver_stats%final_time()
+        ! reports how far it actually advanced. Resubmit the remainder until
+        ! the full time_step is covered or the safety cap is hit. This is the
+        ! pattern used by MUSICA/fortran/examples/column_model.F90 and is
+        ! required for stiff transients (e.g. Chapman chemistry at sunrise).
+
         call mpas_log_write('[MUSICA] Stepping MICM solver...')
 
-        call micm%solve(time_step, state, solver_state, solver_stats, error)
-        if (has_error_occurred(error, error_message, error_code)) return
+        elapsed  = 0.0_real64
+        sub_call = 0
 
-        if (solver_state%get_char_array() /= 'Converged') then
-            call mpas_log_write('[MUSICA Warning] MICM solver failure')
+        do while (elapsed < time_step .and. sub_call < MAX_SUB_CALLS)
+            sub_call = sub_call + 1
+            remaining = time_step - elapsed
+
+            call micm%solve(remaining, state, solver_state, solver_stats, error)
+            if (has_error_occurred(error, error_message, error_code)) return
+
+            advanced = solver_stats%final_time()
+
+            if (advanced <= 0.0_real64) then
+                call mpas_log_write('[MUSICA Error] MICM advanced 0 s with state "' // &
+                    solver_state%get_char_array() // '"; aborting sub-step loop')
+                error_code = 1
+                error_message = '[MUSICA] MICM stalled at sub-step'
+                return
+            end if
+
+            elapsed = elapsed + advanced
+        end do
+
+        if (elapsed < time_step) then
+            call mpas_log_write('[MUSICA Error] MICM exhausted sub-call budget ($i calls); ' // &
+                'elapsed $r of $r s', &
+                intArgs=[MAX_SUB_CALLS], &
+                realArgs=[real(elapsed, RKIND), real(time_step, RKIND)])
+            error_code = 1
+            error_message = '[MUSICA] sub-step budget exhausted'
+            return
+        end if
+
+        if (sub_call > 1) then
+            call mpas_log_write('[MUSICA] MICM completed time_step $r s in $i sub-calls', &
+                intArgs=[sub_call], realArgs=[real(time_step, RKIND)])
         end if
 
         call log_solver_stats(solver_stats)
@@ -342,13 +403,34 @@ module mpas_musica
         type(solver_stats_t) :: solver_stats
         type(error_t)        :: error
 
-        ! Solve reference state (not coupled to MPAS, chemistry only)
-        call micm%solve(time_step, state_ref, solver_state, solver_stats, error)
-        if (has_error_occurred(error, error_message, error_code)) return
+        real(real64)       :: elapsed, remaining, advanced
+        integer            :: sub_call
+        integer, parameter :: MAX_SUB_CALLS = 100
 
-        if (solver_state%get_char_array() /= 'Converged') then
+        ! Re-entrant solve loop (see musica_step above for rationale).
+        elapsed  = 0.0_real64
+        sub_call = 0
+
+        do while (elapsed < time_step .and. sub_call < MAX_SUB_CALLS)
+            sub_call = sub_call + 1
+            remaining = time_step - elapsed
+
+            call micm%solve(remaining, state_ref, solver_state, solver_stats, error)
+            if (has_error_occurred(error, error_message, error_code)) return
+
+            advanced = solver_stats%final_time()
+            if (advanced <= 0.0_real64) then
+                error_code = 1
+                error_message = '[MUSICA] Reference MICM stalled at sub-step'
+                return
+            end if
+
+            elapsed = elapsed + advanced
+        end do
+
+        if (elapsed < time_step) then
             error_code = 1
-            error_message = '[MUSICA Warning] Reference MICM solver failure'
+            error_message = '[MUSICA] Reference MICM sub-step budget exhausted'
         end if
 
     end subroutine musica_step_ref
@@ -589,15 +671,17 @@ module mpas_musica
         use iso_fortran_env, only : real64
         use mpas_kind_types, only : RKIND
         use mpas_log, only : mpas_log_write
+        use musica_util, only : error_t
 
         type(state_t), intent(inout) :: state
         integer, intent(in)          :: number_of_grid_cells
         real(kind=RKIND), intent(in) :: nox_tau     ! [s] NOx sink timescale (0 = disabled)
 
-        integer :: cell_stride, var_stride, rp_index, cell, idx, n_rp
+        integer :: cell_stride, var_stride, rp_index, storage_index, cell, idx, n_rp
         character(len=256) :: msg
         character(len=:), allocatable :: rp_name
         real(real64) :: rate_val
+        type(error_t) :: error
 
         if (state%number_of_rate_parameters == 0) return
 
@@ -607,6 +691,12 @@ module mpas_musica
 
         do rp_index = 1, n_rp
             rp_name = trim(state%rate_parameters_ordering%name(rp_index))
+            storage_index = state%rate_parameters_ordering%index(rp_name, error)
+            if (.not. error%is_success()) then
+                call mpas_log_write('[MUSICA] Could not resolve storage index for rate param "' // &
+                    rp_name // '"')
+                cycle
+            end if
 
             ! Set rate based on parameter name.
             ! USER_DEFINED reactions: host multiplier — default 1.0 so the
@@ -624,7 +714,7 @@ module mpas_musica
             end if
 
             do cell = 1, number_of_grid_cells
-                idx = 1 + (cell - 1) * cell_stride + (rp_index - 1) * var_stride
+                idx = 1 + (cell - 1) * cell_stride + (storage_index - 1) * var_stride
                 state%rate_parameters(idx) = rate_val
             end do
 
@@ -647,14 +737,15 @@ module mpas_musica
     !------------------------------------------------------------------------
     subroutine musica_cache_photo_indices(names, error_code, error_message)
         use mpas_log, only : mpas_log_write
+        use musica_util, only : error_t
 
         character(len=*), intent(in)                :: names(:)
         integer, intent(out)                        :: error_code
         character(len=:), allocatable, intent(out)   :: error_message
 
-        integer :: i, j, n_rp
-        character(len=:), allocatable :: rp_name, target_name
-        logical :: found
+        integer :: i
+        character(len=:), allocatable :: target_name
+        type(error_t) :: error
 
         error_code = 0
         error_message = ''
@@ -678,28 +769,18 @@ module mpas_musica
             return
         end if
 
-        n_rp = state%rate_parameters_ordering%size()
-
         do i = 1, n_photo_rp
             photo_rp_names(i) = trim(names(i))
             target_name = 'PHOTO.' // trim(names(i))
-            found = .false.
-            do j = 1, n_rp
-                rp_name = trim(state%rate_parameters_ordering%name(j))
-                if (rp_name == target_name) then
-                    photo_rp_indices(i) = j
-                    found = .true.
-                    call mpas_log_write('[MUSICA] Cached ' // target_name // &
-                        ' rate param index = $i', intArgs=[j])
-                    exit
-                end if
-            end do
-            if (.not. found) then
+            photo_rp_indices(i) = state%rate_parameters_ordering%index(target_name, error)
+            if (.not. error%is_success()) then
                 error_code = 1
                 error_message = '[MUSICA] Rate parameter ' // target_name // &
                     ' not found; TUV-x and MICM configs disagree'
                 return
             end if
+            call mpas_log_write('[MUSICA] Cached ' // target_name // &
+                ' rate param index = $i', intArgs=[photo_rp_indices(i)])
         end do
 
     end subroutine musica_cache_photo_indices

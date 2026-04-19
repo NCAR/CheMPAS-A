@@ -1,0 +1,111 @@
+version: "1.0.0"
+name: Chapman-only
+# Pure Chapman cycle — 3 species + M, no NOx, no O1D. Used to isolate
+# the qO3 explosion from any NOx/O1D wiring questions (see
+# docs/plans/2026-04-18-chapman-nox-chem-box-issue.md).
+#
+# ARRHENIUS form: k = A * (T/D)^B * exp(C/T) * (1 + E*P).
+# Rate constants in SI (mol/m^3 basis).
+
+species:
+  - name: M
+    is third body: true
+    __description: Third-body molecule.
+  - name: O2
+    __molar mass: 0.032
+    __long name: molecular_oxygen
+    __do advect: true
+    __initial concentration: 0.0
+  - name: O
+    __absolute tolerance: 1e-12
+    __molar mass: 0.016
+    __long name: atomic_oxygen_3P
+    __do advect: true
+    __initial concentration: 0.0
+  - name: O3
+    __absolute tolerance: 1e-12
+    __molar mass: 0.048
+    __long name: ozone
+    __atoms: 3
+    __do advect: true
+    __initial concentration: 0.0
+
+phases:
+  - name: gas
+    species:
+      - M
+      - O
+      - O2
+      - O3
+
+reactions:
+  - type: PHOTOLYSIS
+    gas phase: gas
+    reactants:
+      - species name: O2
+    products:
+      - species name: O
+        coefficient: 2
+    name: jO2
+
+  - type: ARRHENIUS
+    gas phase: gas
+    reactants:
+      - species name: O
+        coefficient: 1
+      - species name: O2
+        coefficient: 1
+      - species name: M
+        coefficient: 1
+    products:
+      - species name: O3
+        coefficient: 1
+      - species name: M
+        coefficient: 1
+    A: 217.59707599952029
+    B: -2.4
+    C: 0
+    D: 300
+    E: 0
+    name: R2
+
+  - type: PHOTOLYSIS
+    gas phase: gas
+    reactants:
+      - species name: O3
+        coefficient: 1
+    products:
+      - species name: O
+        coefficient: 1
+      - species name: O2
+        coefficient: 1
+    name: jO3_O
+
+  - type: ARRHENIUS
+    gas phase: gas
+    reactants:
+      - species name: O
+        coefficient: 1
+      - species name: O3
+        coefficient: 1
+    products:
+      - species name: O2
+        coefficient: 2
+    A: 4817712.608
+    B: 0
+    C: -2059.0316582998285
+    D: 300
+    E: 0
+    name: R4
+
+  - type: PHOTOLYSIS
+    gas phase: gas
+    reactants:
+      - species name: O3
+        coefficient: 1
+    products:
+      - species name: O
+        coefficient: 1
+      - species name: O2
+        coefficient: 1
+    name: jO3_O1D

@@ -168,6 +168,24 @@ The `llvm` target configures:
 
 To enable MUSICA/MICM atmospheric chemistry, MUSICA-Fortran must be built with flang (not gfortran) since `.mod` files are compiler-specific.
 
+**Both `libmusica.a` and `libnetcdff.a` must be flang-built.** With TUV-x
+integration (`-DMUSICA_ENABLE_TUVX=ON`), `libmusica.a` contains
+`netcdf.F90.o` objects that reference flang-mangled `__QMnetcdfP*` symbols.
+Homebrew's `netcdf-fortran` is built with gfortran (`___netcdf_MOD_*`
+mangling) and cannot resolve those references, producing link errors like:
+
+```
+Undefined symbols for architecture arm64:
+  "__QMnetcdfPnf90_put_var_eightbytereal", referenced from:
+      __QMmusica_io_netcdfPappend_2d_double in libmusica.a[...]
+```
+
+`MUSICA-LLVM` bundles a flang-built `netcdf-fortran` at
+`flang-deps/netcdf-fortran-install/`. Point CheMPAS at it with `NETCDFF=`.
+The Makefile already knows how to split `NETCDF` (C library / headers) from
+`NETCDFF` (Fortran library / `.mod`). The preflight script detects this
+tree automatically and exports `NETCDFF=`.
+
 Before running `make ... MUSICA=true`, verify these three things:
 
 ```bash
@@ -213,20 +231,24 @@ pkg-config --cflags --libs musica-fortran
 
 If yaml-cpp is installed in a non-default location, add its library directory to the `Libs:` line in the override (for example `-L/opt/homebrew/opt/yaml-cpp/lib`).
 
-**Build command with MUSICA:**
+**Build command with MUSICA (recommended — uses preflight):**
 
 ```bash
-export PKG_CONFIG_PATH="$HOME/software/lib/pkgconfig:$PKG_CONFIG_PATH"
-export PNETCDF=$HOME/software
-
-make -j8 llvm \
-  CORE=atmosphere \
-  PIO=$HOME/software \
-  NETCDF=/opt/homebrew \
-  PNETCDF=$HOME/software \
-  PRECISION=double \
-  MUSICA=true
+eval "$(scripts/check_build_env.sh --export)" && \
+  make -j8 llvm \
+    CORE=atmosphere \
+    PIO="$PIO" \
+    NETCDF="$NETCDF" \
+    NETCDFF="$NETCDFF" \
+    PNETCDF="$PNETCDF" \
+    PRECISION=double \
+    MUSICA=true
 ```
+
+The preflight exports `NETCDFF=$HOME/EarthSystem/MUSICA-LLVM/flang-deps/netcdf-fortran-install`
+on flang hosts. The `eval ... && make` must run in a single shell
+invocation (the Makefile's parse-time `$(shell pkg-config ...)` depends
+on `PKG_CONFIG_PATH` being inherited directly).
 
 The build will report `MPAS was linked with the MUSICA-Fortran library version X.Y.Z` on success.
 
@@ -238,15 +260,17 @@ The build will report `MPAS was linked with the MUSICA-Fortran library version X
 
 2. **The MUSICA modules must be built with flang for the `llvm` target.** If `mpif90` resolves to gfortran while MUSICA was built with flang, or vice versa, module loading fails with errors like `... is not a GNU Fortran module file`.
 
-3. **`PNETCDF` is mandatory for the normal top-level build.** If `PNETCDF` is unset, the build aborts in `pnetcdf_test` before the atmosphere core is compiled.
+3. **`netcdf-fortran` must also be flang-built for MUSICA+TUV-x.** Homebrew's `libnetcdff` is gfortran-mangled and cannot satisfy flang-mangled `__QMnetcdfP*` references from `libmusica.a` (pulled in by TUV-x's `netcdf.F90` object). Set `NETCDFF=` to the flang-built tree at `$HOME/EarthSystem/MUSICA-LLVM/flang-deps/netcdf-fortran-install`. The preflight detects and exports this automatically.
 
-4. **`-fdefault-real-8` affects `kind=` specifiers.** Under the LLVM flags, `real(kind=4)` becomes 8-byte. Use `RKIND` (from `mpas_kind_types`) for MPAS log calls (`realArgs`) and any real literals that interface with the framework. Do not use `kind=4`.
+4. **`PNETCDF` is mandatory for the normal top-level build.** If `PNETCDF` is unset, the build aborts in `pnetcdf_test` before the atmosphere core is compiled.
 
-5. **Chemistry tracers are runtime-injected (not registry-defined).** The atmosphere registry no longer hardcodes chemistry tracers (`qAB/qA/qB`). With MUSICA enabled, `atm_extend_scalars_for_chemistry()` discovers MICM species at startup and extends `scalars`/`scalars_tend` metadata dynamically.
+5. **`-fdefault-real-8` affects `kind=` specifiers.** Under the LLVM flags, `real(kind=4)` becomes 8-byte. Use `RKIND` (from `mpas_kind_types`) for MPAS log calls (`realArgs`) and any real literals that interface with the framework. Do not use `kind=4`.
 
-6. **MICM API returns scalars.** `micm%get_species_property_double(name, property, error)` returns a scalar `real(real64)`, not an array. Assigning to an allocatable array causes undefined behavior.
+6. **Chemistry tracers are runtime-injected (not registry-defined).** The atmosphere registry no longer hardcodes chemistry tracers (`qAB/qA/qB`). With MUSICA enabled, `atm_extend_scalars_for_chemistry()` discovers MICM species at startup and extends `scalars`/`scalars_tend` metadata dynamically.
 
-7. **Species ordering index vs iteration order.** `state%species_ordering%name(i)` gives the i-th species name in iteration order, but `state%species_ordering%index(name)` gives the stride-based index for concentration array access. These are not the same — always use `%index(name)` for array indexing.
+7. **MICM API returns scalars.** `micm%get_species_property_double(name, property, error)` returns a scalar `real(real64)`, not an array. Assigning to an allocatable array causes undefined behavior.
+
+8. **Species ordering index vs iteration order.** `state%species_ordering%name(i)` gives the i-th species name in iteration order, but `state%species_ordering%index(name)` gives the stride-based index for concentration array access. These are not the same — always use `%index(name)` for array indexing.
 
 #### Known Warnings
 

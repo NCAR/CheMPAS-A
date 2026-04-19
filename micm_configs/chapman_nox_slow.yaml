@@ -1,16 +1,28 @@
 version: "1.0.0"
-name: Chapman-NOx
-# Based on the canonical MICM Chapman config:
-#   ~/EarthSystem/MUSICA/configs/v1/chapman/config.yaml
-# with three NOx reactions added on top.
+name: Chapman-NOx-slow
+# SANITY-TEST VARIANT of chapman_nox.yaml.
+# Same species, same reaction topology (including full [O] and [O1D] loops)
+# as chapman_nox.yaml. Only the two fast termolecular/quenching rate
+# constants are scaled down by 1e6 to remove stiffness while keeping the
+# Chapman structure intact:
+#   R2 (O + O2 + M -> O3 + M):   A 2.176e2 -> 2.176e-4   (τ_O: 14 µs -> 14 s)
+#   R6 (O1D + M -> O + M):       A 1.422e7 -> 1.422e1    (τ_O1D: ~1 µs -> ~1 s)
+# All other rate constants unchanged. The resulting chemistry is
+# physically wrong (Chapman ozone equilibrium shifts drastically) but
+# the ODE system is no longer stiff at dt = 3 s.
+#
+# Purpose: confirm that MICM's Backward Euler can integrate the full
+# Chapman-NOx reaction topology when stiffness is removed. If qO3 stays
+# stable here, stiffness of R2/R6 is the cause of the explosion in
+# chapman_nox.yaml. If qO3 still explodes, the problem is deeper than
+# stiffness.
+#
+# Reverting to physical rates: restore the original A values from
+# chapman_nox.yaml (2.17597...e2 for R2, 1.4223365...e7 for R6).
 #
 # ARRHENIUS rate form (MICM v1):
 #   k = A * (T/D)^B * exp(C/T) * (1 + E*P)
-# Every reaction must provide D (reference T in K) and E (pressure
-# coefficient in 1/Pa) or the defaults bite you — leaving D unset
-# silently makes (T/D)^B very wrong for stratospheric T.
-#
-# Rate constants in SI (mol/m^3 basis). cgs values in comments.
+# Rate constants in SI (mol/m^3 basis).
 
 species:
   - name: M
@@ -95,7 +107,7 @@ reactions:
         coefficient: 1
       - species name: M
         coefficient: 1
-    A: 217.59707599952029
+    A: 2.17597075999520e-4   # was 2.17597e2 — scaled 1e-6 for sanity test
     B: -2.4
     C: 0
     D: 300
@@ -157,7 +169,7 @@ reactions:
         coefficient: 1
       - species name: M
         coefficient: 1
-    A: 14223365.93
+    A: 14.22336593        # was 1.4223e7 — scaled 1e-6 for sanity test
     B: 0
     C: 90.0
     D: 300

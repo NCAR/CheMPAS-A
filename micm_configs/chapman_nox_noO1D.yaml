@@ -1,15 +1,16 @@
 version: "1.0.0"
-name: Chapman-NOx
-# Based on the canonical MICM Chapman config:
-#   ~/EarthSystem/MUSICA/configs/v1/chapman/config.yaml
-# with three NOx reactions added on top.
+name: Chapman-NOx-noO1D
+# Reduced mechanism without O1D — jO3_O1D now produces O directly, since
+# at tropospheric/stratospheric pressures O1D is quenched to O(3P) on
+# microsecond timescales. This folds the R6 quenching reaction into the
+# photolysis step and removes O1D from the species list entirely.
+#
+# Purpose: isolate whether the chem_box qO3 explosion (see
+# docs/plans/2026-04-18-chapman-nox-chem-box-issue.md) is driven by O1D
+# stiffness (fast quenching, tight tolerance, starts at zero).
 #
 # ARRHENIUS rate form (MICM v1):
 #   k = A * (T/D)^B * exp(C/T) * (1 + E*P)
-# Every reaction must provide D (reference T in K) and E (pressure
-# coefficient in 1/Pa) or the defaults bite you — leaving D unset
-# silently makes (T/D)^B very wrong for stratospheric T.
-#
 # Rate constants in SI (mol/m^3 basis). cgs values in comments.
 
 species:
@@ -17,10 +18,6 @@ species:
     is third body: true
     __description: Third-body molecule.
   - name: O2
-    # Do not mark as CONSTANT tracer — the canonical MICM Chapman
-    # config treats O2 as a regular species integrated by the solver.
-    # MICM reads [O2] from MPAS state each step via
-    # MICM_from_chemistry, so a uniform 0.2095 VMR seed is preserved.
     __molar mass: 0.032
     __long name: molecular_oxygen
     __do advect: true
@@ -29,12 +26,6 @@ species:
     __absolute tolerance: 1e-10
     __molar mass: 0.016
     __long name: atomic_oxygen_3P
-    __do advect: true
-    __initial concentration: 0.0
-  - name: O1D
-    __absolute tolerance: 1e-10
-    __molar mass: 0.016
-    __long name: atomic_oxygen_1D
     __do advect: true
     __initial concentration: 0.0
   - name: O3
@@ -64,12 +55,11 @@ phases:
       - O
       - O2
       - O3
-      - O1D
       - NO
       - NO2
 
 reactions:
-  # ----- Chapman cycle (values copied from MUSICA/configs/v1/chapman) -----
+  # ----- Chapman cycle (no O1D) -----
 
   - type: PHOTOLYSIS
     gas phase: gas
@@ -81,7 +71,7 @@ reactions:
     name: jO2
 
   - type: ARRHENIUS
-    # O + O2 + M -> O3 + M    (JPL: k0 = 6.0e-34 (T/300)^-2.4, termolecular)
+    # O + O2 + M -> O3 + M    (JPL: k0 = 6.0e-34 (T/300)^-2.4)
     gas phase: gas
     reactants:
       - species name: O
@@ -103,6 +93,7 @@ reactions:
     name: R2
 
   - type: PHOTOLYSIS
+    # O3 + hv -> O + O2  (O(3P) channel)
     gas phase: gas
     reactants:
       - species name: O3
@@ -133,60 +124,24 @@ reactions:
     name: R4
 
   - type: PHOTOLYSIS
+    # O3 + hv -> O(1D) + O2 --> (instant quenching) --> O + O2
+    # Reuses TUV-x jO3_O1D cross-section/quantum yield but collapses
+    # the O(1D) intermediate into O(3P).
     gas phase: gas
     reactants:
       - species name: O3
         coefficient: 1
     products:
-      - species name: O1D
+      - species name: O
         coefficient: 1
       - species name: O2
         coefficient: 1
     name: jO3_O1D
 
-  - type: ARRHENIUS
-    # O1D + M -> O + M    (approximate combined O1D+N2 and O1D+O2 quenching)
-    gas phase: gas
-    reactants:
-      - species name: O1D
-        coefficient: 1
-      - species name: M
-        coefficient: 1
-    products:
-      - species name: O
-        coefficient: 1
-      - species name: M
-        coefficient: 1
-    A: 14223365.93
-    B: 0
-    C: 90.0
-    D: 300
-    E: 0
-    name: R6
-
-  - type: ARRHENIUS
-    # O1D + O3 -> 2 O2    (JPL: k = 1.2e-10)
-    gas phase: gas
-    reactants:
-      - species name: O1D
-        coefficient: 1
-      - species name: O3
-        coefficient: 1
-    products:
-      - species name: O2
-        coefficient: 2
-    A: 7.22e7
-    B: 0
-    C: 0
-    D: 300
-    E: 0
-    name: R7
-
   # ----- NOx catalytic O3 destruction -----
 
   - type: ARRHENIUS
-    # NO + O3 -> NO2 + O2    (JPL: k = 3.0e-12 exp(-1500/T); existing lnox_o3
-    # value A=1.084e6 preserved)
+    # NO + O3 -> NO2 + O2    (JPL: k = 3.0e-12 exp(-1500/T))
     gas phase: gas
     reactants:
       - species name: NO
