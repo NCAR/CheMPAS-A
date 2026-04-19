@@ -960,22 +960,95 @@ wrong-root attractor as a *stable* fixed point of their respective
 discretizations. Once in its basin of attraction (which is large
 here), Newton/Rosenbrock converge to it.
 
-### What actually fixes this
+### 2026-04-19 correction: standalone column tests do not reproduce
 
-Only two routes are left:
+The late-evening conclusion above was too strong. Two standalone
+MUSICA column-model tests were run on macOS, outside the CheMPAS
+coupler, to check whether daylight cold start + Chapman stiffness is
+enough to reproduce the chem_box explosion.
 
-**A. Analytic QSS substitution of [O].** Eliminate the species whose
-fast timescale is the source of the multi-root regime. The remaining
-equation for [O3] has the single slow timescale `1/(jO3_O + k3·[O]_ss)`
-≈ 1 hour, well within dt=3s's single-root regime. Cost: the QSS
-expression `[O]_ss = P_O / (k2·[O2]·[M] + k3·[O3])` has to be encoded
-as USER_DEFINED rate laws in the yaml (or precomputed per cell inside
-CheMPAS before each MICM call, then passed in as a parametric
-concentration).
+**Test 1 — canonical MUSICA Chapman, daylight cold start.**
+Temporary copy of `MUSICA-LLVM/fortran/examples/column_model.F90`
+with only:
 
-**B. Sub-microsecond chemistry dt.** `config_chem_substeps ≥ 200,000`
-to get `dt_chem < τ_O = 14 µs`. Infeasible: 3-s MPAS dt would take
-hours of wall clock per chemistry call.
+```fortran
+START_UTC = 18.0_dk
+```
+
+Everything else stayed canonical: `configs/v1/chapman/config.json`,
+TUV v5.4 column profiles, 15 min chemistry interval, `[O]=[O1D]=0`
+initially. Result: no explosion. O3 stayed physical:
+
+```
+time_hr   O3_mean      O3_max       O_max        surface jO3(3P)
+0.000     1.115e-06    6.902e-06    0.000e+00    0.000e+00
+0.250     1.118e-06    6.907e-06    1.038e-08    4.852e-04
+1.000     1.131e-06    6.920e-06    1.736e-08    4.913e-04
+24.000    1.228e-06    6.995e-06    1.180e-07    4.815e-04
+```
+
+**Test 2 — CheMPAS `chapman_nox.yaml` in the standalone column
+model.** Temporary column-model main loaded
+`../v1/chapman_nox.yaml`, mapped TUV v5.4 photolysis channels into
+`PHOTO.jO2`, `PHOTO.jO3_O`, `PHOTO.jO3_O1D`, and `PHOTO.jNO2`,
+initialized NO/NO2 from the same broad profile shape as
+`scripts/init_chapman.py`, and ran a chem_box-like daylight stress
+case:
+
+```fortran
+DT_PHOTO = 3.0_dk
+SIM_LENGTH = 600.0_dk
+START_UTC = 18.0_dk
+```
+
+Result: no explosion. O3 stayed near the physical column profile:
+
+```
+step  time_s   O3_mean      O3_max       O_max        NO_mean      NO2_mean
+0       0.0    1.115e-06    6.902e-06    0.000e+00    5.915e-10   1.380e-09
+1       3.0    1.115e-06    6.903e-06    3.612e-09    6.247e-10   1.347e-09
+2       6.0    1.115e-06    6.903e-06    5.199e-09    6.559e-10   1.316e-09
+20     60.0    1.115e-06    6.906e-06    9.456e-09    9.561e-10   1.016e-09
+100   300.0    1.116e-06    6.908e-06    9.813e-09    1.070e-09   9.015e-10
+200   600.0    1.117e-06    6.909e-06    1.011e-08    1.071e-09   9.007e-10
+```
+
+The temporary files were:
+
+- `/tmp/column_model_daylight.F90`
+- `/tmp/column_model_daylight_run/configs/tuvx/column_model_fortran.csv`
+- `/tmp/column_model_chapman_nox.F90`
+- `/tmp/column_model_chapman_nox_run/configs/tuvx/column_model_fortran.csv`
+
+These tests invalidate the claim that the mechanism, solver choice,
+or daylight cold start alone explains the chem_box qO3 explosion.
+`chapman_nox.yaml` itself is stable in standalone MICM/TUV-x at a 3 s
+daylight cadence.
+
+### Revised conclusion
+
+The remaining suspect is CheMPAS-specific coupling or host-state
+construction, not the raw MICM mechanism:
+
+- MPAS → MICM concentration conversion or grid-cell ordering
+- CheMPAS `state%rate_parameters` assignment
+- CheMPAS TUV from-host profile path (`mpas_tuvx.F`) versus the
+  standalone TUV v5.4 profile setup
+- MPAS density, pressure, temperature, or vertical-coordinate inputs
+- A mismatch between chem_box layer ordering and TUV/MICM column
+  expectations
+
+Do **not** proceed directly to QSS substitution as the next primary
+fix. QSS substitution may still be useful eventually, but it would be
+a scientific mechanism change and must go through human review.
+
+Immediate next discriminator: run a tiny standalone MICM solve using
+the exact cell-1 / level-1 step-1 inputs already logged from chem_box
+(`T=299.09 K`, `P=98321 Pa`, `air_density=39.2 mol/m3`, the logged
+species concentrations, and the logged four photolysis rates). If
+that standalone solve explodes, the problem is in MICM behavior for
+those exact inputs. If it stays stable, the bug is in CheMPAS state
+layout, mapping, or per-column host-state construction.
 
 ### Current state shipped
 
@@ -990,12 +1063,4 @@ hours of wall clock per chemistry call.
   if mass balance becomes a concern in production runs.
 
 None of these solve chapman_nox in chem_box. They stand as
-infrastructure for the next round (QSS substitution).
-
-### Decision: next session should pursue route A
-
-The cleanest path is to add a USER_DEFINED-rate variant of the
-mechanism that substitutes `[O]_ss` into R2, R4, R_NO2_O and treats
-[O] as parameterized. Non-trivial; expect several hours of yaml work
-plus verification against the column model. Deferring to the next
-session.
+infrastructure for the next round of coupling diagnostics.
