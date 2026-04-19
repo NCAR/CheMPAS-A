@@ -45,6 +45,25 @@ DEFAULT_SPECIES = ["qO3", "qO", "qO1D", "qNO", "qNO2", "qO2"]
 DEFAULT_JVARS   = ["j_jO2", "j_jO3_O", "j_jO3_O1D", "j_jNO2"]
 
 
+# Fixed x-axis ranges sized to the physically expected values (not
+# idealized spin-up transients or floating-point denormals). Species in
+# ppb, photolysis rates in s^-1.
+AXIS_SPECS = {
+    # Species [ppb]
+    "qO3":   {"range": (1.0, 1.0e5),     "log": True},   # 50 ppb tropo → 10 ppm stratospheric peak
+    "qO":    {"range": (0.0, 5.0e7),     "log": False},  # idealized spin-up transient; steady-state tiny
+    "qO1D":  {"range": (0.0, 1.0),       "log": False},  # idealized spin-up transient
+    "qNO":   {"range": (0.0, 5.0),       "log": False},  # stratospheric NOx
+    "qNO2":  {"range": (0.0, 5.0),       "log": False},
+    "qO2":   {"range": (1.8e8, 2.3e8),   "log": False},  # ~0.2095 VMR -> ~2.09e8 ppb
+    # Photolysis rates [s^-1]
+    "j_jO2":     {"range": (0.0, 5.0e-10), "log": False},  # Schumann-Runge weak
+    "j_jO3_O":   {"range": (0.0, 1.0e-3),  "log": False},  # Hartley band, O(3P) channel
+    "j_jO3_O1D": {"range": (0.0, 1.0e-3),  "log": False},  # Hartley band, O(1D) channel
+    "j_jNO2":    {"range": (0.0, 1.5e-2),  "log": False},  # midday NO2 photolysis
+}
+
+
 def to_ppbv(q_kgkg, M_species):
     """Convert mass mixing ratio (kg/kg) to ppbv."""
     return q_kgkg * (M_AIR / M_species) * 1.0e9
@@ -79,8 +98,6 @@ def main() -> None:
                     default=str(Path.home() / "Data/CheMPAS/supercell/output.nc"))
     ap.add_argument("-o", "--output", default=None,
                     help="output PNG path; default <input_dir>/plots/chemistry_profiles.png")
-    ap.add_argument("--logx", choices=["auto", "always", "never"], default="auto",
-                    help="x-axis scale: 'auto' = log when dynamic range > 2 orders")
     args = ap.parse_args()
 
     if args.output is None:
@@ -146,18 +163,15 @@ def main() -> None:
         if idx % ncols == 0:
             ax.set_ylabel("Altitude [km]")
 
-        # Log-scale heuristic: 2+ orders of dynamic range in the last frame
-        use_log = False
-        if args.logx == "always":
-            use_log = (arr_plot[-1] > 0).any()
-        elif args.logx == "auto":
-            positive = arr_plot[-1][arr_plot[-1] > 0]
-            if positive.size > 10:
-                lo_val, hi_val = positive.min(), positive.max()
-                if hi_val / max(lo_val, 1e-300) > 100.0:
-                    use_log = True
-        if use_log:
-            ax.set_xscale("log")
+        # Fixed x-axis range per the physically expected values in AXIS_SPECS.
+        # Data outside the range is clipped visually, which is the intent —
+        # numerical transients and denormals are not interesting here.
+        spec = AXIS_SPECS.get(name)
+        if spec is not None:
+            lo, hi = spec["range"]
+            ax.set_xlim(lo, hi)
+            if spec["log"]:
+                ax.set_xscale("log")
 
     # Hide unused panels
     for j in range(len(variables), nrows * ncols):
