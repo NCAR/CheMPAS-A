@@ -44,6 +44,9 @@ module mpas_atm_chemistry
         ! Number of MICM sub-steps per MPAS dt (1 = no sub-stepping)
         integer, save :: chem_substeps_val = 1
 
+        ! MICM state relative tolerance (MICM default is 1e-6)
+        real(kind=RKIND), save :: micm_relative_tolerance_val = 1.0e-6_RKIND
+
         ! TUV-x state
         logical, save :: use_tuvx = .false.
         integer, save :: idx_qO3 = -1
@@ -143,6 +146,14 @@ module mpas_atm_chemistry
             if (chem_substeps_val < 1) chem_substeps_val = 1
         end block
 
+        ! Read MICM relative tolerance (tighten from default 1e-6 for stiff mechanisms)
+        block
+            real(kind=RKIND), pointer :: reltol_ptr
+            nullify(reltol_ptr)
+            call mpas_pool_get_config(configs, 'config_micm_relative_tolerance', reltol_ptr)
+            if (associated(reltol_ptr)) micm_relative_tolerance_val = reltol_ptr
+        end block
+
         ! Cache solar geometry config values for per-step SZA computation
         chem_j_no2_max = j_no2_val
         nullify(lat_ptr)
@@ -154,7 +165,9 @@ module mpas_atm_chemistry
 
         ! Initialize MICM (species already injected into scalars by atm_setup_block)
         call musica_init(filepath_ptr, nCells * nVertLevels, &
-                         nox_tau_val, error_code, error_message)
+                         nox_tau_val, &
+                         real(micm_relative_tolerance_val, kind(1.0d0)), &
+                         error_code, error_message)
 
         if (error_code /= 0) then
             call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)

@@ -839,3 +839,163 @@ and switch to `config_chem_substeps` once the counter elapses.
 If this works, it's a cheap production fix for the cold-start case and
 a clean model for handling sunrise in longer runs (same pattern, just
 triggered by cos_sza transitions rather than step count).
+
+## 2026-04-18 late-evening: pivoting to solver-API and QSS-seed tests
+
+Built the cross-repo MICM tolerance-setting API that the handoff plan had
+assumed existed:
+
+- `MUSICA-LLVM/include/musica/micm/state_c_interface.hpp` +
+  `src/micm/state_c_interface.cpp`: new `SetRelativeTolerance(state, value, error)`
+  C entry point. Uses `std::visit` to set `state.relative_tolerance_` on
+  whichever `StateVariant` the solver chose (VectorState / StandardState /
+  GpuState). Mass-conservative wrt. the existing State object.
+- `MUSICA-LLVM/fortran/micm/state.F90`: matching Fortran binding
+  `set_relative_tolerance_c` and a `state_t%set_relative_tolerance(value, error)`
+  method. No API churn elsewhere.
+- Rebuilt MUSICA-LLVM and installed updated `libmusica.a`,
+  `libmusica-fortran.a`, `libmechanism_configuration.a`, and `*.mod`
+  files into `~/software`.
+- `CheMPAS/src/core_atmosphere/Registry.xml`: added
+  `config_micm_relative_tolerance` (default `1e-6`, MICM's default).
+- `CheMPAS/src/core_atmosphere/chemistry/mpas_atm_chemistry.F`: reads
+  the namelist option and passes it through to `musica_init`.
+- `CheMPAS/src/core_atmosphere/chemistry/musica/mpas_musica.F`:
+  `musica_init` now accepts `relative_tolerance` and calls
+  `state%set_relative_tolerance(relative_tolerance, error)` on both
+  the coupled and reference states immediately after `get_state`.
+
+The API works and logs confirm the tolerance is applied.
+
+### Result: tightening rel_tol does NOT fix the explosion
+
+With BE and `config_micm_relative_tolerance = 1e-9`: bit-for-bit
+identical explosion (qO3 24000 → 9.4e7 ppb at 5 min). Solver stats:
+`accepted=1, rejected=0` per call — the adaptive controller never
+triggers.
+
+With BE and `rel_tol = 1e-15` (near machine precision): same.
+
+**Why rel_tol is ineffective here.** From
+`micm-src/include/micm/solver/backward_euler.inl:IsConverged`:
+
+```
+|residual| > small AND |residual| > abs_tol[i] AND |residual| > rel_tol * |Yn+1|
+```
+
+All three must hold for non-convergence. At the wrong root,
+`|Yn+1|` for qO3 is ≈ 0.3 mol/m³, so `rel_tol * |Yn+1|` at
+`rel_tol = 1e-15` is `3e-16` — Newton's residuals drop below that
+trivially once converging. Tightening rel_tol makes Newton converge
+*more precisely* to the wrong root; it does not force a step-size
+reduction because the `!converged → H *= time_step_reductions[...]`
+branch never fires.
+
+### Result: Rosenbrock instead of BE
+
+Switched `solver_type = RosenbrockStandardOrder` in
+`mpas_musica.F::musica_init`. Rosenbrock has true embedded error
+estimation (step-doubling), not Newton convergence, so it *should*
+respond to tighter rel_tol by rejecting large H steps. Tested at
+`rel_tol = 1e-9` and `rel_tol = 1e-15`:
+
+- qO3 evolution: 24000 → 9.4e7 ppb at 5 min — identical to BE.
+- Solver stats: `accepted=9, rejected=0` — same 9 internal sub-steps
+  Rosenbrock took in Ubuntu Claude's earlier Line A test. Not a single
+  rejection at any tolerance.
+
+**Why Rosenbrock's error estimator is also ineffective here.** The
+embedded estimate compares the full-order and lower-order methods'
+predictions of `y_new` at the same H. Along the wrong-attractor
+trajectory, both estimates agree — the step is "accurate" in the
+sense that the two methods produce consistent answers. They just
+consistently go to the wrong place. No purely consistency-based
+error estimator can discriminate physical from non-physical roots.
+
+### Result: physical QSS seeding of [O]
+
+Extended `scripts/init_chapman.py` with `--qo-mode qss` (now the
+default) that writes an altitude-dependent Chapman QSS [O] profile
+instead of `[O]=1e-12` uniform. Profile computed from
+
+    [O]_ss = (2·jO2·[O2] + jO3_O·[O3]) / (k2·[O2]·[M] + k3·[O3])
+
+using AFGL MLS T and [air] profiles, the canonical chapman_nox.yaml
+rate constants, and a daytime mid-lat SZA~58° j-value climatology
+extracted from this plan doc's earlier run logs. Produces
+`qO = 5e-24 kg/kg` at surface → `6.7e-8 kg/kg` at the stratopause —
+seven orders of magnitude dynamic range, matching the physical
+dependence on altitude.
+
+Re-init'd `chem_box_init.nc` with this profile and reran. qO3 evolution:
+
+- t=0: 5.07e-6 (AFGL)
+- t=5m: 6.62e-2 mean
+- t=10m: 7.22e-2 mean
+
+**Bit-for-bit identical to the uniform-seed runs.** Newton ignores
+the QSS starting guess; it finds the wrong root anyway.
+
+### Why none of this worked: the Jacobian analysis
+
+For the Chapman [O]/[O3] null cycle the Jacobian of
+`d[O]/dt` w.r.t. `[O]` is
+
+    ∂(d[O]/dt)/∂[O] = -k2·[O2]·[M] - k3·[O3] ≈ -k2·[O2]·[M]
+
+which **does not depend on [O]**. At surface, this eigenvalue is
+≈ `-7×10⁴ s⁻¹` regardless of whether `[O]=0`, `[O]=1e-12`, or
+`[O]=[O]_ss`. The nonlinear regime — the one in which the implicit
+equation `y_new = y_old + dt·f(y_new)` admits multiple physically
+distinct roots — is entered whenever
+
+    dt · ||J|| >> 1   ⇔   dt >> 14 µs
+
+At `dt = 3 s`, `dt·||J|| ≈ 2×10⁵`. Deep in the multi-root regime.
+No starting guess, tolerance setting, or solver choice can move the
+implicit equation's root structure; all that machinery affects which
+root Newton or Rosenbrock lands on within the convergence neighborhood
+of their starting guess, but BE and Rosenbrock at this dt have the
+wrong-root attractor as a *stable* fixed point of their respective
+discretizations. Once in its basin of attraction (which is large
+here), Newton/Rosenbrock converge to it.
+
+### What actually fixes this
+
+Only two routes are left:
+
+**A. Analytic QSS substitution of [O].** Eliminate the species whose
+fast timescale is the source of the multi-root regime. The remaining
+equation for [O3] has the single slow timescale `1/(jO3_O + k3·[O]_ss)`
+≈ 1 hour, well within dt=3s's single-root regime. Cost: the QSS
+expression `[O]_ss = P_O / (k2·[O2]·[M] + k3·[O3])` has to be encoded
+as USER_DEFINED rate laws in the yaml (or precomputed per cell inside
+CheMPAS before each MICM call, then passed in as a parametric
+concentration).
+
+**B. Sub-microsecond chemistry dt.** `config_chem_substeps ≥ 200,000`
+to get `dt_chem < τ_O = 14 µs`. Infeasible: 3-s MPAS dt would take
+hours of wall clock per chemistry call.
+
+### Current state shipped
+
+- `SetRelativeTolerance` API in MUSICA-LLVM (generally useful for
+  other stiff chemistry, not specifically for Chapman).
+- `config_micm_relative_tolerance` and `config_chem_substeps`
+  namelist plumbing in CheMPAS.
+- `scripts/init_chapman.py --qo-mode {qss,uniform,zero}` with
+  altitude-dependent QSS [O] seeding as the default.
+- Solver default in `mpas_musica.F` flipped to
+  `RosenbrockStandardOrder`; revert to `BackwardEulerStandardOrder`
+  if mass balance becomes a concern in production runs.
+
+None of these solve chapman_nox in chem_box. They stand as
+infrastructure for the next round (QSS substitution).
+
+### Decision: next session should pursue route A
+
+The cleanest path is to add a USER_DEFINED-rate variant of the
+mechanism that substitutes `[O]_ss` into R2, R4, R_NO2_O and treats
+[O] as parameterized. Non-trivial; expect several hours of yaml work
+plus verification against the column model. Deferring to the next
+session.
