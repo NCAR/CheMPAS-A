@@ -1,3 +1,33 @@
+# README ACOM-Pilot Reframe Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Replace the contents of `README.md` with the ACOM-pilot-reframed version specified in `docs/superpowers/specs/2026-04-19-readme-acom-pilot-reframe-design.md`.
+
+**Architecture:** Single-file documentation rewrite. The existing README is ~87 lines and will be replaced with a ~155-line version organized in eight sections (header/opening, upstream integration path, what's working, building, code layout, documentation, development model, license). All section content was drafted and approved during brainstorming.
+
+**Tech Stack:** Markdown only. Verification uses standard shell tools (`ls`, `test -e`).
+
+---
+
+## File Structure
+
+- Modify: `README.md` (full rewrite)
+
+No other files are touched. Section ordering, voice, and link consistency are tightly coupled, so the rewrite is one atomic change followed by link verification and a single commit.
+
+---
+
+### Task 1: Rewrite README.md
+
+**Files:**
+- Modify: `README.md` (replace entire contents)
+
+- [ ] **Step 1: Replace `README.md` with the new contents below**
+
+Use the Write tool to overwrite `README.md` with exactly this content:
+
+````markdown
 CheMPAS
 =======
 
@@ -188,3 +218,128 @@ and [PURPOSE.md](PURPOSE.md).
 ## License
 
 See [LICENSE](LICENSE).
+````
+
+- [ ] **Step 2: Verify the new file contents**
+
+Run: `wc -l README.md`
+Expected: roughly 150–160 lines (the existing file was 87 lines; the new file is longer because of the expanded sections).
+
+Run: `head -3 README.md`
+Expected output (exactly):
+```
+CheMPAS
+=======
+
+```
+
+---
+
+### Task 2: Verify all relative links resolve
+
+**Files:**
+- Read: `README.md`
+
+This task is a sanity check that every relative link in the new README points to a file or directory that exists in the repo. The link list was assembled from the new README contents.
+
+- [ ] **Step 1: Run the link existence check**
+
+Run this exact command from the repo root:
+
+```bash
+for p in \
+  docs/musica/MUSICA_INTEGRATION.md \
+  docs/guides/TUVX_INTEGRATION.md \
+  test_cases \
+  docs/results/TEST_RUNS.md \
+  scripts \
+  docs/guides/VISUALIZE.md \
+  BUILD.md \
+  RUN.md \
+  docs/architecture/ARCHITECTURE.md \
+  docs/architecture/COMPONENTS.md \
+  docs/musica/MUSICA_API.md \
+  PURPOSE.md \
+  AGENTS.md \
+  docs/README.md \
+  LICENSE \
+  ; do
+    if [ -e "$p" ]; then
+      echo "OK   $p"
+    else
+      echo "MISS $p"
+    fi
+  done
+```
+
+Expected: every line begins with `OK`. If any line begins with `MISS`, stop and report the missing target — the link in the README must be corrected (or the file created) before commit.
+
+- [ ] **Step 2: Confirm the two external links are well-formed (visual inspection only)**
+
+Read `README.md` and confirm these two URLs appear exactly as written:
+- `https://github.com/MPAS-Dev/MPAS-Model`
+- `https://github.com/NCAR/MPAS-Model-ACOM-dev`
+
+No network call is required; these are well-known repo URLs.
+
+---
+
+### Task 3: Commit
+
+**Files:**
+- Modify: `README.md`
+
+- [ ] **Step 1: Inspect the diff one more time**
+
+Run: `git diff README.md | head -80`
+Expected: shows the rewrite (large deletion of old content, large addition of new content).
+
+Run: `git status`
+Expected: `README.md` listed as modified; no other working-tree changes.
+
+- [ ] **Step 2: Stage and commit**
+
+Run:
+
+```bash
+git add README.md
+git commit -m "$(cat <<'EOF'
+docs(readme): reframe as ACOM integration pilot
+
+Reframes README around the ACOM integration pilot identity for
+MUSICA/MICM-in-MPAS coupling, with MPAS-Model-ACOM-dev positioned as the
+hand-crafted-PR staging ground for upstream integration into
+MPAS-Dev/MPAS-Model. Adds a "What's Working" section listing the
+demonstrated, extractable integration pieces with code paths; documents
+both supported build platforms (macOS LLVM/flang and Ubuntu
+GCC/gfortran); reorganizes the docs index by purpose; replaces the
+agent-forward "Development Workflow" with a brief governance-forward
+"Development Model" note.
+
+Design: docs/superpowers/specs/2026-04-19-readme-acom-pilot-reframe-design.md
+Plan:   docs/superpowers/plans/2026-04-19-readme-acom-pilot-reframe.md
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+- [ ] **Step 3: Verify the commit landed**
+
+Run: `git log -1 --oneline`
+Expected: shows the new commit on top with the `docs(readme):` subject.
+
+Run: `git status`
+Expected: `nothing to commit, working tree clean`.
+
+---
+
+## Self-Review Notes
+
+**Spec coverage:** Each of the eight section drafts in the spec is included verbatim in Task 1's content blob (header/opening, Upstream Integration Path, What's Working, Building, Code Layout, Documentation, Development Model, License). The decoupled-from-upstream framing, the audience-B emphasis, and the agent de-emphasis are all preserved. The out-of-scope items (no edits to PURPOSE/AGENTS/docs/README, no build changes) are honored.
+
+**Placeholder scan:** No TBD/TODO/"add appropriate" markers. Every step shows the actual command or content.
+
+**Type consistency:** Not applicable (no code/types). File paths in Task 2's link check were assembled from the README contents in Task 1; they match exactly.
+
+**Note on `core_init_atmosphere`:** The README tree shows `core_init_atmosphere` as an "Initialization / preprocessing core" — not a "not actively maintained" inherited core. This is intentional and matches the spec.
