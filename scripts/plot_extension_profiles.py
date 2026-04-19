@@ -85,11 +85,18 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--input", default=str(Path.home() / "Data/CheMPAS/supercell/output.nc"))
     ap.add_argument("--csv", default="micm_configs/tuvx_upper_atm.csv")
-    ap.add_argument("-o", "--output", default="extension_profiles.png")
+    ap.add_argument("-o", "--output", default=None,
+                    help="output PNG path; default <input_dir>/plots/extension_profiles.png")
     ap.add_argument("-t", "--time", type=int, default=-1, help="time index (default: last)")
     ap.add_argument("-c", "--cell", type=int, default=None,
                     help="cell index; default = clearest-sky cell at --time")
     args = ap.parse_args()
+
+    if args.output is None:
+        input_dir = Path(args.input).parent
+        plots_dir = input_dir / "plots"
+        plots_dir.mkdir(exist_ok=True)
+        args.output = str(plots_dir / "extension_profiles.png")
 
     # Resolve time index
     with Dataset(args.input) as ds:

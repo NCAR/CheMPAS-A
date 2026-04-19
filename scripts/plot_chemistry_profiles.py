@@ -42,10 +42,17 @@ def read_var(ds, name):
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--input", default=str(Path.home() / "Data/CheMPAS/supercell/output.nc"))
-    ap.add_argument("-o", "--output", default="chemistry_profiles.png")
+    ap.add_argument("-o", "--output", default=None,
+                    help="output PNG path; default <input_dir>/plots/chemistry_profiles.png")
     ap.add_argument("--logx", choices=["auto", "always", "never"], default="auto",
                     help="x-axis scale: 'auto' = log when dynamic range > 2 orders")
     args = ap.parse_args()
+
+    if args.output is None:
+        input_dir = Path(args.input).parent
+        plots_dir = input_dir / "plots"
+        plots_dir.mkdir(exist_ok=True)
+        args.output = str(plots_dir / "chemistry_profiles.png")
 
     ds = Dataset(args.input, "r")
     zgrid = ds.variables["zgrid"][0, :]  # first-cell edges (flat supercell)
