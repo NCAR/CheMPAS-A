@@ -4,7 +4,7 @@ Run an MPAS test case with automatic output archival.
 
 ## Arguments
 
-- `$ARGUMENTS` - Optional: test case directory (default: `~/Data/MPAS/supercell`)
+- `$ARGUMENTS` - Optional: test case directory (default: `~/Data/CheMPAS/supercell`)
 
 ## Instructions
 
@@ -15,7 +15,7 @@ Execute the following steps:
 Determine the test directory and MPI configuration:
 
 ```bash
-TEST_DIR="${ARGUMENTS:-$HOME/Data/MPAS/supercell}"
+TEST_DIR="${ARGUMENTS:-$HOME/Data/CheMPAS/supercell}"
 cd "$TEST_DIR"
 ```
 
@@ -76,7 +76,7 @@ Provide a summary including:
 
 | Directory | Description |
 |-----------|-------------|
-| `~/Data/MPAS/supercell` | Idealized supercell thunderstorm (2 min run) |
+| `~/Data/CheMPAS/supercell` | Idealized supercell thunderstorm (2 min run) |
 
 ## MPI Rank Recommendations
 

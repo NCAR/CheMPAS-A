@@ -1,5 +1,5 @@
 &nhyd_model
-    config_start_time = '0000-01-01_00:00:00'
+    config_start_time = '0000-01-01_18:00:00'
     config_init_case = 5
     config_theta_adv_order = 3
 /
@@ -14,5 +14,5 @@
 /
 
 &decomposition
-    config_block_decomp_file_prefix = 'supercell.graph.info.part.'
+    config_block_decomp_file_prefix = 'chem_box.graph.info.part.'
 /

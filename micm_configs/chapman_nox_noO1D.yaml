@@ -1,0 +1,193 @@
+version: "1.0.0"
+name: Chapman-NOx-noO1D
+# Reduced mechanism without O1D — jO3_O1D now produces O directly, since
+# at tropospheric/stratospheric pressures O1D is quenched to O(3P) on
+# microsecond timescales. This folds the R6 quenching reaction into the
+# photolysis step and removes O1D from the species list entirely.
+#
+# Purpose: isolate whether the chem_box qO3 explosion (see
+# docs/plans/2026-04-18-chapman-nox-chem-box-issue.md) is driven by O1D
+# stiffness (fast quenching, tight tolerance, starts at zero).
+#
+# ARRHENIUS rate form (MICM v1):
+#   k = A * (T/D)^B * exp(C/T) * (1 + E*P)
+# Rate constants in SI (mol/m^3 basis). cgs values in comments.
+
+species:
+  - name: M
+    is third body: true
+    __description: Third-body molecule.
+  - name: O2
+    __molar mass: 0.032
+    __long name: molecular_oxygen
+    __do advect: true
+    __initial concentration: 0.0
+  - name: O
+    __absolute tolerance: 1e-12
+    __molar mass: 0.016
+    __long name: atomic_oxygen_3P
+    __do advect: true
+    __initial concentration: 0.0
+  - name: O3
+    __absolute tolerance: 1e-12
+    __molar mass: 0.048
+    __long name: ozone
+    __atoms: 3
+    __do advect: true
+    __initial concentration: 0.0
+  - name: NO
+    __absolute tolerance: 1e-12
+    __molar mass: 0.030
+    __long name: nitric_oxide
+    __do advect: true
+    __initial concentration: 0.0
+  - name: NO2
+    __absolute tolerance: 1e-12
+    __molar mass: 0.046
+    __long name: nitrogen_dioxide
+    __do advect: true
+    __initial concentration: 0.0
+
+phases:
+  - name: gas
+    species:
+      - M
+      - O
+      - O2
+      - O3
+      - NO
+      - NO2
+
+reactions:
+  # ----- Chapman cycle (no O1D) -----
+
+  - type: PHOTOLYSIS
+    gas phase: gas
+    reactants:
+      - species name: O2
+    products:
+      - species name: O
+        coefficient: 2
+    name: jO2
+
+  - type: ARRHENIUS
+    # O + O2 + M -> O3 + M    (JPL: k0 = 6.0e-34 (T/300)^-2.4)
+    gas phase: gas
+    reactants:
+      - species name: O
+        coefficient: 1
+      - species name: O2
+        coefficient: 1
+      - species name: M
+        coefficient: 1
+    products:
+      - species name: O3
+        coefficient: 1
+      - species name: M
+        coefficient: 1
+    A: 217.59707599952029
+    B: -2.4
+    C: 0
+    D: 300
+    E: 0
+    name: R2
+
+  - type: PHOTOLYSIS
+    # O3 + hv -> O + O2  (O(3P) channel)
+    gas phase: gas
+    reactants:
+      - species name: O3
+        coefficient: 1
+    products:
+      - species name: O
+        coefficient: 1
+      - species name: O2
+        coefficient: 1
+    name: jO3_O
+
+  - type: ARRHENIUS
+    # O + O3 -> 2 O2    (JPL: k = 8.0e-12 exp(-2060/T))
+    gas phase: gas
+    reactants:
+      - species name: O
+        coefficient: 1
+      - species name: O3
+        coefficient: 1
+    products:
+      - species name: O2
+        coefficient: 2
+    A: 4817712.608
+    B: 0
+    C: -2059.0316582998285
+    D: 300
+    E: 0
+    name: R4
+
+  - type: PHOTOLYSIS
+    # O3 + hv -> O(1D) + O2 --> (instant quenching) --> O + O2
+    # Reuses TUV-x jO3_O1D cross-section/quantum yield but collapses
+    # the O(1D) intermediate into O(3P).
+    gas phase: gas
+    reactants:
+      - species name: O3
+        coefficient: 1
+    products:
+      - species name: O
+        coefficient: 1
+      - species name: O2
+        coefficient: 1
+    name: jO3_O1D
+
+  # ----- NOx catalytic O3 destruction -----
+
+  - type: ARRHENIUS
+    # NO + O3 -> NO2 + O2    (JPL: k = 3.0e-12 exp(-1500/T))
+    gas phase: gas
+    reactants:
+      - species name: NO
+        coefficient: 1
+      - species name: O3
+        coefficient: 1
+    products:
+      - species name: NO2
+        coefficient: 1
+      - species name: O2
+        coefficient: 1
+    A: 1.084e6
+    B: 0
+    C: -1370.0
+    D: 300
+    E: 0
+    name: R_NO_O3
+
+  - type: ARRHENIUS
+    # NO2 + O -> NO + O2    (JPL: k = 5.1e-12 exp(+210/T))
+    gas phase: gas
+    reactants:
+      - species name: NO2
+        coefficient: 1
+      - species name: O
+        coefficient: 1
+    products:
+      - species name: NO
+        coefficient: 1
+      - species name: O2
+        coefficient: 1
+    A: 3.07e6
+    B: 0
+    C: 210.0
+    D: 300
+    E: 0
+    name: R_NO2_O
+
+  - type: PHOTOLYSIS
+    gas phase: gas
+    reactants:
+      - species name: NO2
+        coefficient: 1
+    products:
+      - species name: NO
+        coefficient: 1
+      - species name: O
+        coefficient: 1
+    name: jNO2

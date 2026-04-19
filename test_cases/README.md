@@ -1,14 +1,14 @@
 # Idealized Test Cases
 
 Reference namelists and streams configurations for MPAS idealized test cases.
-These files are tracked in the repo; the actual run data lives in `~/Data/MPAS/`.
+These files are tracked in the repo; the actual run data lives in `~/Data/CheMPAS/`.
 
 ## Data Download
 
 Download and extract the three test cases from NCAR:
 
 ```bash
-mkdir -p ~/Data/MPAS && cd ~/Data/MPAS
+mkdir -p ~/Data/CheMPAS && cd ~/Data/CheMPAS
 curl -LO https://www2.mmm.ucar.edu/projects/mpas/test_cases/v7.0/supercell.tar.gz
 curl -LO https://www2.mmm.ucar.edu/projects/mpas/test_cases/v7.0/mountain_wave.tar.gz
 curl -LO https://www2.mmm.ucar.edu/projects/mpas/test_cases/v7.0/jw_baroclinic_wave.tar.gz
@@ -18,32 +18,41 @@ rm *.tar.gz
 
 ## Test Cases
 
-| Case | Init Case | Mesh | Cells | Levels | dt (s) | Duration | Chemistry Use |
-|------|-----------|------|-------|--------|--------|----------|---------------|
-| `supercell/` | 5 | ~500 m | ~40k | 40 | 3 | 2 hours | LNOx-O3 dev, TUV-x |
-| `mountain_wave/` | 6 | ~577 m | ~2k | 70 | 6 | 5 hours | — |
-| `jw_baroclinic_wave/` | 2 | 120 km | 40,962 | 26 | 450 | 16 days | Chapman + NOx (planned) |
+| Case | Init Case | Mesh | Cells | Levels | dt (s) | Duration |
+|------|-----------|------|-------|--------|--------|----------|
+| `supercell/` | 5 | ~500 m | ~40k | 60 (stretched 0–50 km) | 3 | 2 hours |
+| `mountain_wave/` | 6 | ~577 m | ~2k | 70 | 6 | 5 hours |
+| `jw_baroclinic_wave/` | 2 | 120 km | 40,962 | 26 | 450 | 16 days |
+| `chem_box/` | 5 | 500 m periodic 8×8 | 64 | 60 (stretched 0–50 km) | 3 | 1 hour |
 
-### Notes
+The supercell vertical grid is read from `test_cases/supercell/supercell_zeta_levels.txt`
+(61 edge heights in metres) via the `config_specified_zeta_levels` namelist option.
+Regenerate with `scripts/gen_zeta_levels.py --top 50000 --nlevels 60 --stretch 1.25`.
 
-- **supercell**: tropospheric domain (0–20 km), doubly-periodic. Primary dev case for LNOx-O3 mechanism and TUV-x photolysis integration.
-- **jw_baroclinic_wave**: global domain (no lateral BCs). The standard v7.0 config has 26 levels with a damping layer at 22 km, which provides only shallow stratospheric coverage. The vertical grid will be extended to higher altitude with increased resolution in the stratosphere for Chapman + NOx chemistry development.
+The chem_box case is a chemistry-focused 64-cell periodic box that
+reuses the supercell sounding and zeta profile. There is no NCAR
+tarball — build the mesh and partitions locally with `planar_hex`
++ `MpasMeshConverter.x` + `gpmetis` (all in the `mpas` conda env).
+See `docs/plans/2026-04-18-chapman-nox-chem-box-issue.md` for the
+exact reproduction steps and the chemistry configs it pairs with.
 
 ## Setup and Initialization
 
 After downloading, copy the tracked configs and initialize each case:
 
 ```bash
-# Copy reference configs (with io_type="netcdf") to run directories
+# Copy reference configs (with io_type="netcdf") to run directories.
+# For the supercell case this also copies supercell_zeta_levels.txt, which
+# the init step reads when building the 60-level stretched grid.
 for case in supercell mountain_wave jw_baroclinic_wave; do
-  cp test_cases/$case/* ~/Data/MPAS/$case/
-  ln -sf ~/EarthSystem/CheMPAS/init_atmosphere_model ~/Data/MPAS/$case/
-  ln -sf ~/EarthSystem/CheMPAS/atmosphere_model ~/Data/MPAS/$case/
+  cp test_cases/$case/* ~/Data/CheMPAS/$case/
+  ln -sf ~/EarthSystem/CheMPAS/init_atmosphere_model ~/Data/CheMPAS/$case/
+  ln -sf ~/EarthSystem/CheMPAS/atmosphere_model ~/Data/CheMPAS/$case/
 done
 
 # Initialize each case
 for case in supercell mountain_wave jw_baroclinic_wave; do
-  cd ~/Data/MPAS/$case
+  cd ~/Data/CheMPAS/$case
   mpiexec -n 4 ./init_atmosphere_model
   cd -
 done

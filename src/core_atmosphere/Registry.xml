@@ -432,6 +432,14 @@
                      units="-"
                      description="TUV-x configuration file name (empty = use Phase 1 cos(SZA) fallback)"
                      possible_values="Any valid filename"/>
+                <nml_option name="config_tuvx_top_extension" type="logical" default_value="false"
+                     units="-"
+                     description="Extend the TUV-x column above the MPAS domain using a CSV climatology"
+                     possible_values=".true. or .false."/>
+                <nml_option name="config_tuvx_extension_file" type="character" default_value=""
+                     units="-"
+                     description="Path to TUV-x upper-atmosphere climatology CSV (z_km, T_K, n_air_cm-3, n_O3_cm-3); required when config_tuvx_top_extension is true"
+                     possible_values="Any valid filename"/>
                 <nml_option name="config_chemistry_latitude" type="real" default_value="0.0"
                      units="degrees"
                      description="Latitude for solar geometry in idealized cases (degrees N)"
@@ -1820,8 +1828,17 @@
                 <var name="relhum" type="real" dimensions="nVertLevels nCells Time" units="percent"
                      description="Relative humidity"/>
 
-                <var name="j_no2" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
-                     description="NO2 photolysis rate used by chemistry"/>
+                <var name="j_jNO2" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
+                     description="NO2 photolysis rate (NO2 + hv -> NO + O) used by chemistry"/>
+
+                <var name="j_jO2" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
+                     description="O2 photolysis rate (O2 + hv -> 2 O) used by chemistry"/>
+
+                <var name="j_jO3_O" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
+                     description="O3 photolysis rate for O(3P) channel (O3 + hv -> O + O2) used by chemistry"/>
+
+                <var name="j_jO3_O1D" type="real" dimensions="nVertLevels nCells Time" units="s^{-1}"
+                     description="O3 photolysis rate for O(1D) channel (O3 + hv -> O1D + O2) used by chemistry"/>
 
                 <var name="spechum" type="real" dimensions="nVertLevels nCells Time" units="kg kg^{-1}"
                      description="Specific humidity"

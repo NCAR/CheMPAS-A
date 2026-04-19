@@ -42,6 +42,7 @@ module mpas_tuvx
     private
 
     public :: tuvx_init, tuvx_compute_photolysis, tuvx_is_enabled, tuvx_finalize
+    public :: tuvx_n_rates, tuvx_rate_names
 
 #ifdef MPAS_USE_MUSICA
     ! Module-level state (initialized once, updated per column)
@@ -57,9 +58,9 @@ module mpas_tuvx
     type(radiator_t),   pointer :: cloud_radiator => null()
     integer, save :: n_wavelength_bins = 0
 
-    real(dk), allocatable :: cloud_od(:,:)   ! (n_layers, n_wavelength_bins)
-    real(dk), allocatable :: cloud_ssa(:,:)  ! (n_layers, n_wavelength_bins)
-    real(dk), allocatable :: cloud_g(:,:,:)  ! (n_layers, n_wavelength_bins, 1)
+    real(dk), allocatable :: cloud_od(:,:)   ! (n_total_layers, n_wavelength_bins)
+    real(dk), allocatable :: cloud_ssa(:,:)  ! (n_total_layers, n_wavelength_bins)
+    real(dk), allocatable :: cloud_g(:,:,:)  ! (n_total_layers, n_wavelength_bins, 1)
 
     ! Cloud optical property constants (warm cloud, wavelength-independent)
     real(dk), parameter :: CLOUD_SSA_VAL = 0.999999_dk  ! pure scattering
@@ -70,13 +71,30 @@ module mpas_tuvx
     real(dk), parameter :: R_EFF_RAIN  = 500.0e-6_dk  ! rain drop r_eff [m]
     real(dk), parameter :: RHO_WATER   = 1000.0_dk    ! water density [kg/m^3]
 
-    integer, save :: j_no2_index     = -1  ! index in photolysis rate constants
-    integer, save :: n_photo_rates   = 0
-    integer, save :: n_heating_rates = 0
-    integer, save :: n_layers        = 0   ! nVertLevels (= number of grid sections)
+    ! Photolysis rate bookkeeping: cache all rates TUV-x reports.
+    ! tuvx_indices(i) is the TUV-x ordering index for photo_names(i).
+    integer, save              :: n_photo_rates   = 0
+    integer, save              :: n_heating_rates = 0
+    character(len=64), allocatable :: photo_names(:)  ! one per TUV-x reaction
+    integer,           allocatable :: tuvx_indices(:)
 
-    real(dk), allocatable :: photo_rates(:,:)    ! (n_layers+1, n_photo_rates)
-    real(dk), allocatable :: heating_rates(:,:)  ! (n_layers+1, n_heating_rates)
+    ! Column decomposition:
+    !   n_mpas_layers   : layers supplied by MPAS host state
+    !   n_ext_layers    : climatology layers above MPAS top (0 when disabled)
+    !   n_total_layers  : full column TUV-x sees (= n_mpas + n_ext)
+    integer, save :: n_mpas_layers   = 0
+    integer, save :: n_ext_layers    = 0
+    integer, save :: n_total_layers  = 0
+
+    ! Upper-atmosphere climatology edge values (sized n_ext_layers+1 when enabled).
+    ! Values are defined at edge heights; midpoints are computed on the fly.
+    real(dk), allocatable :: ext_z_km_edges(:)
+    real(dk), allocatable :: ext_T_K_edges(:)
+    real(dk), allocatable :: ext_n_air_edges(:)
+    real(dk), allocatable :: ext_n_o3_edges(:)
+
+    real(dk), allocatable :: photo_rates(:,:)    ! (n_total_layers+1, n_photo_rates)
+    real(dk), allocatable :: heating_rates(:,:)  ! (n_total_layers+1, n_heating_rates)
 
     ! Physical constants
     real(dk), parameter :: NA    = 6.02214076e23_dk  ! Avogadro [mol^-1]
@@ -97,7 +115,8 @@ contains
     !>  then retrieves updatable handles. Looks up the j_NO2 reaction index
     !>  and allocates persistent work arrays.
     !------------------------------------------------------------------------
-    subroutine tuvx_init(config_file, nVertLevels_in, error_code, error_message)
+    subroutine tuvx_init(config_file, nVertLevels_in, enable_extension, &
+                         extension_file, error_code, error_message)
 
 #ifdef MPAS_USE_MUSICA
         use mpas_log, only: mpas_log_write
@@ -105,6 +124,8 @@ contains
 
         character(len=*), intent(in)               :: config_file
         integer, intent(in)                        :: nVertLevels_in
+        logical, intent(in)                        :: enable_extension
+        character(len=*), intent(in)               :: extension_file
         integer, intent(out)                       :: error_code
         character(len=:), allocatable, intent(out)  :: error_message
 
@@ -126,14 +147,33 @@ contains
             return
         end if
 
-        n_layers = nVertLevels_in
+        n_mpas_layers = nVertLevels_in
+        n_ext_layers  = 0
 
         call mpas_log_write('[TUV-x] Initializing with config: ' // trim(config_file))
-        write(msg, '(A,I0)') '[TUV-x] nVertLevels (grid sections) = ', n_layers
+        write(msg, '(A,I0)') '[TUV-x] MPAS nVertLevels = ', n_mpas_layers
         call mpas_log_write(trim(msg))
 
-        ! Create from-host height grid
-        height_grid => grid_t("height", "km", n_layers, err)
+        ! Load upper-atmosphere climatology if the extension is enabled
+        if (enable_extension .and. len_trim(extension_file) > 0) then
+            call load_extension_csv(trim(extension_file), error_code, error_message)
+            if (error_code /= 0) return
+            write(msg, '(A,I0,A,A)') '[TUV-x] Extension enabled: n_ext_layers = ', n_ext_layers, &
+                                     ' from ', trim(extension_file)
+            call mpas_log_write(trim(msg))
+        else if (enable_extension) then
+            error_code = 1
+            error_message = '[TUV-x] config_tuvx_top_extension is .true. but config_tuvx_extension_file is empty'
+            return
+        end if
+
+        n_total_layers = n_mpas_layers + n_ext_layers
+
+        write(msg, '(A,I0)') '[TUV-x] Total column layers (grid sections) = ', n_total_layers
+        call mpas_log_write(trim(msg))
+
+        ! Create from-host height grid sized for the full composite column
+        height_grid => grid_t("height", "km", n_total_layers, err)
         if (tuvx_has_error(err, error_code, error_message)) return
 
         ! Create grid map and register height grid
@@ -216,36 +256,39 @@ contains
         call mpas_log_write('[TUV-x] Cloud radiator registered and retrieved from solver.')
 
         ! Allocate persistent cloud optical property arrays
-        allocate(cloud_od(n_layers, n_wavelength_bins))
-        allocate(cloud_ssa(n_layers, n_wavelength_bins))
-        allocate(cloud_g(n_layers, n_wavelength_bins, 1))
+        allocate(cloud_od(n_total_layers, n_wavelength_bins))
+        allocate(cloud_ssa(n_total_layers, n_wavelength_bins))
+        allocate(cloud_g(n_total_layers, n_wavelength_bins, 1))
 
-        cloud_od  = 0.0_dk
+        cloud_od  = 0.0_dk                ! extension rows stay zero for all time
         cloud_ssa = CLOUD_SSA_VAL
         cloud_g(:,:,1) = CLOUD_G_VAL
 
-        ! Query photolysis ordering to find j_NO2 index
+        ! Enumerate ALL photolysis reactions TUV-x reports; cache names and indices.
         photo_ordering => tuvx_solver%get_photolysis_rate_constants_ordering(err)
         if (tuvx_has_error(err, error_code, error_message)) return
         n_photo_rates = photo_ordering%size()
 
-        j_no2_index = -1
-        do i = 1, n_photo_rates
-            call mpas_log_write('[TUV-x] Photolysis reaction ' // trim(photo_ordering%name(i)))
-            if (trim(photo_ordering%name(i)) == 'jno2') then
-                j_no2_index = photo_ordering%index(i)
-            end if
-        end do
-        deallocate(photo_ordering)
-
-        if (j_no2_index < 1) then
+        if (n_photo_rates < 1) then
             error_code = 1
-            error_message = '[TUV-x] jno2 reaction not found in photolysis ordering'
+            error_message = '[TUV-x] TUV-x config registered zero photolysis reactions'
+            deallocate(photo_ordering)
             return
         end if
 
-        write(msg, '(A,I0)') '[TUV-x] j_NO2 index in photo_rates = ', j_no2_index
-        call mpas_log_write(trim(msg))
+        if (allocated(photo_names))  deallocate(photo_names)
+        if (allocated(tuvx_indices)) deallocate(tuvx_indices)
+        allocate(photo_names(n_photo_rates))
+        allocate(tuvx_indices(n_photo_rates))
+
+        do i = 1, n_photo_rates
+            photo_names(i)  = trim(photo_ordering%name(i))
+            tuvx_indices(i) = photo_ordering%index(i)
+            write(msg, '(A,A,A,I0)') '[TUV-x] Photolysis reaction ', &
+                trim(photo_names(i)), ' index = ', tuvx_indices(i)
+            call mpas_log_write(trim(msg))
+        end do
+        deallocate(photo_ordering)
 
         ! Query heating rates ordering
         heat_ordering => tuvx_solver%get_heating_rates_ordering(err)
@@ -253,9 +296,9 @@ contains
         n_heating_rates = heat_ordering%size()
         deallocate(heat_ordering)
 
-        ! Allocate persistent work arrays (n_layers+1 edges for TUV-x output)
-        allocate(photo_rates(n_layers + 1, max(n_photo_rates, 1)))
-        allocate(heating_rates(n_layers + 1, max(n_heating_rates, 1)))
+        ! Allocate persistent work arrays (n_total_layers+1 edges for TUV-x output)
+        allocate(photo_rates(n_total_layers + 1, max(n_photo_rates, 1)))
+        allocate(heating_rates(n_total_layers + 1, max(n_heating_rates, 1)))
         photo_rates   = 0.0_dk
         heating_rates = 0.0_dk
 
@@ -273,15 +316,15 @@ contains
     !------------------------------------------------------------------------
     !  subroutine tuvx_compute_photolysis
     !
-    !> \brief Compute j_NO2 for a single atmospheric column
+    !> \brief Compute photolysis rates for a single atmospheric column
     !> \details
     !>  Converts MPAS fields to TUV-x units, updates from-host profiles,
-    !>  calls TUV-x run, and extracts j_NO2 (edge values averaged to
-    !>  midpoints).
+    !>  calls TUV-x run, and extracts every cached photolysis rate
+    !>  (edge values averaged to midpoints) for the MPAS slice.
     !------------------------------------------------------------------------
     subroutine tuvx_compute_photolysis(cos_sza, z_edges_m, rho_air, temperature, &
                                         qo3, qc, qr, nVertLevels_in, &
-                                        j_no2_column, error_code, error_message)
+                                        photo_rates_out, error_code, error_message)
 
 #ifdef MPAS_USE_MUSICA
         use mpas_log, only: mpas_log_write
@@ -295,67 +338,87 @@ contains
         real(kind=RKIND), intent(in)  :: qc(:)               ! nVertLevels cloud water [kg/kg]
         real(kind=RKIND), intent(in)  :: qr(:)               ! nVertLevels rain water [kg/kg]
         integer, intent(in)           :: nVertLevels_in
-        real(kind=RKIND), intent(out) :: j_no2_column(:)     ! nVertLevels
+        real(kind=RKIND), intent(out) :: photo_rates_out(:,:) ! (n_rates, nVertLevels)
         integer, intent(out)          :: error_code
         character(len=:), allocatable, intent(out) :: error_message
 
 #ifdef MPAS_USE_MUSICA
-        real(dk) :: z_km(nVertLevels_in + 1), z_mid_km(nVertLevels_in)
-        real(dk) :: air_nd(nVertLevels_in), air_edges(nVertLevels_in + 1)
-        real(dk) :: temp_mid(nVertLevels_in), temp_edges(nVertLevels_in + 1)
-        real(dk) :: o3_nd(nVertLevels_in), o2_nd(nVertLevels_in)
-        real(dk) :: air_ld(nVertLevels_in), o3_ld(nVertLevels_in), o2_ld(nVertLevels_in)
-        real(dk) :: dz_cm(nVertLevels_in), dz_m(nVertLevels_in)
-        real(dk) :: cloud_tau_1d(nVertLevels_in)
+        real(dk) :: z_km(n_total_layers + 1), z_mid_km(n_total_layers)
+        real(dk) :: air_nd(n_total_layers), air_edges(n_total_layers + 1)
+        real(dk) :: temp_mid(n_total_layers), temp_edges(n_total_layers + 1)
+        real(dk) :: o3_nd(n_total_layers), o2_nd(n_total_layers)
+        real(dk) :: air_ld(n_total_layers), o3_ld(n_total_layers), o2_ld(n_total_layers)
+        real(dk) :: dz_cm(n_total_layers), dz_m_mpas(n_mpas_layers)
+        real(dk) :: cloud_tau_1d(n_mpas_layers)
         real(dk) :: sza_rad, esd
         type(error_t) :: err
-        integer :: k, iWave
+        integer :: k, j, iWave
 
         error_code = 0
         error_message = ''
 
-        ! Nighttime: skip TUV-x call, return zero
+        ! Nighttime: skip TUV-x call, return zero for every cached rate
         if (cos_sza <= 0.0_RKIND) then
-            j_no2_column(1:nVertLevels_in) = 0.0_RKIND
+            photo_rates_out(1:n_photo_rates, 1:n_mpas_layers) = 0.0_RKIND
             return
         end if
 
-        ! Convert MPAS height edges [m] to [km]
-        z_km = real(z_edges_m(1:nVertLevels_in + 1), dk) * 1.0e-3_dk
-        z_mid_km = 0.5_dk * (z_km(1:nVertLevels_in) + z_km(2:nVertLevels_in + 1))
+        ! ---- Build the composite column (MPAS below + climatology above) ----
+
+        ! Height edges [km]: MPAS edges 1..n_mpas+1, then climatology edges
+        ! 2..n_ext+1 (skipping ext edge 1 which coincides with MPAS top).
+        z_km(1:n_mpas_layers + 1) = real(z_edges_m(1:n_mpas_layers + 1), dk) * 1.0e-3_dk
+        do j = 1, n_ext_layers
+            z_km(n_mpas_layers + 1 + j) = ext_z_km_edges(j + 1)
+        end do
+        z_mid_km = 0.5_dk * (z_km(1:n_total_layers) + z_km(2:n_total_layers + 1))
 
         ! Layer thickness in cm (for layer densities)
-        dz_cm = (z_km(2:nVertLevels_in + 1) - z_km(1:nVertLevels_in)) * 1.0e5_dk
+        dz_cm = (z_km(2:n_total_layers + 1) - z_km(1:n_total_layers)) * 1.0e5_dk
 
-        ! Air number density: rho [kg/m³] -> [molecule/cm³]
-        air_nd = real(rho_air(1:nVertLevels_in), dk) * (NA / M_AIR) * 1.0e-6_dk
+        ! MPAS-layer midpoint values from host state
+        air_nd (1:n_mpas_layers) = real(rho_air(1:n_mpas_layers), dk) * (NA / M_AIR) * 1.0e-6_dk
+        temp_mid(1:n_mpas_layers) = real(temperature(1:n_mpas_layers), dk)
+        o3_nd  (1:n_mpas_layers) = real(qo3(1:n_mpas_layers), dk) &
+                                   * real(rho_air(1:n_mpas_layers), dk) &
+                                   * (NA / M_O3) * 1.0e-6_dk
 
-        ! Temperature midpoints [K]
-        temp_mid = real(temperature(1:nVertLevels_in), dk)
+        ! Extension-layer midpoint values from CSV (average adjacent edges)
+        ! Anchor the extension T profile to the MPAS top-midpoint T: keep
+        ! the climatology's vertical gradient (stratopause warming,
+        ! mesopause cooling) but shift so the join is continuous. Avoids
+        ! an ~30 K step between the Weisman-Klemp sounding (no stratopause)
+        ! and the US-Std-Atm-based CSV at 50 km.
+        block
+            real(dk) :: T_anchor_offset, ext_first_mid_T
+            ext_first_mid_T = 0.5_dk * (ext_T_K_edges(1) + ext_T_K_edges(2))
+            T_anchor_offset = temp_mid(n_mpas_layers) - ext_first_mid_T
 
-        ! O3 number density: qO3 [kg/kg] * rho [kg/m³] -> [molecule/cm³]
-        o3_nd = real(qo3(1:nVertLevels_in), dk) * real(rho_air(1:nVertLevels_in), dk) &
-                * (NA / M_O3) * 1.0e-6_dk
+            do j = 1, n_ext_layers
+                air_nd (n_mpas_layers + j) = 0.5_dk * (ext_n_air_edges(j) + ext_n_air_edges(j + 1))
+                temp_mid(n_mpas_layers + j) = 0.5_dk * (ext_T_K_edges(j)   + ext_T_K_edges(j + 1)) &
+                                              + T_anchor_offset
+                o3_nd  (n_mpas_layers + j) = 0.5_dk * (ext_n_o3_edges(j)  + ext_n_o3_edges(j + 1))
+            end do
+        end block
 
-        ! O2 = 0.2095 × air [molecule/cm³]
+        ! O2 = 0.2095 × air [molecule/cm³] across the full column
         o2_nd = VMR_O2 * air_nd
 
-        ! Edge values (simple extrapolation from adjacent midpoints)
-        air_edges(1) = air_nd(1)
-        air_edges(nVertLevels_in + 1) = air_nd(nVertLevels_in)
-        do k = 2, nVertLevels_in
-            air_edges(k) = 0.5_dk * (air_nd(k-1) + air_nd(k))
-        end do
-
+        ! Edge values (simple extrapolation from adjacent midpoints).
+        ! At the MPAS/extension join (edge n_mpas+1), blend the top MPAS midpoint
+        ! with the first extension midpoint instead of the plain extrapolation.
+        air_edges (1) = air_nd (1)
         temp_edges(1) = temp_mid(1)
-        temp_edges(nVertLevels_in + 1) = temp_mid(nVertLevels_in)
-        do k = 2, nVertLevels_in
-            temp_edges(k) = 0.5_dk * (temp_mid(k-1) + temp_mid(k))
+        do k = 2, n_total_layers
+            air_edges (k) = 0.5_dk * (air_nd (k - 1) + air_nd (k))
+            temp_edges(k) = 0.5_dk * (temp_mid(k - 1) + temp_mid(k))
         end do
+        air_edges (n_total_layers + 1) = air_nd (n_total_layers)
+        temp_edges(n_total_layers + 1) = temp_mid(n_total_layers)
 
-        ! Layer thickness in metres (for cloud OD)
-        dz_m = z_km(2:nVertLevels_in + 1) - z_km(1:nVertLevels_in)
-        dz_m = dz_m * 1.0e3_dk  ! km -> m
+        ! Layer thickness in metres (MPAS slice, for cloud OD only)
+        dz_m_mpas = (z_km(2:n_mpas_layers + 1) - z_km(1:n_mpas_layers)) * 1.0e3_dk
 
         ! Layer densities [molecule/cm²] = number_density × thickness [cm]
         air_ld = air_nd * dz_cm
@@ -391,14 +454,15 @@ contains
         call o2_profile%set_layer_densities(o2_ld, err)
         if (tuvx_has_error(err, error_code, error_message)) return
 
-        ! Compute cloud optical depth per layer and update cloud radiator
+        ! Compute cloud optical depth per layer and update cloud radiator.
+        ! Clouds only live in the MPAS slice; extension rows of cloud_od were
+        ! zero-filled at init and are never touched here.
         call compute_cloud_optical_depth( &
-            real(qc(1:nVertLevels_in), dk), real(qr(1:nVertLevels_in), dk), &
-            real(rho_air(1:nVertLevels_in), dk), dz_m, nVertLevels_in, cloud_tau_1d)
+            real(qc(1:n_mpas_layers), dk), real(qr(1:n_mpas_layers), dk), &
+            real(rho_air(1:n_mpas_layers), dk), dz_m_mpas, n_mpas_layers, cloud_tau_1d)
 
-        ! Broadcast 1-D cloud OD to all wavelength bins
         do iWave = 1, n_wavelength_bins
-            cloud_od(:, iWave) = cloud_tau_1d(:)
+            cloud_od(1:n_mpas_layers, iWave) = cloud_tau_1d(:)
         end do
 
         call cloud_radiator%set_optical_depths(cloud_od, err)
@@ -416,18 +480,64 @@ contains
         call tuvx_solver%run(sza_rad, esd, photo_rates, heating_rates, err)
         if (tuvx_has_error(err, error_code, error_message)) return
 
-        ! Extract j_NO2: average edge values to midpoints
-        do k = 1, nVertLevels_in
-            j_no2_column(k) = real(0.5_dk * (photo_rates(k, j_no2_index) + &
-                                              photo_rates(k + 1, j_no2_index)), RKIND)
-        end do
+        ! Extract every cached photolysis rate on the MPAS slice; extension-
+        ! layer values are computed by TUV-x but discarded (the host has no
+        ! storage for them).
+        block
+            integer :: ir
+            do ir = 1, n_photo_rates
+                do k = 1, n_mpas_layers
+                    photo_rates_out(ir, k) = real( &
+                        0.5_dk * (photo_rates(k,     tuvx_indices(ir)) + &
+                                  photo_rates(k + 1, tuvx_indices(ir))), RKIND)
+                end do
+            end do
+        end block
 #else
         error_code = 0
         error_message = ''
-        j_no2_column = 0.0_RKIND
+        photo_rates_out = 0.0_RKIND
 #endif
 
     end subroutine tuvx_compute_photolysis
+
+
+    !------------------------------------------------------------------------
+    !  function tuvx_n_rates
+    !
+    !> \brief Returns the number of photolysis reactions TUV-x reported.
+    !> \details Zero when TUV-x is disabled; otherwise equals n_photo_rates.
+    !------------------------------------------------------------------------
+    integer function tuvx_n_rates()
+
+#ifdef MPAS_USE_MUSICA
+        tuvx_n_rates = n_photo_rates
+#else
+        tuvx_n_rates = 0
+#endif
+
+    end function tuvx_n_rates
+
+
+    !------------------------------------------------------------------------
+    !  subroutine tuvx_rate_names
+    !
+    !> \brief Return the cached list of TUV-x photolysis reaction names
+    !> \details Caller-allocated character array must be at least
+    !>  tuvx_n_rates() elements long. Fills entries 1..n_photo_rates.
+    !------------------------------------------------------------------------
+    subroutine tuvx_rate_names(names_out)
+
+        character(len=*), intent(out) :: names_out(:)
+
+#ifdef MPAS_USE_MUSICA
+        integer :: i
+        do i = 1, n_photo_rates
+            names_out(i) = photo_names(i)
+        end do
+#endif
+
+    end subroutine tuvx_rate_names
 
 
     !------------------------------------------------------------------------
@@ -456,11 +566,17 @@ contains
 #ifdef MPAS_USE_MUSICA
         use mpas_log, only: mpas_log_write
 
-        if (allocated(photo_rates))   deallocate(photo_rates)
-        if (allocated(heating_rates)) deallocate(heating_rates)
-        if (allocated(cloud_od))      deallocate(cloud_od)
-        if (allocated(cloud_ssa))     deallocate(cloud_ssa)
-        if (allocated(cloud_g))       deallocate(cloud_g)
+        if (allocated(photo_rates))     deallocate(photo_rates)
+        if (allocated(heating_rates))   deallocate(heating_rates)
+        if (allocated(cloud_od))        deallocate(cloud_od)
+        if (allocated(cloud_ssa))       deallocate(cloud_ssa)
+        if (allocated(cloud_g))         deallocate(cloud_g)
+        if (allocated(ext_z_km_edges))  deallocate(ext_z_km_edges)
+        if (allocated(ext_T_K_edges))   deallocate(ext_T_K_edges)
+        if (allocated(ext_n_air_edges)) deallocate(ext_n_air_edges)
+        if (allocated(ext_n_o3_edges))  deallocate(ext_n_o3_edges)
+        if (allocated(photo_names))     deallocate(photo_names)
+        if (allocated(tuvx_indices))    deallocate(tuvx_indices)
 
         if (associated(tuvx_solver)) then
             deallocate(tuvx_solver)
@@ -485,6 +601,103 @@ contains
     end subroutine tuvx_finalize
 
 #ifdef MPAS_USE_MUSICA
+    !------------------------------------------------------------------------
+    !  subroutine load_extension_csv
+    !
+    !> \brief Read upper-atmosphere climatology CSV for the TUV-x extension
+    !> \details
+    !>  Expects a header line followed by edge values, one row per edge,
+    !>  ordered bottom-up. Columns:
+    !>    z_km, T_K, n_air_molec_cm3, n_O3_molec_cm3
+    !>  With N rows after the header, n_ext_layers = N - 1.
+    !------------------------------------------------------------------------
+    subroutine load_extension_csv(filename, error_code, error_message)
+
+        use mpas_io_units, only: mpas_new_unit, mpas_release_unit
+        use mpas_log,      only: mpas_log_write
+
+        character(len=*), intent(in)               :: filename
+        integer, intent(out)                       :: error_code
+        character(len=:), allocatable, intent(out) :: error_message
+
+        integer :: iunit, ios, nrows, k
+        character(len=512) :: line
+        character(len=256) :: msg
+
+        error_code = 0
+        error_message = ''
+
+        call mpas_new_unit(iunit)
+        open(unit=iunit, file=filename, status='old', action='read', iostat=ios)
+        if (ios /= 0) then
+            error_code = 1
+            error_message = '[TUV-x] Failed to open extension file: ' // trim(filename)
+            call mpas_release_unit(iunit)
+            return
+        end if
+
+        ! Count data rows (skip the header)
+        read(iunit, '(A)', iostat=ios) line    ! header
+        nrows = 0
+        do
+            read(iunit, '(A)', iostat=ios) line
+            if (ios /= 0) exit
+            if (len_trim(line) == 0) cycle
+            nrows = nrows + 1
+        end do
+
+        if (nrows < 2) then
+            error_code = 1
+            error_message = '[TUV-x] Extension file must contain at least 2 data rows (1 layer)'
+            close(iunit)
+            call mpas_release_unit(iunit)
+            return
+        end if
+
+        n_ext_layers = nrows - 1
+
+        allocate(ext_z_km_edges (nrows))
+        allocate(ext_T_K_edges  (nrows))
+        allocate(ext_n_air_edges(nrows))
+        allocate(ext_n_o3_edges (nrows))
+
+        ! Re-read from the top to pull the numbers
+        rewind(iunit)
+        read(iunit, '(A)', iostat=ios) line    ! skip header
+        do k = 1, nrows
+            read(iunit, *, iostat=ios) ext_z_km_edges(k), ext_T_K_edges(k), &
+                                       ext_n_air_edges(k), ext_n_o3_edges(k)
+            if (ios /= 0) then
+                error_code = 1
+                write(msg, '(A,I0,A,A)') '[TUV-x] Failed parsing row ', k, &
+                                          ' of ', trim(filename)
+                error_message = trim(msg)
+                close(iunit)
+                call mpas_release_unit(iunit)
+                return
+            end if
+        end do
+
+        close(iunit)
+        call mpas_release_unit(iunit)
+
+        ! Sanity-check monotonic increasing heights
+        do k = 2, nrows
+            if (ext_z_km_edges(k) <= ext_z_km_edges(k - 1)) then
+                error_code = 1
+                error_message = '[TUV-x] Extension z_km values must be strictly increasing'
+                return
+            end if
+        end do
+
+        write(msg, '(A,F6.1,A,F6.1,A,I0,A)') '[TUV-x] Extension: z = ', &
+             ext_z_km_edges(1), ' -> ', ext_z_km_edges(nrows), ' km (', &
+             n_ext_layers, ' layers)'
+        call mpas_log_write(trim(msg))
+
+    end subroutine load_extension_csv
+
+
     !------------------------------------------------------------------------
     !  subroutine compute_cloud_optical_depth
     !
