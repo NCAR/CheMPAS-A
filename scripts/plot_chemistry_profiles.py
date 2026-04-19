@@ -52,7 +52,7 @@ MOLAR_MASS = {
 NA = 6.02214076e23  # Avogadro
 
 # Species shown (O = qO + qO1D summed; O2 omitted because near-constant)
-SPECIES_PANELS = ["qO3", "qO_total", "qNO", "qNO2"]
+SPECIES_PANELS = ["qO3", "qO_total", "qNO2", "qNO"]
 # Photolysis: combine jO3 channels since O(1D) is rapidly quenched to
 # O(3P) by M, so both produce atomic oxygen on the same timescale.
 JVAR_PANELS    = ["j_jO2", "j_jO3_total", "j_jNO2"]
@@ -61,8 +61,8 @@ AXIS_SPECS = {
     # Species [ppb]
     "qO3":      {"range": (1.0, 1.0e5),     "log": True},   # AFGL MLS profile
     "qO_total": {"range": (1.0e-4, 1.0e8),  "log": True},   # wide: spin-up (~1e7) + Chapman SS (~1e2)
-    "qNO":      {"range": (0.0, 5.0),       "log": False},
-    "qNO2":     {"range": (0.0, 10.0),      "log": False},
+    "qNO":      {"range": "auto",           "log": False},
+    "qNO2":     {"range": "auto",           "log": False},
     # Photolysis rates [s^-1]
     "j_jO2":       {"range": (0.0, 5.0e-10), "log": False},
     "j_jO3_total": {"range": (0.0, 2.0e-3),  "log": False},  # jO3_O + jO3_O1D combined
@@ -225,6 +225,7 @@ def apply_tick_style(ax, name, spec):
         ax.xaxis.set_major_formatter(_photolysis_tick_formatter())
     else:
         ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=5))
+        ax.xaxis.set_major_formatter(mticker.FormatStrFormatter("%.1f"))
 
 
 def main() -> None:
@@ -251,6 +252,9 @@ def main() -> None:
                          "x-axis shows HH:MM local time (e.g. -6 for MDT).")
     ap.add_argument("--tz-label", default="local",
                     help="timezone label in the time-series x-axis (default: local)")
+    ap.add_argument("--subtitle-extra", default=None,
+                    help="extra text appended to the '{nCells}-hex domain mean' "
+                         "subtitle line, separated by ', '")
     args = ap.parse_args()
 
     if args.output is None:
@@ -267,6 +271,8 @@ def main() -> None:
     nTimes = len(time_s)
     nCells = len(ds.dimensions["nCells"])
     domain_subtitle = f"{nCells}-hex domain mean"
+    if args.subtitle_extra:
+        domain_subtitle = f"{domain_subtitle}, {args.subtitle_extra}"
 
     # Drop panels whose inputs are missing
     species = [v for v in SPECIES_PANELS
@@ -375,8 +381,16 @@ def main() -> None:
 
         spec = AXIS_SPECS.get(name)
         if spec is not None:
-            lo, hi = spec["range"]
-            ax.set_xlim(lo, hi)
+            rng = spec["range"]
+            if rng == "auto":
+                data = np.asarray(arr_plot[frame_idx, :, :])
+                lo_x = float(np.floor(float(np.min(data))))
+                hi_x = float(np.ceil(float(np.max(data))))
+                if hi_x <= lo_x:
+                    hi_x = lo_x + 1.0
+            else:
+                lo_x, hi_x = rng
+            ax.set_xlim(lo_x, hi_x)
             if spec["log"]:
                 ax.set_xscale("log")
 
@@ -515,6 +529,8 @@ def _plot_time_series_at_levels(ds, variables, time_s, z_mid_km,
         axes[0, 0].legend(handles, labels, loc="best", title="Altitude",
                           fontsize=style.FONT_SIZES_DEFAULT.legend_small)
 
+    for ax in axes.flat:
+        ax.set_xlim(t_plot[0], t_plot[-1])
     if use_local:
         for ax in axes.flat:
             ax.xaxis.set_major_locator(mdates.HourLocator(interval=4))
