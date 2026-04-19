@@ -39,6 +39,10 @@ module mpas_atm_chemistry
     real(kind=RKIND), save :: chem_j_no2_max = 0.0_RKIND
     logical, save :: chem_use_grid_coords = .false.
 
+    ! TUV-x update interval state (set in chemistry_init, accumulated in chemistry_step)
+    real(kind=RKIND), save :: tuvx_update_interval = 0.0_RKIND
+    real(kind=RKIND), save :: tuvx_time_since_last = huge(1.0_RKIND)
+
         ! Reference solve (doubles chemistry cost; off by default)
         logical, save :: use_ref_solve = .false.
 
@@ -167,6 +171,13 @@ module mpas_atm_chemistry
         nullify(use_grid_coords_ptr)
         call mpas_pool_get_config(configs, 'config_chemistry_use_grid_coords', use_grid_coords_ptr)
         if (associated(use_grid_coords_ptr)) chem_use_grid_coords = use_grid_coords_ptr
+
+        block
+            real(kind=RKIND), pointer :: tuvx_update_interval_ptr
+            nullify(tuvx_update_interval_ptr)
+            call mpas_pool_get_config(configs, 'config_tuvx_update_interval', tuvx_update_interval_ptr)
+            if (associated(tuvx_update_interval_ptr)) tuvx_update_interval = tuvx_update_interval_ptr
+        end block
 
         ! Initialize MICM (species already injected into scalars by atm_setup_block)
         call musica_init(filepath_ptr, nCells * nVertLevels, &
@@ -380,117 +391,123 @@ module mpas_atm_chemistry
         ! Probe cell near center of domain for advection diagnostics
         probe_cell = nCells / 2
 
-        ! Compute the time-of-day inputs once; per-cell SZA is filled below
-        ! after the n_photo_rp check (so we can clean up cos_sza_cell on error
-        ! paths cleanly alongside photo_rates).
-        call mpas_get_time(currTime, DoY=DoY, H=hour, M=minute, S=second)
-        hour_utc = real(hour, RKIND) + real(minute, RKIND) / 60.0_RKIND &
-                 + real(second, RKIND) / 3600.0_RKIND
-
         ! Update photolysis rates. Unified multi-rate path: TUV-x fills
         ! photo_rates(ir,k,iCell) for every reaction it reports; when TUV-x
         ! is disabled, the fallback fills a single 'jNO2' slot with
-        ! j_max * max(0, cos_sza).
+        ! j_max * max(0, cos_sza). The whole block is gated by
+        ! tuvx_update_interval; on skip steps the accumulator just ticks
+        ! forward and MICM keeps using the last-set rate parameters.
         if (n_photo_rp < 1) then
             call mpas_log_write('[Chemistry] photolysis rate indices not cached.', &
                 messageType=MPAS_LOG_CRIT)
             return
         end if
 
-        ! Per-cell solar zenith angle. Filled per cell when the grid-coords
-        ! switch is enabled, broadcast from the namelist scalars otherwise.
-        allocate(cos_sza_cell(nCells))
-        if (chem_use_grid_coords) then
-            call mpas_pool_get_array(mesh, 'latCell', latCell)
-            call mpas_pool_get_array(mesh, 'lonCell', lonCell)
-            do iCell = 1, nCells
-                cos_sza_cell(iCell) = solar_cos_sza(DoY, hour_utc, &
-                                                    latCell(iCell) * RAD2DEG, &
-                                                    lonCell(iCell) * RAD2DEG)
-            end do
-        else
-            cos_sza_cell(:) = solar_cos_sza(DoY, hour_utc, chem_lat, chem_lon)
-        end if
+        if (tuvx_time_since_last >= tuvx_update_interval) then
+            ! Compute the time-of-day inputs (only needed when an update fires).
+            call mpas_get_time(currTime, DoY=DoY, H=hour, M=minute, S=second)
+            hour_utc = real(hour, RKIND) + real(minute, RKIND) / 60.0_RKIND &
+                     + real(second, RKIND) / 3600.0_RKIND
 
-        allocate(photo_rates(n_photo_rp, nVertLevels, nCells))
-        photo_rates = 0.0_RKIND
+            ! Per-cell solar zenith angle. Filled per cell when the grid-coords
+            ! switch is enabled, broadcast from the namelist scalars otherwise.
+            allocate(cos_sza_cell(nCells))
+            if (chem_use_grid_coords) then
+                call mpas_pool_get_array(mesh, 'latCell', latCell)
+                call mpas_pool_get_array(mesh, 'lonCell', lonCell)
+                do iCell = 1, nCells
+                    cos_sza_cell(iCell) = solar_cos_sza(DoY, hour_utc, &
+                                                        latCell(iCell) * RAD2DEG, &
+                                                        lonCell(iCell) * RAD2DEG)
+                end do
+            else
+                cos_sza_cell(:) = solar_cos_sza(DoY, hour_utc, chem_lat, chem_lon)
+            end if
 
-        if (use_tuvx) then
-            if (idx_qO3 < 1) then
-                call mpas_log_write('[Chemistry] TUV-x enabled but index_qO3 is unresolved.', &
-                    messageType=MPAS_LOG_CRIT)
+            allocate(photo_rates(n_photo_rp, nVertLevels, nCells))
+            photo_rates = 0.0_RKIND
+
+            if (use_tuvx) then
+                if (idx_qO3 < 1) then
+                    call mpas_log_write('[Chemistry] TUV-x enabled but index_qO3 is unresolved.', &
+                        messageType=MPAS_LOG_CRIT)
+                    deallocate(photo_rates, cos_sza_cell)
+                    return
+                end if
+
+                allocate(rho_air_col(nVertLevels))
+                allocate(temperature_col(nVertLevels))
+                allocate(qc_col(nVertLevels))
+                allocate(qr_col(nVertLevels))
+
+                call mpas_pool_get_array(state, 'scalars', scalars, time_lev)
+                call mpas_pool_get_array(state, 'rho_zz', rho_zz, time_lev)
+                call mpas_pool_get_array(state, 'theta_m', theta_m, time_lev)
+                call mpas_pool_get_array(mesh, 'zz', zz)
+                call mpas_pool_get_array(mesh, 'zgrid', zgrid)
+                call mpas_pool_get_array(diag, 'exner', exner)
+                call mpas_pool_get_dimension(state, 'index_qv', index_qv)
+
+                do iCell = 1, nCells
+                    do k = 1, nVertLevels
+                        rho_air_col(k) = zz(k, iCell) * rho_zz(k, iCell) * &
+                                         (1.0_RKIND + scalars(index_qv, k, iCell))
+                        temperature_col(k) = (theta_m(k, iCell) / &
+                            (1.0_RKIND + rvord * scalars(index_qv, k, iCell))) * exner(k, iCell)
+                    end do
+
+                    if (idx_qc > 0) then
+                        qc_col(:) = scalars(idx_qc, :, iCell)
+                    else
+                        qc_col(:) = 0.0_RKIND
+                    end if
+                    if (idx_qr > 0) then
+                        qr_col(:) = scalars(idx_qr, :, iCell)
+                    else
+                        qr_col(:) = 0.0_RKIND
+                    end if
+
+                    call tuvx_compute_photolysis(cos_sza_cell(iCell), zgrid(:, iCell), &
+                                                 rho_air_col, temperature_col, &
+                                                 scalars(idx_qO3, :, iCell), &
+                                                 qc_col, qr_col, &
+                                                 nVertLevels, &
+                                                 photo_rates(:, :, iCell), &
+                                                 error_code, error_message)
+                    if (error_code /= 0) then
+                        call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
+                        deallocate(photo_rates, rho_air_col, temperature_col, qc_col, qr_col, cos_sza_cell)
+                        return
+                    end if
+                end do
+
+                deallocate(rho_air_col, temperature_col, qc_col, qr_col)
+            else
+                ! Phase-1 fallback: single rate 'jNO2' = j_max * max(0, cos_sza).
+                ! Assumes n_photo_rp == 1 and the cached rate name is 'jNO2' —
+                ! musica_cache_photo_indices was called with that name at init.
+                do iCell = 1, nCells
+                    photo_rates(1, :, iCell) = chem_j_no2_max * &
+                                                max(0.0_RKIND, cos_sza_cell(iCell))
+                end do
+            end if
+
+            call musica_set_photolysis_rates(photo_rates, nCells, nVertLevels, &
+                                             n_photo_rp, error_code, error_message)
+            if (error_code /= 0) then
+                call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
                 deallocate(photo_rates, cos_sza_cell)
                 return
             end if
 
-            allocate(rho_air_col(nVertLevels))
-            allocate(temperature_col(nVertLevels))
-            allocate(qc_col(nVertLevels))
-            allocate(qr_col(nVertLevels))
+            call chemistry_set_photolysis_diag(diag, photo_rates, nCells, nVertLevels)
 
-            call mpas_pool_get_array(state, 'scalars', scalars, time_lev)
-            call mpas_pool_get_array(state, 'rho_zz', rho_zz, time_lev)
-            call mpas_pool_get_array(state, 'theta_m', theta_m, time_lev)
-            call mpas_pool_get_array(mesh, 'zz', zz)
-            call mpas_pool_get_array(mesh, 'zgrid', zgrid)
-            call mpas_pool_get_array(diag, 'exner', exner)
-            call mpas_pool_get_dimension(state, 'index_qv', index_qv)
-
-            do iCell = 1, nCells
-                do k = 1, nVertLevels
-                    rho_air_col(k) = zz(k, iCell) * rho_zz(k, iCell) * &
-                                     (1.0_RKIND + scalars(index_qv, k, iCell))
-                    temperature_col(k) = (theta_m(k, iCell) / &
-                        (1.0_RKIND + rvord * scalars(index_qv, k, iCell))) * exner(k, iCell)
-                end do
-
-                if (idx_qc > 0) then
-                    qc_col(:) = scalars(idx_qc, :, iCell)
-                else
-                    qc_col(:) = 0.0_RKIND
-                end if
-                if (idx_qr > 0) then
-                    qr_col(:) = scalars(idx_qr, :, iCell)
-                else
-                    qr_col(:) = 0.0_RKIND
-                end if
-
-                call tuvx_compute_photolysis(cos_sza_cell(iCell), zgrid(:, iCell), &
-                                             rho_air_col, temperature_col, &
-                                             scalars(idx_qO3, :, iCell), &
-                                             qc_col, qr_col, &
-                                             nVertLevels, &
-                                             photo_rates(:, :, iCell), &
-                                             error_code, error_message)
-                if (error_code /= 0) then
-                    call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
-                    deallocate(photo_rates, rho_air_col, temperature_col, qc_col, qr_col, cos_sza_cell)
-                    return
-                end if
-            end do
-
-            deallocate(rho_air_col, temperature_col, qc_col, qr_col)
-        else
-            ! Phase-1 fallback: single rate 'jNO2' = j_max * max(0, cos_sza).
-            ! Assumes n_photo_rp == 1 and the cached rate name is 'jNO2' —
-            ! musica_cache_photo_indices was called with that name at init.
-            do iCell = 1, nCells
-                photo_rates(1, :, iCell) = chem_j_no2_max * &
-                                            max(0.0_RKIND, cos_sza_cell(iCell))
-            end do
-        end if
-
-        call musica_set_photolysis_rates(photo_rates, nCells, nVertLevels, &
-                                         n_photo_rp, error_code, error_message)
-        if (error_code /= 0) then
-            call mpas_log_write(error_message, messageType=MPAS_LOG_CRIT)
             deallocate(photo_rates, cos_sza_cell)
-            return
+
+            tuvx_time_since_last = 0.0_RKIND
+        else
+            tuvx_time_since_last = tuvx_time_since_last + dt
         end if
-
-        call chemistry_set_photolysis_diag(diag, photo_rates, nCells, nVertLevels)
-
-        deallocate(photo_rates, cos_sza_cell)
 
         call mpas_log_write('Stepping chemistry packages...')
         call mpas_timer_start('chemistry')

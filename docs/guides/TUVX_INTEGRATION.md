@@ -273,6 +273,24 @@ per-cell path is used by both the TUV-x photolysis call and the
 fallback `cos(SZA)` `j_NO2` rate. Default is `.false.` to preserve
 exact bit-reproducibility of all idealized cases.
 
+### TUV-x update interval
+
+By default chemistry calls TUV-x every dynamics step. For long
+integrations or fine `dt` values, this is more often than necessary —
+photolysis rates evolve on minute-to-hour timescales, while the
+dynamics `dt` may be a few seconds. Set
+`config_tuvx_update_interval` (real, simulated seconds) in the
+`&musica` namelist to throttle TUV-x to a coarser cadence. When the
+configured interval has not yet elapsed since the last update,
+`chemistry_step` skips the entire photolysis block; MICM keeps using
+the rate parameters last set, and the `j_<rxn>` diagnostic fields
+keep their last-written values. Default is `0.0` (update every step)
+to preserve exact bit-reproducibility of all existing runs.
+
+Typical operational values: 60 s for short-duration / fine-`dt`
+idealized cases; several minutes for global production runs. A 60 s
+interval at `dt = 3 s` runs TUV-x once every 20 chemistry steps.
+
 ## Column Extension Above MPAS Top
 
 TUV-x can see a climatology column above the MPAS domain so UV attenuation
