@@ -53,8 +53,8 @@ AXIS_SPECS = {
     "qO3":   {"range": (1.0, 1.0e5),     "log": True},   # 50 ppb tropo → 10 ppm stratospheric peak
     "qO":    {"range": (0.0, 5.0e7),     "log": False},  # idealized spin-up transient; steady-state tiny
     "qO1D":  {"range": (0.0, 1.0),       "log": False},  # idealized spin-up transient
-    "qNO":   {"range": (0.0, 5.0),       "log": False},  # stratospheric NOx
-    "qNO2":  {"range": (0.0, 5.0),       "log": False},
+    "qNO":   {"range": (0.0, 5.0),       "log": False},  # stratospheric NO peak ~3 ppb
+    "qNO2":  {"range": (0.0, 10.0),      "log": False},  # stratospheric NO2 peak ~8 ppb
     "qO2":   {"range": (1.8e8, 2.3e8),   "log": False},  # ~0.2095 VMR -> ~2.09e8 ppb
     # Photolysis rates [s^-1]
     "j_jO2":     {"range": (0.0, 5.0e-10), "log": False},  # Schumann-Runge weak
