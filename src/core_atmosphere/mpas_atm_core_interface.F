@@ -464,9 +464,6 @@ module atm_core_interface
       use mpas_pool_routines, only : mpas_pool_get_config
       use mpas_log, only : mpas_log_write
 
-      use mpas_runtime_vars
-      use mpas_derived_types, only : mpas_pool_type
-      use mpas_pool_routines, only : mpas_pool_get_subpool
 
       implicit none
 
@@ -478,8 +475,8 @@ module atm_core_interface
 
       ierr = 0
 
-!      call atm_generate_structs(block, block % structs, block % dimensions, block % packages)
-      call atm_generate_pools(block, block % structs, block % packages)
+      call atm_generate_structs(block, block % structs, block % dimensions, block % packages)
+!      call atm_generate_pools(block, block % structs, block % packages)
 
       !
       ! When MPAS-A is operating as a dycore in CAM, the scalars/scalars_tend var_arrays are
