@@ -59,8 +59,8 @@ JVAR_PANELS    = ["j_jO2", "j_jO3_total", "j_jNO2"]
 
 AXIS_SPECS = {
     # Species [ppb]
-    "qO3":      {"range": (1.0, 1.0e5),     "log": True},   # AFGL MLS profile
-    "qO_total": {"range": (1.0e-4, 1.0e8),  "log": True},   # wide: spin-up (~1e7) + Chapman SS (~1e2)
+    "qO3":      {"range": (10.0, 1.0e5),    "log": True},   # AFGL MLS profile: ~27 to ~2.4e4 ppb
+    "qO_total": {"range": (1.0e-4, 1.0e3),  "log": True},   # daytime Chapman-SS peak ~500 ppb; lower bound at numerical-floor threshold
     "qNO":      {"range": "auto",           "log": False},
     "qNO2":     {"range": "auto",           "log": False},
     # Photolysis rates [s^-1]
@@ -129,11 +129,9 @@ def panel_title(name):
 
 
 def panel_xlabel(name):
-    if name == "qO_total":
-        return "O [ppb]"
     if name.startswith("j_"):
-        return f"{rate_label(name)} [s$^{{-1}}$]"
-    return f"{style.species_label(name)} [ppb]"
+        return "s$^{-1}$"
+    return "ppb"
 
 
 def chapman_steady_state_O_ppb(ds, time_idx):
@@ -272,7 +270,7 @@ def main() -> None:
     nCells = len(ds.dimensions["nCells"])
     domain_subtitle = f"{nCells}-hex domain mean"
     if args.subtitle_extra:
-        domain_subtitle = f"{domain_subtitle}, {args.subtitle_extra}"
+        domain_subtitle = f"{domain_subtitle}  {args.subtitle_extra}"
 
     # Drop panels whose inputs are missing
     species = [v for v in SPECIES_PANELS
