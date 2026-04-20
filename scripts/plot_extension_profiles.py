@@ -20,6 +20,7 @@ Usage:
 import argparse
 import csv
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -49,13 +50,24 @@ def read_extension_csv(path):
 
 
 def mpas_column(nc_path, cell_idx, time_idx):
-    """MPAS midpoint profile for a single column."""
+    """MPAS midpoint profile.
+
+    If cell_idx is an int, returns that single column. If None, returns
+    the horizontal-mean column across all cells (domain mean).
+    """
     with Dataset(nc_path) as ds:
-        edges_m = ds.variables["zgrid"][cell_idx, :]
-        rho = ds.variables["rho"][time_idx, cell_idx, :]
-        theta = ds.variables["theta"][time_idx, cell_idx, :]
-        pressure = ds.variables["pressure"][time_idx, cell_idx, :]
-        qO3 = ds.variables["qO3"][time_idx, cell_idx, :]
+        if cell_idx is None:
+            edges_m = ds.variables["zgrid"][:, :].mean(axis=0)
+            rho = ds.variables["rho"][time_idx, :, :].mean(axis=0)
+            theta = ds.variables["theta"][time_idx, :, :].mean(axis=0)
+            pressure = ds.variables["pressure"][time_idx, :, :].mean(axis=0)
+            qO3 = ds.variables["qO3"][time_idx, :, :].mean(axis=0)
+        else:
+            edges_m = ds.variables["zgrid"][cell_idx, :]
+            rho = ds.variables["rho"][time_idx, cell_idx, :]
+            theta = ds.variables["theta"][time_idx, cell_idx, :]
+            pressure = ds.variables["pressure"][time_idx, cell_idx, :]
+            qO3 = ds.variables["qO3"][time_idx, cell_idx, :]
     T = theta * (pressure / 1.0e5) ** (287.0 / 1004.0)
     z_mid_km = 0.5 * (edges_m[:-1] + edges_m[1:]) / 1000.0
     n_air = rho * (NA / M_AIR) * 1.0e-6
@@ -94,6 +106,14 @@ def pick_clear_cell(nc_path, time_idx):
     return int(np.argmin(total))
 
 
+def xtime_to_datetime(xt_frame):
+    s = "".join([c.decode() if isinstance(c, bytes) else c for c in xt_frame]).strip()
+    try:
+        return datetime.strptime(s, "%Y-%m-%d_%H:%M:%S")
+    except ValueError:
+        return None
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--input", default=str(Path.home() / "Data/CheMPAS/supercell/output.nc"))
@@ -103,6 +123,15 @@ def main() -> None:
     ap.add_argument("-t", "--time", type=int, default=-1)
     ap.add_argument("-c", "--cell", type=int, default=None,
                     help="cell index; default = clearest-sky cell at --time")
+    ap.add_argument("--title", default=None,
+                    help="custom figure suptitle; overrides the default.")
+    ap.add_argument("--tz-offset-hours", type=float, default=None,
+                    help="hours offset from UTC; when set the frame time is "
+                         "shown as HH:MM local instead of the time index.")
+    ap.add_argument("--tz-label", default="local",
+                    help="timezone label shown alongside the frame HH:MM.")
+    ap.add_argument("--subtitle-extra", default=None,
+                    help="extra text appended to the subtitle line.")
     args = ap.parse_args()
 
     if args.output is None:
@@ -115,7 +144,10 @@ def main() -> None:
     with Dataset(args.input) as ds:
         nt = ds.dimensions["Time"].size
     tidx = args.time if args.time >= 0 else nt + args.time
-    cell = args.cell if args.cell is not None else pick_clear_cell(args.input, tidx)
+    cell = args.cell  # None = domain mean across all cells
+
+    with Dataset(args.input) as ds:
+        nCells = len(ds.dimensions["nCells"])
 
     z_mpas_mid, z_mpas_edges, T_mpas, nair_mpas, no3_mpas = mpas_column(
         args.input, cell, tidx)
@@ -138,12 +170,12 @@ def main() -> None:
     mpas_top_km = z_mpas_edges[-1]
 
     panels = [
-        ("Temperature [K]",                       T_mpas,     T_ext_anchored,  False),
-        (r"Air number density [molec cm$^{-3}$]", nair_mpas,  nair_ext_e,      True),
-        (r"O$_3$ number density [molec cm$^{-3}$]", no3_mpas, no3_ext_e,       True),
+        ("Temperature",        "K",                      T_mpas,     T_ext_anchored,  False),
+        ("Air number density", r"molec cm$^{-3}$",       nair_mpas,  nair_ext_e,      True),
+        (r"O$_3$ number density", r"molec cm$^{-3}$",    no3_mpas,   no3_ext_e,       True),
     ]
 
-    for ax, (xlabel, mp_mid, ext_edges, logx) in zip(axes, panels):
+    for ax, (title, xunits, mp_mid, ext_edges, logx) in zip(axes, panels):
         z_full, v_full = composite_column(z_mpas_mid, mp_mid, z_ext_edges, ext_edges)
 
         # MPAS segment (lower)
@@ -153,7 +185,7 @@ def main() -> None:
         # Extension segment (upper)
         e = z_full >= mpas_top_km
         ax.plot(v_full[e], z_full[e], "s-", color=ext_color, ms=4, lw=1.5,
-                label="Extension (CSV)")
+                label="Extension")
         # Connector: last MPAS midpoint -> first extension midpoint.
         # Uses the edge-blending join at MPAS top so TUV-x's continuous
         # view is visible.
@@ -163,11 +195,12 @@ def main() -> None:
                 "-", color=edge_color, lw=1.0, alpha=0.7)
         # Raw CSV edge markers for reference
         ax.plot(ext_edges, z_ext_edges, "x", color=ext_color, ms=7, alpha=0.4,
-                label="CSV edges")
+                label="Edges")
 
         ax.axhline(mpas_top_km, ls="--", color=edge_color, alpha=0.6)
 
-        ax.set_xlabel(xlabel)
+        ax.set_title(title)
+        ax.set_xlabel(xunits)
         if logx:
             ax.set_xscale("log")
 
@@ -178,11 +211,19 @@ def main() -> None:
                  transform=axes[0].transAxes, color=edge_color,
                  fontsize=style.FONT_SIZES_DEFAULT.annotation_small)
 
-    fig.suptitle(
-        style.format_title(
-            f"Composite column seen by TUV-x  |  cell {cell}, time idx {tidx}"
-        )
-    )
+    with Dataset(args.input) as ds:
+        xt = ds.variables["xtime"][tidx]
+    t_utc = xtime_to_datetime(xt)
+    domain_tag = f"{nCells}-hex domain mean" if cell is None else f"cell {cell}"
+    if args.tz_offset_hours is not None and t_utc is not None:
+        t_local = t_utc + timedelta(hours=args.tz_offset_hours)
+        stamp = f"{domain_tag}  {t_local.strftime('%H:%M')} {args.tz_label}"
+    else:
+        stamp = f"{domain_tag}, time idx {tidx}"
+    if args.subtitle_extra:
+        stamp = f"{stamp}  {args.subtitle_extra}"
+    primary = args.title or "Composite column seen by TUV-x"
+    fig.suptitle(f"{primary}\n{stamp}")
     plt.tight_layout()
     plt.savefig(args.output, dpi=150, bbox_inches="tight")
     pdf = Path(args.output).with_suffix(".pdf")

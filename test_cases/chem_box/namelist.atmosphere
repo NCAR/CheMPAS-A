@@ -1,7 +1,7 @@
 &nhyd_model
     config_dt = 3.0
-    config_start_time = '0000-01-01_18:00:00'
-    config_run_duration = '01:00:00'
+    config_start_time = '2026-06-22_12:00:00'
+    config_run_duration = '1_00:00:00'
     config_split_dynamics_transport = false
     config_number_of_sub_steps = 6
     config_dynamics_split_steps = 1
@@ -70,6 +70,8 @@
     config_tuvx_config_file = 'tuvx_chapman_nox.json'
     config_tuvx_top_extension = .true.
     config_tuvx_extension_file = 'tuvx_upper_atm.csv'
-    config_chemistry_latitude = 35.86
-    config_chemistry_longitude = -97.93
+    config_chemistry_latitude = 40.015
+    config_chemistry_longitude = -105.270
+    config_chem_substeps = 1
+    config_micm_relative_tolerance = 1.0e-15
 /
