@@ -32,17 +32,21 @@ spatial discretization.
 
 .. seealso::
 
-   `MUSICA documentation <https://musica.readthedocs.io/>`_ — the
-   MUSICA project umbrella: integration framework, MUSICA-Fortran build
-   instructions, and overall chemistry-coupling guidance.
+   `MUSICA documentation <https://musica.readthedocs.io/>`_ —
+   **MUSICA** (Multi-Scale Infrastructure for Chemistry and Aerosols):
+   the project umbrella, MUSICA-Fortran build instructions, and
+   overall chemistry-coupling guidance.
 
-   `MICM documentation <https://micm.readthedocs.io/>`_ — chemistry
-   solver: mechanism authoring (YAML configs), solver families
+   `MICM documentation <https://micm.readthedocs.io/>`_ —
+   **MICM** (Model-Independent Chemistry Module): the chemistry
+   solver. Covers mechanism authoring (YAML configs), solver families
    (Rosenbrock, Backward Euler, etc.), rate-constant forms, and
    tolerance / sub-stepping controls.
 
-   `TUV-x documentation <https://tuv-x.readthedocs.io/>`_ — photolysis
-   solver: wavelength grids, cross sections and quantum yields, cloud
+   `TUV-x documentation <https://tuv-x.readthedocs.io/>`_ —
+   **TUV-x** (modern reimplementation of the Tropospheric Ultraviolet
+   and Visible radiation model): the photolysis solver. Covers
+   wavelength grids, cross sections and quantum yields, cloud
    radiator inputs, and the JSON configuration format.
 
    CheMPAS-A is a downstream consumer of all three; the runtime
