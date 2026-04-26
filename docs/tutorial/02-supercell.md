@@ -275,6 +275,23 @@ emitted plume (titration by NO).
 Section content coming.
 ```
 
+Placing the two final-state plots side by side highlights what's
+shared and what differs. The dynamics are identical: the same updraft
+and cold-pool outflow advect qAB in the ABBA run and NO/NO₂/O₃ in the
+LNOx + O3 run, so the spatial pattern of "tracer carried by the flow"
+matches between the two runs. The chemistry, on the other hand,
+diverges. ABBA's qAB → qA + qB reaction is slow on the run duration,
+so the qAB field at t = 2 h is essentially the initial sine pattern
+deformed by the storm; qA and qB grow slowly from zero everywhere
+qAB is dissociating. In the LNOx + O3 run the lightning-NOx source
+localizes NO emission to a small volume in the updraft column, fast
+NO–NO₂–O₃ photochemistry redistributes the partitioning, and an
+O₃-titration signature appears where fresh NO is concentrated.
+
+This is the pedagogical payoff of running the same dynamics with two
+mechanisms: it isolates "what the flow does" from "what the chemistry
+does."
+
 **[Figure 2.4: Side-by-side comparison of ABBA tracer transport and
 LNOx + O3 chemistry at t = 2 h. To be added.]**
 
@@ -286,6 +303,24 @@ LNOx + O3 chemistry at t = 2 h. To be added.]**
 Section content coming.
 ```
 
+Visual agreement is reassuring but not sufficient. To check that the
+final-state min/max/mean of the prognostic fields match a tracked
+reference, run the regression suite from the repo root:
+
+```bash
+cd ~/EarthSystem/CheMPAS-A
+python scripts/regression.py run --case supercell
+```
+
+A PASS means every reference statistic in
+`test_cases/supercell/regression_reference.yaml` is within the
+configured relative tolerance (default `1e-3`). A FAIL prints the
+offending field and its observed-vs-expected values.
+
+The regression YAML — not this tutorial — is the source of truth for
+expected numerical values. If the YAML changes (`--bless`), the
+tutorial does not need to be edited.
+
 ## 2.9 Next steps
 
 ```{admonition} Work in progress
@@ -293,3 +328,14 @@ Section content coming.
 
 Section content coming.
 ```
+
+- **The next chapter** is
+  [Chapman + NOx Photostationary State](03-chapman-nox.md) — a small
+  domain where the analytical PSS solution is a clean check on the
+  coupled MICM + TUV-x configuration. *(Coming soon.)*
+- **The MUSICA/MICM coupling internals** are documented in
+  [docs/chempas/musica/MUSICA_INTEGRATION.md](../chempas/musica/MUSICA_INTEGRATION.md).
+- **TUV-x photolysis** configuration is documented in
+  [docs/chempas/guides/TUVX_INTEGRATION.md](../chempas/guides/TUVX_INTEGRATION.md).
+- **Upstream MUSICA, MICM, and TUV-x docs** are linked from the
+  [project landing page](../index.rst) in the *See also* section.
