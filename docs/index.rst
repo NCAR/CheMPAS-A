@@ -18,6 +18,20 @@ together with the MPAS-Atmosphere Technical Description (verbatim port of
 the v8 NCAR Technical Note draft) for the dynamical core, equations, and
 spatial discretization.
 
+.. warning::
+
+   **Documentation under construction.** These docs are an active port and
+   are not yet feature-complete. In particular, figures from the
+   MPAS-Atmosphere User's Guide and Technical Description still need to
+   be regenerated — placeholders of the form
+   ``**[Figure N.M: caption. To be added next session.]**`` mark the
+   intended location of each figure in the Technical Description, and
+   figure references in the User's Guide (e.g., Figure 9.1, the vertical
+   grid schematics in Appendix C) currently render without their source
+   images. CheMPAS-specific chemistry chapters covering MUSICA/MICM,
+   TUV-x, and runtime tracer allocation are not yet wired into this
+   tree; those notes live under ``docs/chempas/`` for now.
+
 .. toctree::
    :titlesonly:
 
