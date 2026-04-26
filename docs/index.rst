@@ -28,9 +28,7 @@ spatial discretization.
    intended location of each figure in the Technical Description, and
    figure references in the User's Guide (e.g., Figure 9.1, the vertical
    grid schematics in Appendix C) currently render without their source
-   images. CheMPAS-specific chemistry chapters covering MUSICA/MICM,
-   TUV-x, and runtime tracer allocation are not yet wired into this
-   tree; those notes live under ``docs/chempas/`` for now.
+   images.
 
 .. toctree::
    :titlesonly:
