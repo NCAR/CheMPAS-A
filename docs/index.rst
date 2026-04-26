@@ -6,6 +6,8 @@ couples MUSICA/MICM atmospheric chemistry to MPAS-Atmosphere on its native
 unstructured Voronoi mesh. This is CheMPAS-A 26.04, a pre-release currently
 in beta testing, based on MPAS-Model v8.3.1.
 
+**Source:** `github.com/NCAR/CheMPAS-A <https://github.com/NCAR/CheMPAS-A>`_
+
 CheMPAS-A serves as a rapid-prototyping ground for the chemistry coupling:
 runtime tracer allocation, MUSICA/MICM state transfer, TUV-x photolysis,
 and idealized chemistry test cases.
