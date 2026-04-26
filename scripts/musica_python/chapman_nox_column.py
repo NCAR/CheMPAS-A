@@ -60,14 +60,19 @@ TZ = ZoneInfo("America/Chicago")  # Norman, OK
 # JPL kinetics for NO + O3 -> NO2 + O2 (matches §3.7's Leighton expression).
 A_NO_O3, EA_R_NO_O3 = 1.7e-12, 1310.0  # cm^3 molec^-1 s^-1, K
 
-# vTS1 reaction labels matching chapman_nox.yaml's photolysis reactions.
-# Run `print(list(vTS1.get_tuvx_calculator().photolysis_rate_names.keys()))`
-# to inspect what TS1 actually exposes if these labels need adjusting.
+# vTS1 reaction labels for chapman_nox.yaml's photolysis reactions.
+# Verified against ~/EarthSystem/MUSICA/configs/tuvx/ts1_tsmlt.json
+# (the __CAM options.aliasing.pairs table). Note the j*_a / j*_b swap
+# relative to chapman_nox.yaml's naming:
+#   jo3_a is the O(1D) pathway (matches jO3_O1D)
+#   jo3_b is the O(3P) pathway (matches jO3_O)
+# Run `print(list(vTS1.get_tuvx_calculator().run(0.0, 1.0).coords['reaction'].values))`
+# to inspect TS1's actual reaction labels if these need adjusting.
 TS1_LABEL_MAP = {
-    "jO2":     "O2+hv->O+O",
-    "jO3_O":   "O3+hv->O2+O(3P)",
-    "jO3_O1D": "O3+hv->O2+O(1D)",
-    "jNO2":    "NO2+hv->NO+O",
+    "jO2":     "jo2_b",   # O2 + hv -> O + O   (Chapman ground-state)
+    "jO3_O":   "jo3_b",   # O3 + hv -> O2 + O(3P)
+    "jO3_O1D": "jo3_a",   # O3 + hv -> O2 + O(1D)
+    "jNO2":    "jno2",    # NO2 + hv -> NO + O(3P)
 }
 
 # Molar masses (match scripts/init_chapman.py).
@@ -208,7 +213,11 @@ def main():
     ds = xr.Dataset(
         data_vars,
         coords={
-            "time": np.array(times, dtype="datetime64[ns]"),
+            # Drop tz-info (convert to naive UTC) so np.array doesn't deprecate-warn.
+            "time": np.array(
+                [t.astimezone(ZoneInfo("UTC")).replace(tzinfo=None) for t in times],
+                dtype="datetime64[ns]",
+            ),
             "height": z_mids_km,
         },
         attrs={
@@ -253,9 +262,12 @@ def main():
     ax_lt = fig.add_subplot(gs[1, 0])
     sim_ratio = (ds["NO"].isel(time=noon_idx).values
                  / np.maximum(ds["NO2"].isel(time=noon_idx).values, 1e-30))
+    # Convert [O3] from mol/m^3 to molec/cm^3 so units match the JPL k.
+    AVOGADRO = 6.022e23
+    o3_molec_cm3 = ds["O3"].isel(time=noon_idx).values * AVOGADRO * 1e-6
     k_NO_O3 = A_NO_O3 * np.exp(-EA_R_NO_O3 / T_K)
     leighton = (ds["jNO2"].isel(time=noon_idx).values
-                / np.maximum(k_NO_O3 * ds["O3"].isel(time=noon_idx).values, 1e-30))
+                / np.maximum(k_NO_O3 * o3_molec_cm3, 1e-30))
     ax_lt.plot(sim_ratio, z_mids_km, color=palette[0], label="Simulated")
     ax_lt.plot(leighton, z_mids_km, color=palette[2], linestyle="--", label="Leighton")
     ax_lt.set_xlabel(f"[{style.species_label('NO')}]/[{style.species_label('NO2')}]")
