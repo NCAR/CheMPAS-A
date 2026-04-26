@@ -1251,3 +1251,158 @@ This appendix summarizes the complete set of namelist options available when run
 | Units | - |
 | Description | Option for drainage option |
 | Possible Values | 0 or 1 *(default: 0)* |
+
+## B.14 musica
+
+The `&musica` namelist record configures the MUSICA chemistry coupling
+(MICM solver, TUV-x photolysis, lightning NOx, solar geometry). This
+record is CheMPAS-A specific (not part of upstream MPAS) and is read
+only in builds compiled with `MUSICA=true` (see
+[Section 3.6](03-building.md#36-building-with-chemistry-musica-support)).
+For context, see [Chapter 7](07-runtime-tracers.md) (runtime tracer
+allocation) and [Chapter 8](08-chemistry-coupling.md) (chemistry
+coupling).
+
+### `config_micm_file` (character)
+
+| | |
+|---|---|
+| Units | - |
+| Description | MICM configuration file name. An empty value disables chemistry. |
+| Possible Values | Any valid filename *(default: '')* |
+
+### `config_lnox_source_rate` (real)
+
+| | |
+|---|---|
+| Units | ppbv s^-1 |
+| Description | Lightning NOx source rate when `w - w_threshold = w_ref` (0 = disabled). |
+| Possible Values | Any non-negative real *(default: 0.0)* |
+
+### `config_lnox_w_threshold` (real)
+
+| | |
+|---|---|
+| Units | m s^-1 |
+| Description | Minimum vertical velocity for lightning NOx injection. |
+| Possible Values | Any positive real *(default: 5.0)* |
+
+### `config_lnox_w_ref` (real)
+
+| | |
+|---|---|
+| Units | m s^-1 |
+| Description | Excess-vertical-velocity scale used in `S = rate * max(0, w - w_threshold) / w_ref`. |
+| Possible Values | Any positive real *(default: 10.0)* |
+
+### `config_lnox_z_min` (real)
+
+| | |
+|---|---|
+| Units | m |
+| Description | Minimum altitude for lightning NOx injection. |
+| Possible Values | Any non-negative real *(default: 5000.0)* |
+
+### `config_lnox_z_max` (real)
+
+| | |
+|---|---|
+| Units | m |
+| Description | Maximum altitude for lightning NOx injection. |
+| Possible Values | Any non-negative real *(default: 12000.0)* |
+
+### `config_lnox_j_no2` (real)
+
+| | |
+|---|---|
+| Units | s^-1 |
+| Description | Maximum daytime NO2 photolysis rate used in the Phase-1 fallback `j = j_max * max(0, cos(SZA))`. Ignored when TUV-x is active. |
+| Possible Values | Any non-negative real *(default: 0.0)* |
+
+### `config_lnox_nox_tau` (real)
+
+| | |
+|---|---|
+| Units | s |
+| Description | NOx sink timescale (0 = no sink). When positive, sets MICM rate parameters `LOSS.no_loss` and `LOSS.no2_loss` to `1 / tau`. |
+| Possible Values | Any non-negative real *(default: 0.0)* |
+
+### `config_tuvx_config_file` (character)
+
+| | |
+|---|---|
+| Units | - |
+| Description | TUV-x configuration file name. Empty selects the Phase-1 `cos(SZA)` fallback. |
+| Possible Values | Any valid filename *(default: '')* |
+
+### `config_tuvx_top_extension` (logical)
+
+| | |
+|---|---|
+| Units | - |
+| Description | Extend the TUV-x column above the MPAS domain using a CSV climatology. Requires `config_tuvx_extension_file`. |
+| Possible Values | .true. or .false. *(default: false)* |
+
+### `config_tuvx_extension_file` (character)
+
+| | |
+|---|---|
+| Units | - |
+| Description | Path to TUV-x upper-atmosphere climatology CSV (columns: `z_km, T_K, n_air_cm-3, n_O3_cm-3`). Required when `config_tuvx_top_extension` is `.true.`. |
+| Possible Values | Any valid filename *(default: '')* |
+
+### `config_chemistry_latitude` (real)
+
+| | |
+|---|---|
+| Units | degrees |
+| Description | Latitude (degrees N) for solar geometry. Broadcast to every cell when `config_chemistry_use_grid_coords` is `.false.`; ignored otherwise. Intended for idealized cases. |
+| Possible Values | Real value in [-90, 90] *(default: 0.0)* |
+
+### `config_chemistry_longitude` (real)
+
+| | |
+|---|---|
+| Units | degrees |
+| Description | Longitude (degrees E) for solar geometry. Broadcast to every cell when `config_chemistry_use_grid_coords` is `.false.`; ignored otherwise. |
+| Possible Values | Real value in [-180, 360] *(default: 0.0)* |
+
+### `config_chemistry_use_grid_coords` (logical)
+
+| | |
+|---|---|
+| Units | - |
+| Description | If `.true.`, compute per-cell solar geometry from `latCell`/`lonCell`. If `.false.`, broadcast `config_chemistry_latitude`/`config_chemistry_longitude` to every cell (preserves idealized-case behavior). |
+| Possible Values | .true. or .false. *(default: false)* |
+
+### `config_tuvx_update_interval` (real)
+
+| | |
+|---|---|
+| Units | s |
+| Description | TUV-x update interval in simulated seconds. `0.0` updates every chemistry step (preserves bit-reproducibility). Positive values gate the photolysis block: TUV-x runs only after this many simulated seconds have accumulated since the last update; MICM reuses the last-set rates on skipped steps. |
+| Possible Values | Any non-negative real *(default: 0.0)* |
+
+### `config_chemistry_ref_solve` (logical)
+
+| | |
+|---|---|
+| Units | - |
+| Description | Run a duplicate MICM solve on an uncoupled reference state for advection diagnostics. Doubles chemistry cost. |
+| Possible Values | .true. or .false. *(default: false)* |
+
+### `config_chem_substeps` (integer)
+
+| | |
+|---|---|
+| Units | - |
+| Description | Number of MICM sub-steps per MPAS dt. MICM is called N times with `dt/N`. Needed when mechanisms with fast null cycles (e.g., Chapman O/O3) cause Backward Euler to land on non-physical implicit roots at the full outer dt. |
+| Possible Values | Any positive integer *(default: 1)* |
+
+### `config_micm_relative_tolerance` (real)
+
+| | |
+|---|---|
+| Units | - |
+| Description | MICM state relative tolerance. MICM's default (1e-6) is too loose for stiff mechanisms with fast null cycles; tightening (e.g., 1e-9) forces the adaptive controller to subdivide internal steps more aggressively and prevents Newton from converging to non-physical implicit roots. |
+| Possible Values | Any positive real *(default: 1.0e-6)* |
