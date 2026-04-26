@@ -6,6 +6,17 @@ couples MUSICA/MICM atmospheric chemistry to MPAS-Atmosphere on its native
 unstructured Voronoi mesh. This is CheMPAS-A 26.04, a pre-release currently
 in beta testing, based on MPAS-Model v8.3.1.
 
+**Source:** `github.com/NCAR/CheMPAS-A <https://github.com/NCAR/CheMPAS-A>`_
+
+.. note::
+
+   The official CheMPAS-A release is targeted for late August 2026 and
+   will be delivered through the upstream
+   `MPAS-Dev/MPAS-Model <https://github.com/MPAS-Dev/MPAS-Model>`_
+   repository. The repository linked above is the development and
+   prototyping ground; mature pieces are contributed upstream as
+   focused pull requests.
+
 CheMPAS-A serves as a rapid-prototyping ground for the chemistry coupling:
 runtime tracer allocation, MUSICA/MICM state transfer, TUV-x photolysis,
 and idealized chemistry test cases.
@@ -52,6 +63,13 @@ spatial discretization.
    CheMPAS-A is a downstream consumer of all three; the runtime
    species list, rate constants, and photolysis rates come from the
    MICM and TUV-x configurations loaded at startup.
+
+**Contributors:** David Fillmore (NCAR ACOM), Gabriele Pfister (NCAR ACOM),
+Avelino Arellano (University of Arizona); Mary Barth (NCAR ACOM),
+Matt Dawson (Cohere), Michael Duda (NCAR MMM), Jiwon Gim (NCAR ACOM),
+Rajesh Kumar (NCAR RAL), Forrest Lacey (NCAR RAL), Scott Meech (NCAR RAL),
+Kyle Shores (NCAR ACOM), Katherine Thayer-Calder (NCAR CGD),
+Victor Weeks (NCAR RAL).
 
 .. toctree::
    :titlesonly:
