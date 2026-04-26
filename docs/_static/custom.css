@@ -1,0 +1,11 @@
+/* CheMPAS-A docs — custom overrides on top of sphinx_rtd_theme. */
+
+/* Force the left sidebar's inner scroll container to scroll on overflow.
+ * In sphinx_rtd_theme 3.x, .wy-side-scroll relies on a perfect-scrollbar
+ * JS shim that doesn't always engage, leaving the bottom of long
+ * navigation trees (e.g., Appendix B in our user's guide) clipped with
+ * no scrollbar. Forcing native CSS overflow on the inner container is
+ * the standard workaround. */
+.wy-side-scroll {
+    overflow-y: auto !important;
+}

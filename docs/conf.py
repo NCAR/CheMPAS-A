@@ -125,6 +125,10 @@ if not on_rtd:  # only import and set the theme if we're building docs locally
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
+# Custom CSS layered on top of sphinx_rtd_theme. See _static/custom.css for
+# the sidebar-overflow fix that lets long nav trees scroll.
+html_css_files = ['custom.css']
+
 
 # -- Options for HTMLHelp output ------------------------------------------
 
