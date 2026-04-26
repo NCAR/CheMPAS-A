@@ -13,9 +13,7 @@ CheMPAS-A (Chemistry for MPAS - Atmosphere) is a standalone project derived from
 - `docs/chempas/architecture/COMPONENTS.md` - Detailed component descriptions
 - `docs/chempas/musica/MUSICA_INTEGRATION.md` - MUSICA/MICM coupling details
 - `docs/chempas/musica/MUSICA_API.md` - MUSICA Fortran API reference
-- `AGENTS.md` - Agent roles, workflow, and operational details
 - `docs/chempas/results/BENCHMARKS.md` - Agent model benchmark comparison
-- `PURPOSE.md` - Project motivation and goals
 - `docs/chempas/results/TEST_RUNS.md` - Test run documentation
 
 ## Sister Project Reference
@@ -136,11 +134,11 @@ Skills are defined in `.claude/commands/` and can be invoked with `/skillname`:
 
 ## Development Approach
 
-CheMPAS-A uses a coding-agent-assisted development model. Agents are used for implementation, review support, and verification, while humans retain responsibility for scientific judgment and final technical direction. See `AGENTS.md` for the full workflow, agent roles, and human review gates.
+CheMPAS-A uses a coding-agent-assisted development model. Agents are used for implementation, review support, and verification, while humans retain responsibility for scientific judgment and final technical direction.
 
 ## Multi-Agent Workflow
 
-CheMPAS-A uses three agents from three vendors (see `AGENTS.md`). Codex 5.4 reviews Claude's work and may push doc edits or review findings directly to the repo, but that review remains part of a human-directed workflow rather than a fully automated merge path.
+CheMPAS-A uses three agents from three vendors. Codex 5.4 reviews Claude's work and may push doc edits or review findings directly to the repo, but that review remains part of a human-directed workflow rather than a fully automated merge path.
 
 **Convention for cross-agent communication:**
 - Codex writes review findings to `CODEX_REVIEW.md` and pushes to `develop`

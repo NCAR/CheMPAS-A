@@ -194,22 +194,9 @@ The most relevant docs for evaluating or extracting pieces of this pilot:
 | [docs/chempas/results/TEST_RUNS.md](docs/chempas/results/TEST_RUNS.md) | Recorded run outcomes and validation evidence |
 | [docs/chempas/guides/VISUALIZE.md](docs/chempas/guides/VISUALIZE.md) | Chemistry visualization tools |
 
-**Project context**
-
-| Document | Description |
-|----------|-------------|
-| [PURPOSE.md](PURPOSE.md) | Pilot motivation and operating approach |
-| [AGENTS.md](AGENTS.md) | Development model and review gates |
-
 The full topic-organized index lives at
 [docs/chempas/README.md](docs/chempas/README.md), and the MPAS user guide
 chapters are imported under [docs/users-guide/](docs/users-guide/).
-
-## Development Model
-
-The repository's governance structure is designed to support rapid PR
-turnaround when coding agent tools are employed. See [AGENTS.md](AGENTS.md)
-and [PURPOSE.md](PURPOSE.md).
 
 ## License
 

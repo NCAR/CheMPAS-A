@@ -7,11 +7,9 @@ The MPAS Sphinx user guide and ocean docs live one level up under
 ## Top-Level Entry Points
 
 - [README.md](../../README.md) - Project overview
-- [PURPOSE.md](../../PURPOSE.md) - Project motivation and operating approach
 - [BUILD.md](../../BUILD.md) - Build instructions
 - [RUN.md](../../RUN.md) - Run instructions
 - [PLAN.md](../../PLAN.md) - Current focus and active plans
-- [AGENTS.md](../../AGENTS.md) - Agent workflow and review gates
 - [CLAUDE.md](../../CLAUDE.md) - Claude-specific repo guidance
 
 ## Subdirectories
