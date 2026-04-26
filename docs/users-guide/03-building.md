@@ -175,9 +175,28 @@ see `BUILD.md` in the repository root.
 
 CheMPAS-A's chemistry features — runtime species discovery from MICM,
 MUSICA/MICM coupling, and TUV-x photolysis — require an external
-MUSICA-Fortran installation and an additional build flag. Add
-`MUSICA=true` to the platform build command from
-[Section 3.5](#35-building-on-macos-and-ubuntu), e.g., on macOS:
+MUSICA-Fortran installation and an additional build flag. The flag
+itself is not platform-specific: CheMPAS-A with MUSICA has been built
+on macOS LLVM, Ubuntu with conda, and HPC clusters with GCC. To enable
+chemistry, add `MUSICA=true` to any working CheMPAS-A `make`
+invocation:
+
+```
+make TARGET CORE=atmosphere MUSICA=true \
+    PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double
+```
+
+`TARGET` is the make target appropriate for the host's Fortran
+toolchain — typically `gfortran`, `llvm`, or `ifort`; see
+[Section 3.3](#33-compiling-mpas) for the full list. On the two
+reference development hosts, the preflight script in
+[Section 3.5](#35-building-on-macos-and-ubuntu) sets the build
+environment; on other systems (e.g., HPC clusters that provide their
+toolchain via environment modules), set `NETCDF`, `PNETCDF`, `PIO`, and
+`PKG_CONFIG_PATH` by whatever mechanism is appropriate locally before
+invoking `make`.
+
+Examples on the reference hosts — macOS (LLVM/flang):
 
 ```
 eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
@@ -185,7 +204,7 @@ eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
     PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double
 ```
 
-or on Ubuntu:
+Ubuntu (GCC/gfortran via conda):
 
 ```
 eval "$(scripts/check_build_env.sh --export)" && make -j8 gfortran \
@@ -193,15 +212,17 @@ eval "$(scripts/check_build_env.sh --export)" && make -j8 gfortran \
     PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double
 ```
 
-Without `MUSICA=true`, the chemistry hooks compile out and the `&musica`
-namelist record is ignored at runtime. The MUSICA-Fortran library must
-be built with the same Fortran compiler used for CheMPAS-A — flang and
-gfortran `.mod` files are not interchangeable. Refer to the MUSICA
-documentation at <https://musica.readthedocs.io/> for MUSICA-Fortran
-build instructions.
+Without `MUSICA=true`, the chemistry hooks compile out and the
+`&musica` namelist record is ignored at runtime. The MUSICA-Fortran
+library must be built with the same Fortran compiler used for
+CheMPAS-A — flang and gfortran `.mod` files are not interchangeable,
+and mixing GCC versions across the two libraries can also cause link
+failures. Refer to the MUSICA documentation at
+<https://musica.readthedocs.io/> for MUSICA-Fortran build instructions.
 
 For the runtime chemistry features this build flag enables, see
-[Chapter 7](07-runtime-tracers.md) and [Chapter 8](08-chemistry-coupling.md).
+[Chapter 7](07-runtime-tracers.md) and
+[Chapter 8](08-chemistry-coupling.md).
 
 ## 3.7 Cleaning
 
