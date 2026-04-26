@@ -8,7 +8,7 @@
 - `Current State:` Phases 0–3 have been implemented in the development
   workflow. Phase 2 clear-sky TUV-x and Phase 3 cloud attenuation have both
   been exercised on the idealized supercell case, with recorded results in
-  `docs/results/TEST_RUNS.md`. The fallback Phase 1 cos(SZA) path remains
+  `docs/chempas/results/TEST_RUNS.md`. The fallback Phase 1 cos(SZA) path remains
   available when `config_tuvx_config_file` is empty. Immediate follow-up is
   Phase 3 hardening: rebuild/retest after the cloud wavelength-grid ownership
   fix in `mpas_tuvx.F`, tighten required tracer/input guards, and finish the
@@ -843,7 +843,7 @@ keeps the Phase 2 fallback path cheap to maintain.
 
 ### Test Results (15-minute supercell, Case B)
 
-Detailed quantitative Phase 2 run results are recorded in `docs/results/TEST_RUNS.md`.
+Detailed quantitative Phase 2 run results are recorded in `docs/chempas/results/TEST_RUNS.md`.
 
 ### Exit Criteria
 
@@ -878,7 +878,7 @@ recycling pathway and allowing NO2 to accumulate. This is a first-order
 effect on the chemistry, not a refinement.
 
 **Status:** Implemented and exercised on the idealized supercell development
-case, with results recorded in `docs/results/TEST_RUNS.md`. The main open
+case, with results recorded in `docs/chempas/results/TEST_RUNS.md`. The main open
 items are now robustness and cleanup rather than first implementation:
 rebuild/retest after the recent wavelength-grid ownership fix in
 `mpas_tuvx.F`, strengthen the remaining cloud-path input guards, and add the
@@ -1296,7 +1296,7 @@ after the cloud-radiator path is already validated.
 **Validation and documentation**
 
 - [x] Phase 3 development-case results are recorded in
-  `docs/results/TEST_RUNS.md`.
+  `docs/chempas/results/TEST_RUNS.md`.
 - [x] Cloud attenuation, clear-sky preservation, and above-cloud enhancement
   were all observed in the 15-minute supercell run.
 - [ ] Add the deferred Phase 2 vs Phase 3 chemistry-response plots to the
@@ -1325,7 +1325,7 @@ after the cloud-radiator path is already validated.
 - Strengthen the remaining cloud-path tracer/input guards in
   `mpas_atm_chemistry.F`.
 - Add the deferred Phase 2 vs Phase 3 chemistry-response plots/results to
-  `docs/results/TEST_RUNS.md`.
+  `docs/chempas/results/TEST_RUNS.md`.
 - Either implement the clear-sky/cloudy optimization as later performance
   work or explicitly keep it deferred.
 
@@ -1336,7 +1336,7 @@ after the cloud-radiator path is already validated.
 2. Tighten the remaining cloud-path guards in `mpas_atm_chemistry.F`,
    especially making `qc` a required input for the Phase 3 cloud branch.
 3. Move the deferred Phase 2 vs Phase 3 chemistry-response plots into
-   `docs/results/TEST_RUNS.md`.
+   `docs/chempas/results/TEST_RUNS.md`.
 4. Keep the clear-sky/cloudy split as separate performance work unless the
    current per-column cost becomes a real runtime problem.
 

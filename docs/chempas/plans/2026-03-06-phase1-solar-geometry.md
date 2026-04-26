@@ -481,7 +481,7 @@ Expected: All min values >= 0.
 
 **Step 1: Update the TUV-x plan document**
 
-Mark Phase 1 checklist items as complete in `docs/plans/2026-03-06-tuvx-photolysis-integration.md`.
+Mark Phase 1 checklist items as complete in `docs/chempas/plans/2026-03-06-tuvx-photolysis-integration.md`.
 
 **Step 2: Update docs/project/TODO.md**
 

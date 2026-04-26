@@ -6,18 +6,17 @@ CheMPAS-A (Chemistry for MPAS - Atmosphere) is a standalone project derived from
 
 ## Key Documentation
 
-- `docs/architecture/ARCHITECTURE.md` - High-level system architecture
+- `docs/chempas/architecture/ARCHITECTURE.md` - High-level system architecture
 - `BUILD.md` - Build system documentation (includes LLVM/macOS instructions)
 - `RUN.md` - Test case execution instructions
-- `docs/guides/VISUALIZE.md` - Chemistry visualization tools and workflows
-- `docs/architecture/COMPONENTS.md` - Detailed component descriptions
-- `docs/musica/MUSICA_INTEGRATION.md` - MUSICA/MICM coupling details
-- `docs/musica/MUSICA_API.md` - MUSICA Fortran API reference
+- `docs/chempas/guides/VISUALIZE.md` - Chemistry visualization tools and workflows
+- `docs/chempas/architecture/COMPONENTS.md` - Detailed component descriptions
+- `docs/chempas/musica/MUSICA_INTEGRATION.md` - MUSICA/MICM coupling details
+- `docs/chempas/musica/MUSICA_API.md` - MUSICA Fortran API reference
 - `AGENTS.md` - Agent roles, workflow, and operational details
-- `docs/results/BENCHMARKS.md` - Agent model benchmark comparison
+- `docs/chempas/results/BENCHMARKS.md` - Agent model benchmark comparison
 - `PURPOSE.md` - Project motivation and goals
-- `docs/results/TEST_RUNS.md` - Test run documentation
-- `docs/project/TODO.md` - Development task list
+- `docs/chempas/results/TEST_RUNS.md` - Test run documentation
 
 ## Sister Project Reference
 

@@ -33,7 +33,7 @@ The chem_box case is a chemistry-focused 64-cell periodic box that
 reuses the supercell sounding and zeta profile. There is no NCAR
 tarball — build the mesh and partitions locally with `planar_hex`
 + `MpasMeshConverter.x` + `gpmetis` (all in the `mpas` conda env).
-See `docs/plans/2026-04-18-chapman-nox-chem-box-issue.md` for the
+See `docs/chempas/plans/2026-04-18-chapman-nox-chem-box-issue.md` for the
 exact reproduction steps and the chemistry configs it pairs with.
 
 ## Setup and Initialization

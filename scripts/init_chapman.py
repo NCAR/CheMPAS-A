@@ -101,7 +101,7 @@ AFGL_MLS_T = [
 
 # Daytime mid-latitude photolysis rates [s^-1] extracted from a completed
 # chapman_nox.yaml run at SZA ~58 deg (see plan doc's j-value table,
-# docs/plans/2026-04-18-chapman-nox-chem-box-issue.md). Used only at init to
+# docs/chempas/plans/2026-04-18-chapman-nox-chem-box-issue.md). Used only at init to
 # estimate [O]_QSS; MPAS recomputes j via TUV-x at runtime.
 CLIMO_JO3_O = [
     ( 0.1, 2.76e-11),
@@ -274,7 +274,7 @@ def main() -> None:
         # Seed [O] per --qo-mode. 'qss' puts Newton's starting guess on the
         # Chapman attractor, avoiding the degenerate [O]=0 state that lets
         # BE/Rosenbrock's implicit iterate converge to a non-physical root.
-        # See docs/plans/2026-04-18-chapman-nox-chem-box-issue.md.
+        # See docs/chempas/plans/2026-04-18-chapman-nox-chem-box-issue.md.
         if args.qo_mode == "qss":
             qo_vals = chapman_qo_qss(z_mid_km)
             ensure_tracer(ds, "qO", qo_vals, "atomic_oxygen_3P")

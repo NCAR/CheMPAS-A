@@ -1,4 +1,4 @@
-# Chapter 1: MPAS-Atmosphere Overview
+# Chapter 1: CheMPAS-A Overview
 
 The Model for Prediction Across Scales -- Atmosphere (MPAS-A) is a non-hydrostatic atmosphere model that is part of a family of Earth-system component models collectively known as MPAS. All MPAS models have in common their use of centroidal Voronoi tessellations for their horizontal meshes, which has motivated the development of a common software framework that provides a high-level driver program and infrastructure for providing parallel execution, input and output, and other software infrastructure.
 
@@ -44,4 +44,4 @@ MPAS-A is comprised of two main components: the model, which includes atmospheri
 
 *Figure 1.1: The initialization and model components of MPAS-A are built as separate cores within the MPAS framework.*
 
-A succinct description of building and running MPAS-A is given in [Chapter 2](02-quick-start.md), the Quick Start Guide. Detailed instructions for building these components are given in [Chapter 3](03-building.md), and the basic steps to create initial conditions and run the MPAS-A model are outlined in [Chapter 7](07-running.md).
+A succinct description of building and running MPAS-A is given in [Chapter 2](02-quick-start.md), the Quick Start Guide. Detailed instructions for building these components are given in [Chapter 3](03-building.md), and the basic steps to create initial conditions and run the MPAS-A model are outlined in [Chapter 9](09-running.md).

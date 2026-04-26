@@ -55,6 +55,6 @@ The MPAS-MICM state coupler (`mpas_musica.F`) handles:
 
 ## Documentation
 
-- `docs/musica/MUSICA_INTEGRATION.md` - Integration architecture
-- `docs/musica/MUSICA_API.md` - Fortran API reference
+- `docs/chempas/musica/MUSICA_INTEGRATION.md` - Integration architecture
+- `docs/chempas/musica/MUSICA_API.md` - Fortran API reference
 - `~/Documents/MPAS-MUSICA/` - Downloaded MPAS documentation PDFs

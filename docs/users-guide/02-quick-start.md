@@ -1,6 +1,6 @@
-# Chapter 2: MPAS-Atmosphere Quick Start Guide
+# Chapter 2: CheMPAS-A Quick Start Guide
 
-This chapter provides MPAS-Atmosphere users with a high-level description of the general process of building and running the model. It is meant simply as a brief overview of the process, with more detailed descriptions of each step provided in later chapters.
+This chapter provides CheMPAS-A users with a high-level description of the general process of building and running the model. It is meant simply as a brief overview of the process, with more detailed descriptions of each step provided in later chapters.
 
 ## Build Process
 
@@ -23,7 +23,7 @@ Once all three executables have been created, a basic global simulation can be p
 1. Create a run directory.
 2. Link the `init_atmosphere_model` and `atmosphere_model` executables to the run directory, as well as physics lookup tables (`src/core_atmosphere/physics/physics_wrf/files/*`).
 3. Copy the `namelist.*`, `streams.*`, and `stream_list.*` files to the run directory.
-4. Edit the namelist files and the stream files appropriately ([Chapter 7](07-running.md)).
+4. Edit the namelist files and the stream files appropriately ([Chapter 9](09-running.md)).
 5. (OPTIONAL) Prepare meshes for the simulation ([Chapter 4](04-preparing-meshes.md)).
-6. Run `init_atmosphere_model` to create initial conditions ([Section 7.1](07-running.md#71-creating-idealized-ics) or [Section 7.2](07-running.md#72-creating-real-data-ics)).
-7. Run `atmosphere_model` to perform model integration ([Section 7.3](07-running.md#73-running-the-model)).
+6. Run `init_atmosphere_model` to create initial conditions ([Section 9.1](09-running.md#91-creating-idealized-ics) or [Section 9.2](09-running.md#92-creating-real-data-ics)).
+7. Run `atmosphere_model` to perform model integration ([Section 9.3](09-running.md#93-running-the-model)).

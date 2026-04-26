@@ -74,3 +74,6 @@ stream_list.*
 *.dSYM/
 
 src/core_*/inc
+
+# Sphinx build output
+docs/_build/

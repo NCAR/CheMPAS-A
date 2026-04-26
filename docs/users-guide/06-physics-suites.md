@@ -6,7 +6,7 @@ Although the preferred method for selecting the schemes in a simulation is via t
 
 ## 6.1 Suite: mesoscale_reference
 
-The default physics suite in MPAS-Atmosphere is the `mesoscale_reference` suite, which contains the schemes listed in Table 6.1. This suite has been tested for mesoscale resolutions (> 10 km cell spacing), and is not appropriate for convective-scale simulations because the Tiedtke scheme will remove convective instability before resolved-scale motions (convective cells) can respond to it.
+The default physics suite in CheMPAS-A is the `mesoscale_reference` suite, which contains the schemes listed in Table 6.1. This suite has been tested for mesoscale resolutions (> 10 km cell spacing), and is not appropriate for convective-scale simulations because the Tiedtke scheme will remove convective instability before resolved-scale motions (convective cells) can respond to it.
 
 *Table 6.1: The set of parameterization schemes used by the `mesoscale_reference` physics suite.*
 
@@ -42,7 +42,7 @@ The `convection_permitting` physics suite is appropriate at spatial resolutions 
 
 ## 6.3 Suite: none
 
-The only other recognized physics suite in MPAS-Atmosphere is the `none` suite, which sets all physics parameterizations to `off`. This suite is primarily intended for use with idealized simulations. For example, the idealized supercell test case makes use of the `none` suite, but with the microphysics scheme explicitly overridden:
+The only other recognized physics suite in CheMPAS-A is the `none` suite, which sets all physics parameterizations to `off`. This suite is primarily intended for use with idealized simulations. For example, the idealized supercell test case makes use of the `none` suite, but with the microphysics scheme explicitly overridden:
 
 ```
 config_physics_suite = 'none'

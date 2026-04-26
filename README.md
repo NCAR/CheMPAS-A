@@ -28,7 +28,7 @@ At the file level, every v8.3.1 source file is present at the same path in
 CheMPAS-A (1197 / 1197), 97.6% of them byte-identical; the divergence is
 entirely additive (chemistry coupling, MUSICA/MICM/TUV-x integration, build
 fixes for macOS LLVM/flang) plus per-file modifications. See
-[docs/upstream/2026-04-19-vs-mpas-v8.3.1.md](docs/upstream/2026-04-19-vs-mpas-v8.3.1.md)
+[docs/chempas/upstream/2026-04-19-vs-mpas-v8.3.1.md](docs/chempas/upstream/2026-04-19-vs-mpas-v8.3.1.md)
 for the full systematic comparison.
 
 In practice this means each upstream PR is:
@@ -80,28 +80,28 @@ code and the relevant deeper documentation.
   mol/m³, unit conversion, and external rate-parameter wiring.
   Code: `src/core_atmosphere/chemistry/musica/mpas_musica.F`,
   `src/core_atmosphere/chemistry/mpas_atm_chemistry.F`.
-  See [docs/musica/MUSICA_INTEGRATION.md](docs/musica/MUSICA_INTEGRATION.md).
+  See [docs/chempas/musica/MUSICA_INTEGRATION.md](docs/chempas/musica/MUSICA_INTEGRATION.md).
 
 - **TUV-x clear-sky photolysis** — j_NO2 computed via the delta-Eddington
   solver with a from-host wavelength grid (CAM 102-bin grid).
-  See [docs/guides/TUVX_INTEGRATION.md](docs/guides/TUVX_INTEGRATION.md).
+  See [docs/chempas/guides/TUVX_INTEGRATION.md](docs/chempas/guides/TUVX_INTEGRATION.md).
 
 - **TUV-x cloud opacity from host** — cloud radiator built from MPAS LWC
   (`tau = 3·LWC·dz / (2·r_eff·ρ_water)`, SSA = 0.999999, g = 0.85),
   attached to the TUV-x solver before construction.
-  See [docs/guides/TUVX_INTEGRATION.md](docs/guides/TUVX_INTEGRATION.md).
+  See [docs/chempas/guides/TUVX_INTEGRATION.md](docs/chempas/guides/TUVX_INTEGRATION.md).
 
 - **Idealized chemistry test cases** — supercell (with LNOx source),
   mountain wave, and Jablonowski–Williamson baroclinic wave configurations,
   all wired for MUSICA tracer transport.
   See [test_cases/](test_cases/) and
-  [docs/results/TEST_RUNS.md](docs/results/TEST_RUNS.md).
+  [docs/chempas/results/TEST_RUNS.md](docs/chempas/results/TEST_RUNS.md).
 
 - **Chemistry visualization tooling** — Python scripts for chemistry
   tracers, LNOx/O₃ evolution, and chemistry profile plotting (frame
   selection and time-series modes).
   See [scripts/](scripts/) and
-  [docs/guides/VISUALIZE.md](docs/guides/VISUALIZE.md).
+  [docs/chempas/guides/VISUALIZE.md](docs/chempas/guides/VISUALIZE.md).
 
 ## Building
 
@@ -179,11 +179,11 @@ The most relevant docs for evaluating or extracting pieces of this pilot:
 
 | Document | Description |
 |----------|-------------|
-| [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) | System architecture overview |
-| [docs/architecture/COMPONENTS.md](docs/architecture/COMPONENTS.md) | Component-level details |
-| [docs/musica/MUSICA_INTEGRATION.md](docs/musica/MUSICA_INTEGRATION.md) | MUSICA/MICM coupling design and implementation |
-| [docs/musica/MUSICA_API.md](docs/musica/MUSICA_API.md) | MUSICA-Fortran API reference |
-| [docs/guides/TUVX_INTEGRATION.md](docs/guides/TUVX_INTEGRATION.md) | TUV-x photolysis integration and test case |
+| [docs/chempas/architecture/ARCHITECTURE.md](docs/chempas/architecture/ARCHITECTURE.md) | System architecture overview |
+| [docs/chempas/architecture/COMPONENTS.md](docs/chempas/architecture/COMPONENTS.md) | Component-level details |
+| [docs/chempas/musica/MUSICA_INTEGRATION.md](docs/chempas/musica/MUSICA_INTEGRATION.md) | MUSICA/MICM coupling design and implementation |
+| [docs/chempas/musica/MUSICA_API.md](docs/chempas/musica/MUSICA_API.md) | MUSICA-Fortran API reference |
+| [docs/chempas/guides/TUVX_INTEGRATION.md](docs/chempas/guides/TUVX_INTEGRATION.md) | TUV-x photolysis integration and test case |
 
 **Build, run, and validation**
 
@@ -191,8 +191,8 @@ The most relevant docs for evaluating or extracting pieces of this pilot:
 |----------|-------------|
 | [BUILD.md](BUILD.md) | Build instructions and preflight notes |
 | [RUN.md](RUN.md) | Running test cases |
-| [docs/results/TEST_RUNS.md](docs/results/TEST_RUNS.md) | Recorded run outcomes and validation evidence |
-| [docs/guides/VISUALIZE.md](docs/guides/VISUALIZE.md) | Chemistry visualization tools |
+| [docs/chempas/results/TEST_RUNS.md](docs/chempas/results/TEST_RUNS.md) | Recorded run outcomes and validation evidence |
+| [docs/chempas/guides/VISUALIZE.md](docs/chempas/guides/VISUALIZE.md) | Chemistry visualization tools |
 
 **Project context**
 
@@ -201,8 +201,9 @@ The most relevant docs for evaluating or extracting pieces of this pilot:
 | [PURPOSE.md](PURPOSE.md) | Pilot motivation and operating approach |
 | [AGENTS.md](AGENTS.md) | Development model and review gates |
 
-The full topic-organized index lives at [docs/README.md](docs/README.md),
-including the imported MPAS user guide chapters.
+The full topic-organized index lives at
+[docs/chempas/README.md](docs/chempas/README.md), and the MPAS user guide
+chapters are imported under [docs/users-guide/](docs/users-guide/).
 
 ## Development Model
 
