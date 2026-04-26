@@ -27,9 +27,9 @@ Section content coming.
 ```
 
 The supercell test case is an idealized deep-convection setup adapted
-from Klemp et al. (1978): a single rotating updraft initialized in a
-horizontally homogeneous environment with strong low-level shear and a
-warm bubble triggering convection. CheMPAS-A's tracked configuration
+from Weisman and Klemp (1982): a horizontally homogeneous, strongly
+sheared environment perturbed by a warm bubble that triggers a
+long-lived rotating storm. CheMPAS-A's tracked configuration
 uses 60 stretched vertical levels spanning 0–50 km (~300 m at the
 surface, ~1 km near the lid), a 3-second dynamics timestep, Kessler
 warm-rain microphysics, and a 2-hour integration.
