@@ -123,31 +123,108 @@ make gfortran CORE=atmosphere PRECISION=single
 
 Regardless of which precision the CheMPAS-A `init_atmosphere` and `atmosphere` cores were compiled with, either single- or double-precision input files may be used. In general, the MPAS infrastructure should correctly detect the precision of input files, but one may also explicitly specify the precision of files in an input stream by adding the `precision` attribute to the stream definition as described in [Section 5.2](05-configuring-io.md#52-optional-stream-attributes).
 
-## 3.5 Building with Chemistry (MUSICA) Support
+## 3.5 Building on macOS and Ubuntu
+
+CheMPAS-A is developed and tested on two host platforms: **macOS** with
+the LLVM/flang toolchain and **Ubuntu** with GCC/gfortran via conda.
+The notes in this section are CheMPAS-A specific — the upstream MPAS
+build mechanics described in [Section 3.3](#33-compiling-mpas) still
+apply, but CheMPAS-A adds a preflight script that auto-detects the
+toolchain and exports the environment expected by `make`.
+
+The script `scripts/check_build_env.sh` reports the resolved
+`NETCDF`, `PNETCDF`, `PIO`, and `PKG_CONFIG_PATH` (and the appropriate
+`make` target) for the host. Source it in the same shell as `make`:
+
+```
+eval "$(scripts/check_build_env.sh --export)"
+```
+
+`PKG_CONFIG_PATH` must be present in that shell, because the Makefile
+invokes `pkg-config` at parse time; exporting in a separate shell and
+then running `make` later is not sufficient.
+
+### macOS (LLVM/flang)
+
+The script resolves NetCDF from Homebrew (`/opt/homebrew`) and PnetCDF /
+PIO from a user-side install:
+
+```
+eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
+    CORE=atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" \
+    PRECISION=double
+```
+
+### Ubuntu (GCC/gfortran via conda)
+
+Requires the `mpas` conda environment (`conda activate mpas`); the
+script then resolves NetCDF/PnetCDF from `$CONDA_PREFIX` and PIO from a
+user-side install:
+
+```
+eval "$(scripts/check_build_env.sh --export)" && make -j8 gfortran \
+    CORE=atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" \
+    PRECISION=double
+```
+
+For full preflight, dependency-build, and troubleshooting notes —
+including how to build PnetCDF and PIO from source on each platform —
+see `BUILD.md` in the repository root.
+
+## 3.6 Building with Chemistry (MUSICA) Support
 
 CheMPAS-A's chemistry features — runtime species discovery from MICM,
 MUSICA/MICM coupling, and TUV-x photolysis — require an external
-MUSICA-Fortran installation and an additional build flag. To compile
-CheMPAS-A with chemistry support, add `MUSICA=true` to the build command,
-e.g.,
+MUSICA-Fortran installation and an additional build flag. The flag
+itself is not platform-specific: CheMPAS-A with MUSICA has been built
+on macOS LLVM, Ubuntu with conda, and HPC clusters with GCC. To enable
+chemistry, add `MUSICA=true` to any working CheMPAS-A `make`
+invocation:
 
 ```
-make gfortran CORE=atmosphere MUSICA=true \
-    PIO=$PIO NETCDF=$NETCDF PNETCDF=$PNETCDF PRECISION=double
+make TARGET CORE=atmosphere MUSICA=true \
+    PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double
 ```
 
-Without `MUSICA=true`, the chemistry hooks compile out and the `&musica`
-namelist record is ignored at runtime. The MUSICA-Fortran library must
-be built with the same Fortran compiler used for CheMPAS-A — flang and
-gfortran `.mod` files are not interchangeable. Refer to the MUSICA
-documentation at <https://musica.readthedocs.io/> for MUSICA-Fortran
-build instructions.
+`TARGET` is the make target appropriate for the host's Fortran
+toolchain — typically `gfortran`, `llvm`, or `ifort`; see
+[Section 3.3](#33-compiling-mpas) for the full list. On the two
+reference development hosts, the preflight script in
+[Section 3.5](#35-building-on-macos-and-ubuntu) sets the build
+environment; on other systems (e.g., HPC clusters that provide their
+toolchain via environment modules), set `NETCDF`, `PNETCDF`, `PIO`, and
+`PKG_CONFIG_PATH` by whatever mechanism is appropriate locally before
+invoking `make`.
 
-For details of the runtime chemistry features this build flag enables,
-see [Chapter 7](07-runtime-tracers.md) and
+Examples on the reference hosts — macOS (LLVM/flang):
+
+```
+eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
+    CORE=atmosphere MUSICA=true \
+    PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double
+```
+
+Ubuntu (GCC/gfortran via conda):
+
+```
+eval "$(scripts/check_build_env.sh --export)" && make -j8 gfortran \
+    CORE=atmosphere MUSICA=true \
+    PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double
+```
+
+Without `MUSICA=true`, the chemistry hooks compile out and the
+`&musica` namelist record is ignored at runtime. The MUSICA-Fortran
+library must be built with the same Fortran compiler used for
+CheMPAS-A — flang and gfortran `.mod` files are not interchangeable,
+and mixing GCC versions across the two libraries can also cause link
+failures. Refer to the MUSICA documentation at
+<https://musica.readthedocs.io/> for MUSICA-Fortran build instructions.
+
+For the runtime chemistry features this build flag enables, see
+[Chapter 7](07-runtime-tracers.md) and
 [Chapter 8](08-chemistry-coupling.md).
 
-## 3.6 Cleaning
+## 3.7 Cleaning
 
 To remove all files that were created when the model was built, including the model executable itself, make may be run for the `clean` target:
 
