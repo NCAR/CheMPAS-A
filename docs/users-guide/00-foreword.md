@@ -1,6 +1,6 @@
 # CheMPAS-A User's Guide
 
-**CheMPAS-A 26.04**, based on MPAS-Atmosphere v8.3.1
+CheMPAS-A 26.04 (pre-release / beta), based on MPAS-Atmosphere v8.3.1
 
 Last updated: 26 April 2026
 

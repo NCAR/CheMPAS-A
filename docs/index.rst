@@ -3,8 +3,8 @@ CheMPAS-A
 
 CheMPAS-A (Chemistry for MPAS - Atmosphere) is an ACOM integration pilot that
 couples MUSICA/MICM atmospheric chemistry to MPAS-Atmosphere on its native
-unstructured Voronoi mesh. This release is **CheMPAS-A 26.04**, based on
-MPAS-Model v8.3.1.
+unstructured Voronoi mesh. This is CheMPAS-A 26.04, a pre-release currently
+in beta testing, based on MPAS-Model v8.3.1.
 
 CheMPAS-A serves as a rapid-prototyping ground for the chemistry coupling:
 runtime tracer allocation, MUSICA/MICM state transfer, TUV-x photolysis,
