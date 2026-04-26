@@ -123,28 +123,61 @@ make gfortran CORE=atmosphere PRECISION=single
 
 Regardless of which precision the CheMPAS-A `init_atmosphere` and `atmosphere` cores were compiled with, either single- or double-precision input files may be used. In general, the MPAS infrastructure should correctly detect the precision of input files, but one may also explicitly specify the precision of files in an input stream by adding the `precision` attribute to the stream definition as described in [Section 5.2](05-configuring-io.md#52-optional-stream-attributes).
 
-## 3.5 Building with Chemistry (MUSICA) Support
+## 3.5 Building on macOS and Ubuntu
 
-CheMPAS-A's chemistry features — runtime species discovery from MICM,
-MUSICA/MICM coupling, and TUV-x photolysis — require an external
-MUSICA-Fortran installation and an additional build flag. CheMPAS-A
-supports two host platforms: **macOS** (LLVM/flang) and **Ubuntu**
-(GCC/gfortran via conda).
+CheMPAS-A is developed and tested on two host platforms: **macOS** with
+the LLVM/flang toolchain and **Ubuntu** with GCC/gfortran via conda.
+The notes in this section are CheMPAS-A specific — the upstream MPAS
+build mechanics described in [Section 3.3](#33-compiling-mpas) still
+apply, but CheMPAS-A adds a preflight script that auto-detects the
+toolchain and exports the environment expected by `make`.
 
-A preflight script, `scripts/check_build_env.sh`, auto-detects the
-toolchain and exports the required environment (`NETCDF`, `PNETCDF`,
-`PIO`, `PKG_CONFIG_PATH`). Source it in the same shell as `make`:
+The script `scripts/check_build_env.sh` reports the resolved
+`NETCDF`, `PNETCDF`, `PIO`, and `PKG_CONFIG_PATH` (and the appropriate
+`make` target) for the host. Source it in the same shell as `make`:
 
 ```
 eval "$(scripts/check_build_env.sh --export)"
 ```
 
 `PKG_CONFIG_PATH` must be present in that shell, because the Makefile
-invokes `pkg-config` at parse time; exporting it in a separate shell and
+invokes `pkg-config` at parse time; exporting in a separate shell and
 then running `make` later is not sufficient.
 
-To compile with chemistry support, add `MUSICA=true` to the build
-command. On **macOS** (LLVM/flang):
+### macOS (LLVM/flang)
+
+The script resolves NetCDF from Homebrew (`/opt/homebrew`) and PnetCDF /
+PIO from a user-side install:
+
+```
+eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
+    CORE=atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" \
+    PRECISION=double
+```
+
+### Ubuntu (GCC/gfortran via conda)
+
+Requires the `mpas` conda environment (`conda activate mpas`); the
+script then resolves NetCDF/PnetCDF from `$CONDA_PREFIX` and PIO from a
+user-side install:
+
+```
+eval "$(scripts/check_build_env.sh --export)" && make -j8 gfortran \
+    CORE=atmosphere PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" \
+    PRECISION=double
+```
+
+For full preflight, dependency-build, and troubleshooting notes —
+including how to build PnetCDF and PIO from source on each platform —
+see `BUILD.md` in the repository root.
+
+## 3.6 Building with Chemistry (MUSICA) Support
+
+CheMPAS-A's chemistry features — runtime species discovery from MICM,
+MUSICA/MICM coupling, and TUV-x photolysis — require an external
+MUSICA-Fortran installation and an additional build flag. Add
+`MUSICA=true` to the platform build command from
+[Section 3.5](#35-building-on-macos-and-ubuntu), e.g., on macOS:
 
 ```
 eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
@@ -152,7 +185,7 @@ eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
     PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double
 ```
 
-On **Ubuntu** (GCC/gfortran via conda; requires `conda activate mpas`):
+or on Ubuntu:
 
 ```
 eval "$(scripts/check_build_env.sh --export)" && make -j8 gfortran \
@@ -167,13 +200,10 @@ gfortran `.mod` files are not interchangeable. Refer to the MUSICA
 documentation at <https://musica.readthedocs.io/> for MUSICA-Fortran
 build instructions.
 
-For full preflight, dependency-build, and troubleshooting notes — including
-the LLVM-on-macOS and conda-on-Ubuntu setup — see `BUILD.md` in the
-repository root. For the runtime chemistry features this build flag
-enables, see [Chapter 7](07-runtime-tracers.md) and
-[Chapter 8](08-chemistry-coupling.md).
+For the runtime chemistry features this build flag enables, see
+[Chapter 7](07-runtime-tracers.md) and [Chapter 8](08-chemistry-coupling.md).
 
-## 3.6 Cleaning
+## 3.7 Cleaning
 
 To remove all files that were created when the model was built, including the model executable itself, make may be run for the `clean` target:
 
