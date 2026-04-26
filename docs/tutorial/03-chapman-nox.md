@@ -418,9 +418,15 @@ profile, solar-noon NO and NO₂ profiles, simulated vs. analytical
 Leighton ratio with height, and O₃ time series at 10 / 30 / 45 km. To
 be added.]**
 
-What to look for: simulated NO/NO₂ ratio tracks the analytical
-Leighton expression (the same one §3.7 motivates) closely in the
-stratospheric column where photolysis is strong; O₃ peak settles
-near 25–30 km; daytime PSS visibly breaks down at sunset in the
-time-series panel. An independent numerical check on the same
-chemistry the chapter's MPAS-coupled run exercises.
+What to look for: simulated NO/NO₂ ratio in the stratospheric
+column tracks the analytical Leighton expression (the same one
+§3.7 motivates) to within a factor of ~1.3 — close enough to
+confirm the photolysis–titration balance qualitatively, with the
+residual reflecting the O / O¹D coupling the simple [NO]/[NO₂]
+formula omits. O₃ peaks near ~20 km in the modeled column. The
+12-hour run captures the diurnal SZA cycle from predawn
+(SZA ≈ 99°) through solar noon (SZA ≈ 22°) to late afternoon, so
+the photolysis-driven O₃ modulation (~10 % swing at 30 km in the
+time-series panel) is visible across the column. An independent
+numerical check on the same chemistry the chapter's MPAS-coupled
+run exercises.
