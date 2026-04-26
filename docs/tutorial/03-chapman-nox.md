@@ -334,10 +334,10 @@ with Dataset('output.nc') as ds:
     qNO  = ds['qNO'][-1]
     qNO2 = ds['qNO2'][-1]
     qO3  = ds['qO3'][-1]
-    # The TUV-x photolysis-rate variable name written by mpas_tuvx.F
-    # may differ between builds; check `ncdump -h output.nc | grep -i no2`
-    # to confirm. Common forms: 'j_NO2', 'photolysis_rate_NO2'.
-    jNO2 = ds['j_NO2'][-1]
+    # The TUV-x photolysis-rate variable name is `j_jNO2` per the
+    # CheMPAS-A Registry (the `j_j*` prefix is intentional). Confirm
+    # with `ncdump -h output.nc | grep -i jno2` if a build differs.
+    jNO2 = ds['j_jNO2'][-1]
 
 # Leighton: [NO]/[NO2] = jNO2 / (k * [O3]). The mass-mixing-ratio
 # version is up to a per-cell unit factor; for a stratospheric
