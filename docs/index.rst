@@ -18,6 +18,7 @@ developers can leverage pre-existing code and focus more on development of
 .. toctree::
    :titlesonly:
 
+   users-guide/index
    ocean/index
 
 
