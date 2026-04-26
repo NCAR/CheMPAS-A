@@ -123,7 +123,31 @@ make gfortran CORE=atmosphere PRECISION=single
 
 Regardless of which precision the CheMPAS-A `init_atmosphere` and `atmosphere` cores were compiled with, either single- or double-precision input files may be used. In general, the MPAS infrastructure should correctly detect the precision of input files, but one may also explicitly specify the precision of files in an input stream by adding the `precision` attribute to the stream definition as described in [Section 5.2](05-configuring-io.md#52-optional-stream-attributes).
 
-## 3.5 Cleaning
+## 3.5 Building with Chemistry (MUSICA) Support
+
+CheMPAS-A's chemistry features — runtime species discovery from MICM,
+MUSICA/MICM coupling, and TUV-x photolysis — require an external
+MUSICA-Fortran installation and an additional build flag. To compile
+CheMPAS-A with chemistry support, add `MUSICA=true` to the build command,
+e.g.,
+
+```
+make gfortran CORE=atmosphere MUSICA=true \
+    PIO=$PIO NETCDF=$NETCDF PNETCDF=$PNETCDF PRECISION=double
+```
+
+Without `MUSICA=true`, the chemistry hooks compile out and the `&musica`
+namelist record is ignored at runtime. The MUSICA-Fortran library must
+be built with the same Fortran compiler used for CheMPAS-A — flang and
+gfortran `.mod` files are not interchangeable. Refer to the MUSICA
+documentation at <https://musica.readthedocs.io/> for MUSICA-Fortran
+build instructions.
+
+For details of the runtime chemistry features this build flag enables,
+see [Chapter 7](07-runtime-tracers.md) and
+[Chapter 8](08-chemistry-coupling.md).
+
+## 3.6 Cleaning
 
 To remove all files that were created when the model was built, including the model executable itself, make may be run for the `clean` target:
 

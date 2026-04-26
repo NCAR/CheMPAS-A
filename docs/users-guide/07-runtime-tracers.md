@@ -10,7 +10,9 @@ no Fortran source edits, no Registry edits, no rebuild.
 
 This chapter describes how to select a chemistry mechanism, what the runtime
 allocation does at startup, and the constraints that come with the dynamic
-tracer pool.
+tracer pool. The features described here are only active in builds compiled
+with MUSICA support; see [Section 3.5](03-building.md#35-building-with-chemistry-musica-support)
+for build instructions.
 
 ## 7.1 Overview
 
@@ -59,23 +61,7 @@ For authoring new MICM mechanisms — species lists, reaction syntax,
 rate-parameter formats — refer to the MUSICA documentation at
 <https://musica.readthedocs.io/>.
 
-## 7.3 Building with MUSICA Support
-
-The runtime tracer system is conditionally compiled. To enable chemistry,
-build CheMPAS-A with `MUSICA=true`:
-
-```
-make TARGET CORE=atmosphere MUSICA=true \
-    PIO=$PIO NETCDF=$NETCDF PNETCDF=$PNETCDF PRECISION=double
-```
-
-`TARGET` is `gfortran` or your platform's analogue (see [Section 3.3](03-building.md#33-compiling-mpas)).
-A separate, matching `MUSICA-Fortran` installation is required at link
-time; consult the MUSICA documentation linked above for build details.
-Without `MUSICA=true`, the chemistry hook is a stub and `&musica`
-namelist options are ignored.
-
-## 7.4 Runtime Tracer Allocation
+## 7.3 Runtime Tracer Allocation
 
 At model startup, for each MPAS block:
 
@@ -95,7 +81,7 @@ After this point, chemistry species are first-class scalars: they appear
 in output streams under their MICM names, they are advected by the
 dynamics, and they are halo-exchanged on every step.
 
-## 7.5 Constraints and Known Limits
+## 7.4 Constraints and Known Limits
 
 - **Lateral boundary conditions are not supported with runtime tracers.**
   The `lbc_scalars` pool is statically sized from Registry metadata,
