@@ -1,7 +1,7 @@
-MPAS-Atmosphere User's Guide
-============================
+CheMPAS-A User's Guide
+======================
 
-User's Guide for the MPAS-Atmosphere model (v8.3.1).
+User's Guide for CheMPAS-A (v8.3.1), based on the MPAS-Atmosphere model.
 
 .. toctree::
    :titlesonly:

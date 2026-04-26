@@ -1,6 +1,6 @@
-# MPAS-Atmosphere Model User's Guide
+# CheMPAS-A User's Guide
 
-**Version 8.3.0**
+**Version 8.3.1**
 
 Last updated: 2 June 2025
 
