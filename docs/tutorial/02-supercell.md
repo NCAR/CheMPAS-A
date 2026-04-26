@@ -112,12 +112,28 @@ rank-vs-partition table.
 Section content coming.
 ```
 
-The ABBA mechanism (`micm_configs/abba.yaml`) is a toy reactant set —
-qA, qB, and qAB — used as a transport-only sandbox: chemistry advances
-the species, but the rate constants are chosen so that on the run
-duration the field is dominated by advection rather than reaction.
-This makes it a clean way to verify that tracers are being carried by
+The ABBA mechanism (`micm_configs/abba.yaml`) is a three-species toy
+set — qA, qB, qAB — used as an advection-dominated sandbox. The
+mechanism initializes qAB to a uniform 1.0 and runs a slow two-way
+reaction (qAB → qA + qB at scaling 2e-3, qA + qB → qAB at 1e-3); on
+the supercell run duration the chemistry barely advances, so the
+tracer fields are dominated by transport rather than reaction. This
+makes ABBA a clean way to verify that tracers are being carried by
 the dynamics correctly before adding real chemistry on top.
+
+**Initialize the ABBA tracer.** Give qAB a horizontal sine pattern so
+the supercell flow has something to advect (without this step, qAB is
+uniform and the resulting plot has no structure):
+
+```bash
+cd ~/Data/CheMPAS/supercell
+~/miniconda3/envs/mpas/bin/python \
+    ~/EarthSystem/CheMPAS-A/scripts/init_tracer_sine.py \
+    -i supercell_init.nc -t qAB --waves-x 2 --amplitude 0.4 --offset 0.6
+```
+
+This sets qAB to a sine pattern with mean 0.6 and amplitude 0.4 across
+two horizontal wavelengths.
 
 **Edit the namelist.** Open `namelist.atmosphere` in
 `~/Data/CheMPAS/supercell/` and ensure the `&musica` block reads:
@@ -163,10 +179,11 @@ Critical error messages = 0
 
 **[Figure 2.2: qA, qB, qAB at t = 2 h, ABBA mechanism. To be added.]**
 
-What to look for: qA and qB are conserved tracers transported by the
-flow; qAB is produced where qA and qB co-exist. In the supercell, the
-strongest gradients sit along the updraft and in the cold-pool
-outflow.
+What to look for: the qAB sine pattern is advected and distorted by
+the updraft and cold-pool outflow, so qAB at t = 2 h is essentially
+the initial sine field carried by the flow. qA and qB grow slowly
+from zero where qAB is dissociating; on this run duration their
+amplitude is small but their pattern mirrors qAB.
 
 ## 2.6 Run with the LNOx + O3 mechanism
 
@@ -220,7 +237,7 @@ the domain.
 The lightning-NOx source injects NO into grid cells where the vertical
 velocity exceeds `config_lnox_w_threshold` and the height falls
 between `config_lnox_z_min` and `config_lnox_z_max`. See
-[docs/guides/TUVX_INTEGRATION.md](../chempas/guides/TUVX_INTEGRATION.md)
+[docs/chempas/guides/TUVX_INTEGRATION.md](../chempas/guides/TUVX_INTEGRATION.md)
 for the TUV-x configuration files referenced in the block.
 
 **Archive prior output and run.** Same pattern as the ABBA run:
