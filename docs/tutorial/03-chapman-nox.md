@@ -260,6 +260,40 @@ this analytically in section 3.8).
 Section content coming.
 ```
 
+In sunlight, the NO–NO₂–O₃ system relaxes within seconds to a steady
+state where NO₂ photolysis (NO₂ + hν → NO + O, rate jNO₂) is balanced
+by the reverse NO + O₃ titration. This is the **Leighton
+photostationary state**:
+
+$$
+\frac{[\mathrm{NO}]}{[\mathrm{NO_2}]}
+= \frac{j_{\mathrm{NO_2}}}{k_{\mathrm{NO+O_3}}\,[\mathrm{O_3}]}
+$$
+
+where the temperature-dependent reaction rate
+
+$$
+k_{\mathrm{NO+O_3}}(T)
+= 1.7\times10^{-12}\,\exp\!\left(-\frac{1310}{T}\right)
+\;\;\text{cm}^3\,\text{molec}^{-1}\,\text{s}^{-1}
+$$
+
+comes from JPL kinetics.
+
+**Where it should hold.** In the seeded stratospheric NOx peak layer
+(~25–35 km), photolysis is strong, [O₃] is high, and the partitioning
+relaxation timescale is seconds — well below the 3-second model
+timestep. Simulated [NO]/[NO₂] there should track the Leighton
+expression to within a few percent after the first few minutes of
+model time.
+
+**Where it shouldn't.** Near the surface in shadow or in the lowest
+model layers where the photolysis driver is weak, the PSS expression
+loses meaning — jNO₂ → 0 makes the ratio diverge analytically while
+the simulated NOx is just sitting at its initial conditions.
+Spin-up note: 10–15 minutes of model time is plenty for partitioning
+to settle in the stratospheric column.
+
 ## 3.8 Verifying numerically
 
 ```{admonition} Work in progress
@@ -267,6 +301,58 @@ Section content coming.
 
 Section content coming.
 ```
+
+Two complementary checks.
+
+**Regression suite.** The same source-of-truth used in Chapter 2:
+
+```bash
+cd ~/EarthSystem/CheMPAS-A
+python scripts/regression.py run --case supercell
+```
+
+A PASS means every reference statistic in
+`test_cases/supercell/regression_reference.yaml` is within the
+configured relative tolerance (default `1e-3`). The regression YAML
+— not this tutorial — is the source of truth for expected numerical
+values.
+
+**Analytical PSS check.** Pull jNO₂, [O₃], [NO], [NO₂] from
+`output.nc` at the final timestep and compare the simulated ratio
+against Leighton:
+
+```python
+import numpy as np
+from netCDF4 import Dataset
+
+# JPL kinetics for NO + O3 -> NO2 + O2 at a representative
+# stratospheric temperature.
+A, Ea_R, T_ref = 1.7e-12, 1310.0, 230.0
+k_NO_O3 = A * np.exp(-Ea_R / T_ref)
+
+with Dataset('output.nc') as ds:
+    qNO  = ds['qNO'][-1]
+    qNO2 = ds['qNO2'][-1]
+    qO3  = ds['qO3'][-1]
+    # The TUV-x photolysis-rate variable name written by mpas_tuvx.F
+    # may differ between builds; check `ncdump -h output.nc | grep -i no2`
+    # to confirm. Common forms: 'j_NO2', 'photolysis_rate_NO2'.
+    jNO2 = ds['j_NO2'][-1]
+
+# Leighton: [NO]/[NO2] = jNO2 / (k * [O3]). The mass-mixing-ratio
+# version is up to a per-cell unit factor; for a stratospheric
+# layer where the factor is approximately constant, the ratio
+# comparison is meaningful.
+leighton = jNO2 / np.maximum(k_NO_O3 * qO3, 1e-30)
+sim     = qNO / np.maximum(qNO2, 1e-30)
+print('median ratio agreement (sim / Leighton):',
+      float(np.nanmedian(sim / leighton)))
+```
+
+Pass criterion: ratio agreement to within ~5 % in the stratospheric
+layer (looser than the regression-suite tolerance because the PSS
+isn't bit-exact and the constant-T approximation here introduces a
+small bias).
 
 **[Figure 3.4: Simulated vs. analytical Leighton [NO]/[NO₂] ratio vs.
 height at the final timestep. To be added.]**
@@ -278,3 +364,14 @@ height at the final timestep. To be added.]**
 
 Section content coming.
 ```
+
+- **The MUSICA/MICM coupling internals** are documented in
+  [docs/chempas/musica/MUSICA_INTEGRATION.md](../chempas/musica/MUSICA_INTEGRATION.md).
+- **TUV-x integration engineering** (the integration story behind
+  `mpas_tuvx.F` and the column extension) is documented in
+  [docs/chempas/guides/TUVX_INTEGRATION.md](../chempas/guides/TUVX_INTEGRATION.md).
+- **Upstream MUSICA, MICM, and TUV-x docs** are linked from the
+  [project landing page](../index.rst) in the *See also* section.
+- **Future tutorial chapters** will cover additional idealized cases
+  (mountain wave, JW baroclinic wave, chem box) when they're
+  written. *(Not yet scheduled.)*
