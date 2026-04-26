@@ -62,7 +62,7 @@ The Chapman cycle is global-stratospheric physics, but
 `scripts/init_chapman.py` seeds a 1-D AFGL mid-latitude-summer ozone
 profile uniformly across the supercell mesh, and the chemistry has no
 feedback on dynamics. This chapter therefore uses the small
-(~30 km × 30 km × 50 km top) supercell grid as a column-like sandbox
+(~85 km × 85 km × 50 km top) supercell grid as a column-like sandbox
 — what matters is the vertical structure of the photolysis driver and
 the chemistry's ability to settle into the PSS, both of which TUV-x
 sees through the column extension introduced in section 3.3.
