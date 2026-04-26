@@ -112,7 +112,61 @@ rank-vs-partition table.
 Section content coming.
 ```
 
+The ABBA mechanism (`micm_configs/abba.yaml`) is a toy reactant set —
+qA, qB, and qAB — used as a transport-only sandbox: chemistry advances
+the species, but the rate constants are chosen so that on the run
+duration the field is dominated by advection rather than reaction.
+This makes it a clean way to verify that tracers are being carried by
+the dynamics correctly before adding real chemistry on top.
+
+**Edit the namelist.** Open `namelist.atmosphere` in
+`~/Data/CheMPAS/supercell/` and ensure the `&musica` block reads:
+
+```fortran
+&musica
+    config_micm_file = 'abba.yaml'
+/
+```
+
+ABBA does not need TUV-x photolysis or the lightning-NOx options, so
+the block is minimal.
+
+**Archive any prior output and run.** MPAS defaults to
+`clobber_mode = never_modify`; if `output.nc` already exists the run
+will silently skip all output writes. Always move the previous output
+aside before re-running:
+
+```bash
+cd ~/Data/CheMPAS/supercell
+
+timestamp=$(date +%Y%m%d_%H%M%S)
+[ -f output.nc ] && mv output.nc output.${timestamp}.nc
+[ -f log.atmosphere.0000.out ] && \
+    mv log.atmosphere.0000.out log.atmosphere.0000.${timestamp}.out
+
+mpiexec -n 8 ~/EarthSystem/CheMPAS-A/atmosphere_model
+```
+
+**Verify the run completed cleanly.** The tail of
+`log.atmosphere.0000.out` should report zero critical errors:
+
+```
+Critical error messages = 0
+```
+
+**Plot.** With the conda env active:
+
+```bash
+~/miniconda3/envs/mpas/bin/python \
+    ~/EarthSystem/CheMPAS-A/scripts/plot_chemistry.py -o supercell_abba.png
+```
+
 **[Figure 2.2: qA, qB, qAB at t = 2 h, ABBA mechanism. To be added.]**
+
+What to look for: qA and qB are conserved tracers transported by the
+flow; qAB is produced where qA and qB co-exist. In the supercell, the
+strongest gradients sit along the updraft and in the cold-pool
+outflow.
 
 ## 2.6 Run with the LNOx + O3 mechanism
 
@@ -122,7 +176,79 @@ Section content coming.
 Section content coming.
 ```
 
+The LNOx + O3 setup (`micm_configs/lnox_o3.yaml`) is a tropospheric
+gas-phase configuration with three prognostic species — NO, NO₂, and
+O₃ — and a parameterized lightning-NOx source term tied to the model's
+vertical velocity. It is the smallest realistic chemistry case in
+CheMPAS-A: enough species and reactions to exercise the MICM solver,
+TUV-x photolysis, and the LNOx source coupling, without the cost of a
+full tropospheric mechanism.
+
+**Initialize the LNOx tracers.** The supercell init file does not
+contain NO / NO₂ / O₃; populate them with a one-time script:
+
+```bash
+cd ~/Data/CheMPAS/supercell
+~/miniconda3/envs/mpas/bin/python \
+    ~/EarthSystem/CheMPAS-A/scripts/init_lnox_o3.py -i supercell_init.nc
+```
+
+This sets NO = 0, NO₂ = 0, and O₃ = 50 ppbv (background) throughout
+the domain.
+
+**Edit the namelist.** Replace the `&musica` block in
+`namelist.atmosphere` with the full LNOx tropospheric setup:
+
+```fortran
+&musica
+    config_micm_file = 'lnox_o3.yaml'
+    config_tuvx_config_file = 'tuvx_no2.json'
+    config_tuvx_top_extension = .true.
+    config_tuvx_extension_file = 'tuvx_upper_atm.csv'
+    config_lnox_source_rate = 0.5
+    config_lnox_w_threshold = 5.0
+    config_lnox_w_ref = 10.0
+    config_lnox_z_min = 5000.0
+    config_lnox_z_max = 12000.0
+    config_lnox_j_no2 = 0.01
+    config_lnox_nox_tau = 0.0
+    config_chemistry_latitude = 35.86
+    config_chemistry_longitude = -97.93
+/
+```
+
+The lightning-NOx source injects NO into grid cells where the vertical
+velocity exceeds `config_lnox_w_threshold` and the height falls
+between `config_lnox_z_min` and `config_lnox_z_max`. See
+[docs/guides/TUVX_INTEGRATION.md](../chempas/guides/TUVX_INTEGRATION.md)
+for the TUV-x configuration files referenced in the block.
+
+**Archive prior output and run.** Same pattern as the ABBA run:
+
+```bash
+timestamp=$(date +%Y%m%d_%H%M%S)
+[ -f output.nc ] && mv output.nc output.${timestamp}.nc
+[ -f log.atmosphere.0000.out ] && \
+    mv log.atmosphere.0000.out log.atmosphere.0000.${timestamp}.out
+
+mpiexec -n 8 ~/EarthSystem/CheMPAS-A/atmosphere_model
+```
+
+**Plot.** The dedicated LNOx plotting script produces the standard
+diagnostic set (vertical cross-sections, time series, NO₂ partitioning
+ratio):
+
+```bash
+~/miniconda3/envs/mpas/bin/python \
+    ~/EarthSystem/CheMPAS-A/scripts/plot_lnox_o3.py
+```
+
 **[Figure 2.3: NO, NO₂, O₃ at t = 2 h, LNOx + O3 mechanism. To be added.]**
+
+What to look for: a localized NO source in the updraft column where
+the vertical-velocity threshold is exceeded, downwind transport of
+NO + NO₂ along the anvil, and an O₃ depletion signature in the freshly
+emitted plume (titration by NO).
 
 ## 2.7 Comparing the two runs
 
