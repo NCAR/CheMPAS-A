@@ -127,13 +127,37 @@ Regardless of which precision the CheMPAS-A `init_atmosphere` and `atmosphere` c
 
 CheMPAS-A's chemistry features — runtime species discovery from MICM,
 MUSICA/MICM coupling, and TUV-x photolysis — require an external
-MUSICA-Fortran installation and an additional build flag. To compile
-CheMPAS-A with chemistry support, add `MUSICA=true` to the build command,
-e.g.,
+MUSICA-Fortran installation and an additional build flag. CheMPAS-A
+supports two host platforms: **macOS** (LLVM/flang) and **Ubuntu**
+(GCC/gfortran via conda).
+
+A preflight script, `scripts/check_build_env.sh`, auto-detects the
+toolchain and exports the required environment (`NETCDF`, `PNETCDF`,
+`PIO`, `PKG_CONFIG_PATH`). Source it in the same shell as `make`:
 
 ```
-make gfortran CORE=atmosphere MUSICA=true \
-    PIO=$PIO NETCDF=$NETCDF PNETCDF=$PNETCDF PRECISION=double
+eval "$(scripts/check_build_env.sh --export)"
+```
+
+`PKG_CONFIG_PATH` must be present in that shell, because the Makefile
+invokes `pkg-config` at parse time; exporting it in a separate shell and
+then running `make` later is not sufficient.
+
+To compile with chemistry support, add `MUSICA=true` to the build
+command. On **macOS** (LLVM/flang):
+
+```
+eval "$(scripts/check_build_env.sh --export)" && make -j8 llvm \
+    CORE=atmosphere MUSICA=true \
+    PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double
+```
+
+On **Ubuntu** (GCC/gfortran via conda; requires `conda activate mpas`):
+
+```
+eval "$(scripts/check_build_env.sh --export)" && make -j8 gfortran \
+    CORE=atmosphere MUSICA=true \
+    PIO="$PIO" NETCDF="$NETCDF" PNETCDF="$PNETCDF" PRECISION=double
 ```
 
 Without `MUSICA=true`, the chemistry hooks compile out and the `&musica`
@@ -143,8 +167,10 @@ gfortran `.mod` files are not interchangeable. Refer to the MUSICA
 documentation at <https://musica.readthedocs.io/> for MUSICA-Fortran
 build instructions.
 
-For details of the runtime chemistry features this build flag enables,
-see [Chapter 7](07-runtime-tracers.md) and
+For full preflight, dependency-build, and troubleshooting notes — including
+the LLVM-on-macOS and conda-on-Ubuntu setup — see `BUILD.md` in the
+repository root. For the runtime chemistry features this build flag
+enables, see [Chapter 7](07-runtime-tracers.md) and
 [Chapter 8](08-chemistry-coupling.md).
 
 ## 3.6 Cleaning
