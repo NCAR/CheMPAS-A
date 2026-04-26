@@ -407,4 +407,4 @@ What to look for: NO and NO₂ partitioning settles within ~1 minute
 to the Leighton ratio (jNO₂ / k_{NO+O₃}·[O₃]); after that, the slow
 titration depresses O₃ over the 2 h run while keeping NO/NO₂ near
 steady state. A direct independent check of the analytical PSS
-computation referenced in §2.7.
+computation referenced in Chapter 3 §3.8.
