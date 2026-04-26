@@ -1,7 +1,7 @@
 MPAS-Atmosphere User's Guide
 ============================
 
-User's Guide for the MPAS-Atmosphere model (v8.3.0).
+User's Guide for the MPAS-Atmosphere model (v8.3.1).
 
 .. toctree::
    :titlesonly:

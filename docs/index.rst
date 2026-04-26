@@ -9,7 +9,7 @@ allocation, MUSICA/MICM state transfer, TUV-x photolysis, and idealized
 chemistry test cases.
 
 This documentation includes the imported MPAS-Atmosphere User's Guide
-(unmodified from the v8.3.0 release) covering build, mesh preparation, I/O,
+(unmodified from the v8.3.1 release) covering build, mesh preparation, I/O,
 physics, and runtime configuration.
 
 .. toctree::
