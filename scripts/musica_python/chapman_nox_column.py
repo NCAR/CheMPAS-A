@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
-import pvlib
+import ephem
 import ussa1976
 
 import musica
@@ -96,11 +96,17 @@ def kgkg_to_mol_m3(kgkg: np.ndarray, M_species: float,
 
 def get_photolysis(tuvx, utc_time, n_cells, start_idx):
     """Compute jO2, jO3_O, jO3_O1D, jNO2 at each column level."""
-    solpos = pvlib.solarposition.get_solarposition(
-        time=utc_time, latitude=LAT, longitude=LON,
-    )
-    sza_deg = float(solpos["zenith"].iloc[0])
-    rates = tuvx.run(sza=np.deg2rad(sza_deg), earth_sun_distance=1.0)
+    # Solar zenith via ephem. Strings for lat/lon are interpreted as
+    # degrees; floats would be radians. ephem.Date wants a naive UTC
+    # datetime, so strip the tz-info from the already-UTC sim_time.
+    obs = ephem.Observer()
+    obs.lat, obs.lon = str(LAT), str(LON)
+    obs.date = ephem.Date(utc_time.replace(tzinfo=None))
+    sun = ephem.Sun()
+    sun.compute(obs)
+    sza_rad = np.pi / 2 - float(sun.alt)
+    sza_deg = float(np.rad2deg(sza_rad))
+    rates = tuvx.run(sza=sza_rad, earth_sun_distance=1.0)
     end = start_idx + n_cells
     out = {}
     for our_name, ts1_label in TS1_LABEL_MAP.items():
