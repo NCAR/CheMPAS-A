@@ -1,6 +1,6 @@
 # Chapter 2: CheMPAS-A Quick Start Guide
 
-This chapter provides MPAS-Atmosphere users with a high-level description of the general process of building and running the model. It is meant simply as a brief overview of the process, with more detailed descriptions of each step provided in later chapters.
+This chapter provides CheMPAS-A users with a high-level description of the general process of building and running the model. It is meant simply as a brief overview of the process, with more detailed descriptions of each step provided in later chapters.
 
 ## Build Process
 

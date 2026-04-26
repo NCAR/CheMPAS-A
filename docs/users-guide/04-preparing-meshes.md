@@ -1,6 +1,6 @@
 # Chapter 4: Preparing Meshes
 
-This chapter describes the steps used to prepare SCVT meshes for use in MPAS-Atmosphere. For quasi-uniform meshes, very little preparation is actually needed, and generally, one only needs to prepare mesh decomposition files -- files that describe the decomposition of the SCVT mesh across processors -- when running MPAS-Atmosphere using multiple MPI tasks. The procedure for creating these mesh decomposition files is described in the first section.
+This chapter describes the steps used to prepare SCVT meshes for use in CheMPAS-A. For quasi-uniform meshes, very little preparation is actually needed, and generally, one only needs to prepare mesh decomposition files -- files that describe the decomposition of the SCVT mesh across processors -- when running CheMPAS-A using multiple MPI tasks. The procedure for creating these mesh decomposition files is described in the first section.
 
 For variable-resolution SCVT meshes, the area of mesh refinement may be rotated to any part of the sphere using a program, `grid_rotate`, described in the second section. This utility program may be obtained from the MPAS-Atmosphere download page.
 
@@ -50,6 +50,6 @@ The original grid file will not be altered, and a new, rotated grid file will be
 
 ## 4.3 Creating Limited-Area SCVT Meshes
 
-The process of creating a limited-area (regional) mesh for MPAS-Atmosphere involves selecting any existing mesh -- either a quasi-uniform mesh, or a variable-resolution mesh that has been rotated as in [Section 4.2](#42-relocating-refinement-regions-on-the-sphere) -- describing the geographical region to be extracted from that mesh, and running the limited-area Python program to extract all cells, edges, and vertices in the designated region. The result is a new netCDF mesh file that can be used to make a limited-area simulation as described in [Section 8.2](08-model-options.md#82-regional-simulation).
+The process of creating a limited-area (regional) mesh for CheMPAS-A involves selecting any existing mesh -- either a quasi-uniform mesh, or a variable-resolution mesh that has been rotated as in [Section 4.2](#42-relocating-refinement-regions-on-the-sphere) -- describing the geographical region to be extracted from that mesh, and running the limited-area Python program to extract all cells, edges, and vertices in the designated region. The result is a new netCDF mesh file that can be used to make a limited-area simulation as described in [Section 8.2](08-model-options.md#82-regional-simulation).
 
 The limited-area Python program may be obtained from the MPAS-Atmosphere download page. Although the set of required Python packages may change over time, the program currently requires the `numpy` and `netCDF4` packages, in addition to other standard packages.

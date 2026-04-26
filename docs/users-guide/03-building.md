@@ -115,13 +115,13 @@ No CORE specified. Quitting.
 
 ## 3.4 Selecting a Single-Precision Build
 
-Beginning with version 2.0, MPAS-Atmosphere can be compiled and run in single-precision, offering faster model execution and smaller input and output files. Beginning with version 5.0, the selection of the model precision can be made on the command-line, with no need to edit the `Makefile`. To compile a single-precision MPAS-Atmosphere executable, add `PRECISION=single` to the build command, e.g.,
+Beginning with version 2.0, MPAS-Atmosphere can be compiled and run in single-precision, offering faster model execution and smaller input and output files. Beginning with version 5.0, the selection of the model precision can be made on the command-line, with no need to edit the `Makefile`. To compile a single-precision CheMPAS-A executable, add `PRECISION=single` to the build command, e.g.,
 
 ```
 make gfortran CORE=atmosphere PRECISION=single
 ```
 
-Regardless of which precision the MPAS-Atmosphere `init_atmosphere` and `atmosphere` cores were compiled with, either single- or double-precision input files may be used. In general, the MPAS infrastructure should correctly detect the precision of input files, but one may also explicitly specify the precision of files in an input stream by adding the `precision` attribute to the stream definition as described in [Section 5.2](05-configuring-io.md#52-optional-stream-attributes).
+Regardless of which precision the CheMPAS-A `init_atmosphere` and `atmosphere` cores were compiled with, either single- or double-precision input files may be used. In general, the MPAS infrastructure should correctly detect the precision of input files, but one may also explicitly specify the precision of files in an input stream by adding the `precision` attribute to the stream definition as described in [Section 5.2](05-configuring-io.md#52-optional-stream-attributes).
 
 ## 3.5 Cleaning
 

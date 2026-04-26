@@ -1,10 +1,10 @@
 # Chapter 8: Model Options
 
-Beyond the basic process of running a global simulation with standard output files outlined in [Chapter 7](07-running.md), the MPAS-Atmosphere model provides several options that can be described in terms of variations on the basic simulation workflow. In the sections that follow, major model options are described in terms of the deviation from the basic global simulation process.
+Beyond the basic process of running a global simulation with standard output files outlined in [Chapter 7](07-running.md), the CheMPAS-A model provides several options that can be described in terms of variations on the basic simulation workflow. In the sections that follow, major model options are described in terms of the deviation from the basic global simulation process.
 
 ## 8.1 Periodic SST and Sea-ice Updates
 
-The stand-alone MPAS-Atmosphere model is not coupled to fully prognostic ocean or sea-ice models, and accordingly, the model SST and sea-ice fraction fields will in general not change over the course of a simulation. For simulations shorter than a few days, invariant SST and sea-ice fraction fields will generally not be problematic. However, for longer model simulations, it is generally recommended to periodically update the SST and sea-ice fields from an external file.
+The stand-alone CheMPAS-A model is not coupled to fully prognostic ocean or sea-ice models, and accordingly, the model SST and sea-ice fraction fields will in general not change over the course of a simulation. For simulations shorter than a few days, invariant SST and sea-ice fraction fields will generally not be problematic. However, for longer model simulations, it is generally recommended to periodically update the SST and sea-ice fields from an external file.
 
 The surface data to be used for periodic SST and sea-ice updates could originate from any number of sources, though the most straightforward way to obtain a dataset in a usable format is to process GRIB data (e.g., GFS GRIB data) with the *ungrib* program of the WRF model's pre-processing system (WPS). Detailed instructions for building and running the WPS, and the process of generating intermediate data files from GFS data, can be found in Chapter 3 of the WRF User Guide: <http://www2.mmm.ucar.edu/wrf/users/docs/user_guide_v4/v4.1/users_guide_chap3.html>.
 
@@ -97,11 +97,11 @@ The final difference -- application of LBCs during the model integration -- simp
 
 ## 8.3 Separate Stream for Invariant Fields
 
-By default, the MPAS-Atmosphere model reads time-invariant fields (e.g., `latCell`, `lonCell`, `areaCell`, `zgrid`, `zz`, etc.) from the `"input"` and `"restart"` streams (for cold-start and restart runs, respectively), and it writes time-invariant fields to the `"restart"` stream. In the case of large ensembles, the time-invariant fields that are replicated in the restart files for all ensemble members can account for a substantial amount of storage. In principle, since these time-invariant fields do not change in time or across ensemble members, only one copy of these fields needs to be stored.
+By default, the CheMPAS-A model reads time-invariant fields (e.g., `latCell`, `lonCell`, `areaCell`, `zgrid`, `zz`, etc.) from the `"input"` and `"restart"` streams (for cold-start and restart runs, respectively), and it writes time-invariant fields to the `"restart"` stream. In the case of large ensembles, the time-invariant fields that are replicated in the restart files for all ensemble members can account for a substantial amount of storage. In principle, since these time-invariant fields do not change in time or across ensemble members, only one copy of these fields needs to be stored.
 
 MPAS-Atmosphere v8.1.0 introduces a capability to omit time-invariant fields from model restart files. When the model restarts, a new `"invariant"` stream may be used to read time-invariant fields from a separate file, and many ensemble members can share this file.
 
-In order to make use of the new `"invariant"` stream, several changes to the standard MPAS-Atmosphere workflow are needed.
+In order to make use of the new `"invariant"` stream, several changes to the standard CheMPAS-A workflow are needed.
 
 ### 8.3.1 Preparing an Invariant File
 

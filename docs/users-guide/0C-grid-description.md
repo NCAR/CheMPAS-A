@@ -89,7 +89,7 @@ e in ECV(P1, D1) = [e1, e6]
 
 ## C.2 Vertical grid
 
-The vertical coordinate in MPAS-Atmosphere is zeta and has units of length, where 0 <= zeta <= z_t and z_t is the height of the model top. The relationship between the vertical coordinate and height in the physical domain is given as
+The vertical coordinate in CheMPAS-A is zeta and has units of length, where 0 <= zeta <= z_t and z_t is the height of the model top. The relationship between the vertical coordinate and height in the physical domain is given as
 
 ```
 z = zeta + A * h_s(x, y, zeta)                    (C.1)
@@ -101,7 +101,7 @@ The influence of the terrain on any coordinate surface zeta can be influenced by
 
 On the MPAS-A mesh C-grid staggering, the state variables u, rho, theta and scalars are located halfway between w levels in both physical height and in the coordinate zeta. Variables associated with the coordinate systems used in the MPAS-A solver, and possibly appearing in its input, output or history files, are defined in Table C.4.
 
-### Table C.4: Vertical coordinate variables in MPAS-Atmosphere
+### Table C.4: Vertical coordinate variables in CheMPAS-A
 
 *level* is the integer model level (usually specified with index k where k = 1 is the lowest model level and physical height increases with increasing k). Delta denotes a vertical difference between levels, and *cell* is a given mesh cell on the primary mesh.
 
