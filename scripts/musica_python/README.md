@@ -19,7 +19,7 @@ into this directory.
 conda environment. Two extra installs:
 
 ```bash
-~/miniconda3/envs/mpas/bin/pip install musica ussa1976 pvlib
+~/miniconda3/envs/mpas/bin/pip install musica ussa1976 ephem
 ```
 
 (Equivalent: `pip install 'musica[tutorial]'` per MUSICA's README.)
