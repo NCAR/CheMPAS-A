@@ -48,10 +48,14 @@ def main() -> None:
     state.set_conditions(temperatures=T_REF, pressures=P_REF)
     state.set_concentrations({"A": [0.0], "B": [0.0], "AB": [1.0]})
 
-    # USER_DEFINED reaction rates (scaling factors from abba.yaml).
+    # USER_DEFINED rate parameters are *multipliers* on the YAML
+    # scaling_factor; effective k = USER * scaling_factor. Setting both
+    # to 1.0 gives the YAML's intended rates (k_fwd = 2e-3 s^-1,
+    # k_rev = 1e-3 m^3 mol^-1 s^-1) and matches what the MPAS-coupled
+    # supercell run (§2.5) sees, where the Fortran side leaves USER at 1.
     user = state.get_user_defined_rate_parameters()
-    user["USER.forward_AB_to_A_B"] = [2.0e-3]
-    user["USER.reverse_A_B_to_AB"] = [1.0e-3]
+    user["USER.forward_AB_to_A_B"] = [1.0]
+    user["USER.reverse_A_B_to_AB"] = [1.0]
     state.set_user_defined_rate_parameters(user)
 
     dt_out = 60.0       # output cadence (s)
