@@ -30,6 +30,15 @@ spatial discretization.
    grid schematics in Appendix C) currently render without their source
    images.
 
+.. seealso::
+
+   `MUSICA documentation <https://musica.readthedocs.io/>`_ — chemistry
+   mechanism authoring (MICM YAML configs), MICM solver internals,
+   TUV-x photolysis, and MUSICA-Fortran build instructions. CheMPAS-A
+   is a downstream consumer of MUSICA; the runtime species list, rate
+   constants, and photolysis machinery come from the MICM configuration
+   loaded at startup.
+
 .. toctree::
    :titlesonly:
 
