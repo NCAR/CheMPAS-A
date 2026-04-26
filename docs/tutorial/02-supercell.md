@@ -355,11 +355,8 @@ the loop. `scripts/musica_python/abba_box.py` loads
 `abba_box.nc` plus `abba_box.png` next to the script. Useful for
 poking at initial conditions or temperatures without rebuilding MPAS.
 
-Pre-req:
-
-```bash
-~/miniconda3/envs/mpas/bin/pip install musica
-```
+Pre-req: see Chapter 1's [Python environment for standalone
+examples](01-overview.md) section.
 
 Run:
 
@@ -396,7 +393,10 @@ into a single-cell MICM solver at mid-tropospheric conditions
 50 ppb O₃, hardcodes `PHOTO.jNO2 = 0.01 s⁻¹` (matching CheMPAS-A's
 `config_lnox_j_no2`), and runs for 2 hours.
 
-Pre-req: same `pip install musica` as §2.10. Run:
+Pre-req: see Chapter 1's [Python environment for standalone
+examples](01-overview.md) section.
+
+Run:
 
 ```bash
 ~/miniconda3/envs/mpas/bin/python \
