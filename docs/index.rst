@@ -75,4 +75,5 @@ Victor Weeks (NCAR RAL).
    :titlesonly:
 
    users-guide/index
+   tutorial/index
    technical-description/index
