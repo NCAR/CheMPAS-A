@@ -371,9 +371,13 @@ Run:
 **[Figure 2.5: A, B, AB concentrations from the standalone ABBA box
 model over a 2 h integration. To be added.]**
 
-What to look for: AB starts at 1 mol m⁻³ and decays slowly toward
-equilibrium with A and B; on the 2 h run duration only a small
-fraction reacts, mirroring the "advection-dominated" framing of §2.5.
+What to look for: AB drops from 1 mol m⁻³ toward the analytical
+equilibrium (AB ≈ 0.268, A = B ≈ 0.732, set by k_fwd / k_rev = 2
+mol m⁻³) within the first ~30 minutes of the run; the rest of the
+2 h sits at steady state. The visible chemistry contrasts with
+§2.5's "transport-dominated" framing — same reactions, but without
+advection the box runs to its endpoint instead of being shaped by
+the storm flow.
 
 ## 2.11 Standalone LNOx + O₃ box model
 
@@ -404,7 +408,10 @@ The first ~minute shows NO/NO₂ relaxing to the Leighton PSS; over
 2 h, slow O₃ titration is visible. To be added.]**
 
 What to look for: NO and NO₂ partitioning settles within ~1 minute
-to the Leighton ratio (jNO₂ / k_{NO+O₃}·[O₃]); after that, the slow
-titration depresses O₃ over the 2 h run while keeping NO/NO₂ near
-steady state. A direct independent check of the analytical PSS
-computation referenced in Chapter 3 §3.8.
+to the Leighton ratio (jNO₂ / k_{NO+O₃}·[O₃]) — at the script's
+conditions the simulated [NO]/[NO₂] reaches ~2.2, matching the
+analytical expression. O₃ stays essentially constant: in this
+simplified mechanism the back-reaction NO₂ + hν → NO + O₃ exactly
+balances NO + O₃ → NO₂ + O₂ once PSS is reached, so there is no
+net titration on the run duration. A direct independent check of
+the analytical PSS computation referenced in Chapter 3 §3.8.
