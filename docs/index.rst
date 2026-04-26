@@ -8,6 +8,15 @@ in beta testing, based on MPAS-Model v8.3.1.
 
 **Source:** `github.com/NCAR/CheMPAS-A <https://github.com/NCAR/CheMPAS-A>`_
 
+.. note::
+
+   The official CheMPAS-A release is targeted for late August 2026 and
+   will be delivered through the upstream
+   `MPAS-Dev/MPAS-Model <https://github.com/MPAS-Dev/MPAS-Model>`_
+   repository. The repository linked above is the development and
+   prototyping ground; mature pieces are contributed upstream as
+   focused pull requests.
+
 CheMPAS-A serves as a rapid-prototyping ground for the chemistry coupling:
 runtime tracer allocation, MUSICA/MICM state transfer, TUV-x photolysis,
 and idealized chemistry test cases.
