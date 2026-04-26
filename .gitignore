@@ -27,6 +27,17 @@ build_tables
 # NetCDF Files
 *.nc
 
+# Plot output (matches the *.nc convention — these are produced by
+# scripts/plot_*.py and scripts/musica_python/*.py at runtime).
+# Reference figures intended for the rendered docs live under
+# docs/_static/ and are explicitly re-included below.
+*.png
+*.pdf
+*.svg
+
+# macOS Finder metadata
+.DS_Store
+
 # Restart timestamp file
 restart_timestamp
 
@@ -77,3 +88,9 @@ src/core_*/inc
 
 # Sphinx build output
 docs/_build/
+
+# Re-include figure assets meant to be tracked under docs/_static/
+# (overrides the global *.png / *.pdf / *.svg above).
+!docs/_static/**/*.png
+!docs/_static/**/*.pdf
+!docs/_static/**/*.svg
