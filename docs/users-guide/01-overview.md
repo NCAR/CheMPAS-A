@@ -44,4 +44,4 @@ MPAS-A is comprised of two main components: the model, which includes atmospheri
 
 *Figure 1.1: The initialization and model components of MPAS-A are built as separate cores within the MPAS framework.*
 
-A succinct description of building and running MPAS-A is given in [Chapter 2](02-quick-start.md), the Quick Start Guide. Detailed instructions for building these components are given in [Chapter 3](03-building.md), and the basic steps to create initial conditions and run the MPAS-A model are outlined in [Chapter 7](07-running.md).
+A succinct description of building and running MPAS-A is given in [Chapter 2](02-quick-start.md), the Quick Start Guide. Detailed instructions for building these components are given in [Chapter 3](03-building.md), and the basic steps to create initial conditions and run the MPAS-A model are outlined in [Chapter 9](09-running.md).

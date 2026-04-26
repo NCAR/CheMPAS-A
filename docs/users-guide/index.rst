@@ -15,9 +15,11 @@ MPAS-Atmosphere v8.3.1.
    04-preparing-meshes
    05-configuring-io
    06-physics-suites
-   07-running
-   08-model-options
-   09-visualization
+   07-runtime-tracers
+   08-chemistry-coupling
+   09-running
+   10-model-options
+   11-visualization
 
 .. toctree::
    :titlesonly:

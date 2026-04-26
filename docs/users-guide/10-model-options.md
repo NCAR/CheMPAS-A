@@ -1,8 +1,8 @@
-# Chapter 8: Model Options
+# Chapter 10: Model Options
 
-Beyond the basic process of running a global simulation with standard output files outlined in [Chapter 7](07-running.md), the CheMPAS-A model provides several options that can be described in terms of variations on the basic simulation workflow. In the sections that follow, major model options are described in terms of the deviation from the basic global simulation process.
+Beyond the basic process of running a global simulation with standard output files outlined in [Chapter 9](09-running.md), the CheMPAS-A model provides several options that can be described in terms of variations on the basic simulation workflow. In the sections that follow, major model options are described in terms of the deviation from the basic global simulation process.
 
-## 8.1 Periodic SST and Sea-ice Updates
+## 10.1 Periodic SST and Sea-ice Updates
 
 The stand-alone CheMPAS-A model is not coupled to fully prognostic ocean or sea-ice models, and accordingly, the model SST and sea-ice fraction fields will in general not change over the course of a simulation. For simulations shorter than a few days, invariant SST and sea-ice fraction fields will generally not be problematic. However, for longer model simulations, it is generally recommended to periodically update the SST and sea-ice fields from an external file.
 
@@ -11,7 +11,7 @@ The surface data to be used for periodic SST and sea-ice updates could originate
 The following steps summarize the generation of an SST and sea-ice update file, `surface.nc`, using the `init_atmosphere_model` program:
 
 - Include surface data intermediate files in the working directory
-- Include a `static.nc` file in the working directory ([Section 7.2.1](07-running.md#721-static-fields))
+- Include a `static.nc` file in the working directory ([Section 9.2.1](09-running.md#921-static-fields))
 - If running in parallel, include a `graph.info.part.*` in the working directory ([Section 4.1](04-preparing-meshes.md#41-graph-partitioning-with-metis))
 - Edit the `namelist.init_atmosphere` configuration file (see below)
 - Edit the `streams.init_atmosphere` I/O configuration file (described below)
@@ -49,7 +49,7 @@ config_block_decomp_file_prefix = 'graph.info.part.'
 
 After editing the `namelist.init_atmosphere` namelist file, the name of the static file, as well as the name of the surface update file to be created, must be set in the XML I/O configuration file, `streams.init_atmosphere`. Specifically, the `filename_template` attribute must be set to the name of the static file in the `"input"` stream definition, and the `filename_template` attribute must be set to name of the surface update file to be created in the `"surface"` stream definition. *Also, for the "surface" stream, ensure that the `output_interval` attribute is set to the interval at which the surface intermediate files are provided.*
 
-## 8.2 Regional Simulation
+## 10.2 Regional Simulation
 
 New in MPAS v7.0 is the capability to run simulations over regional domains on the surface of the sphere. Setting up and running a limited-area simulation requires as a starting point a limited-area SCVT mesh, described in [Section 4.3](04-preparing-meshes.md#43-creating-limited-area-scvt-meshes). Given a limited-area mesh, the key differences from a global simulation are:
 
@@ -59,7 +59,7 @@ New in MPAS v7.0 is the capability to run simulations over regional domains on t
 
 ### Terrain blending
 
-The first of these differences -- the blending of terrain data -- takes place when generating the limited-area initial conditions. Limited-area initial conditions are prepared as in [Section 7.2.2](07-running.md#722-vertical-grid-generation-and-initial-field-interpolation), except that the `config_blend_bdy_terrain` option should be set to `true` in the `namelist.init_atmosphere` file. This option instructs the `init_atmosphere_model` program to perform averaging of the model terrain field from the `static.nc` file with the terrain field from the atmospheric initial conditions dataset along the lateral boundaries of the mesh.
+The first of these differences -- the blending of terrain data -- takes place when generating the limited-area initial conditions. Limited-area initial conditions are prepared as in [Section 9.2.2](09-running.md#922-vertical-grid-generation-and-initial-field-interpolation), except that the `config_blend_bdy_terrain` option should be set to `true` in the `namelist.init_atmosphere` file. This option instructs the `init_atmosphere_model` program to perform averaging of the model terrain field from the `static.nc` file with the terrain field from the atmospheric initial conditions dataset along the lateral boundaries of the mesh.
 
 ### LBC generation
 
@@ -95,7 +95,7 @@ When running the LBC processing case, the `output_interval` for the `"lbc"` stre
 
 The final difference -- application of LBCs during the model integration -- simply requires setting `config_apply_lbcs` to `true` in the model's `namelist.atmosphere` file, as well as setting the `input_interval` for the `"lbc_in"` stream in the `streams.atmosphere` file to match the interval at which the LBC netCDF files were produced.
 
-## 8.3 Separate Stream for Invariant Fields
+## 10.3 Separate Stream for Invariant Fields
 
 By default, the CheMPAS-A model reads time-invariant fields (e.g., `latCell`, `lonCell`, `areaCell`, `zgrid`, `zz`, etc.) from the `"input"` and `"restart"` streams (for cold-start and restart runs, respectively), and it writes time-invariant fields to the `"restart"` stream. In the case of large ensembles, the time-invariant fields that are replicated in the restart files for all ensemble members can account for a substantial amount of storage. In principle, since these time-invariant fields do not change in time or across ensemble members, only one copy of these fields needs to be stored.
 
@@ -103,7 +103,7 @@ MPAS-Atmosphere v8.1.0 introduces a capability to omit time-invariant fields fro
 
 In order to make use of the new `"invariant"` stream, several changes to the standard CheMPAS-A workflow are needed.
 
-### 8.3.1 Preparing an Invariant File
+### 10.3.1 Preparing an Invariant File
 
 Through the use of the `init_atmosphere_model` program, a file containing all required time-invariant fields must be prepared. Of course, since the model initial conditions (typically referred to as the `init.nc` file) file contains time-invariant fields, the initial conditions file from any ensemble member may be used.
 
@@ -115,7 +115,7 @@ If a file containing purely time-invariant fields is desired, the output from th
 
 Note that these pre-processing stages do not need to be run all at once. It is possible, for example, to first produce a `static.nc` file using the first two of these pre-processing stages, and to then produce an invariant file (e.g., `invariant.nc`) by running the vertical grid generation stage using the `static.nc` file as input.
 
-### 8.3.2 Activating the Invariant Stream
+### 10.3.2 Activating the Invariant Stream
 
 When running the model itself (`atmosphere_model`), the use of the new invariant stream may be activated by simply defining the `"invariant"` immutable stream in the `streams.atmosphere` file as follows:
 
