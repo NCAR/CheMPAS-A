@@ -1,0 +1,341 @@
+# Chapter 2: Supercell with ABBA and LNOx
+
+## 2.1 What you'll learn
+
+```{admonition} Work in progress
+:class: warning
+
+Section content coming.
+```
+
+By the end of this chapter you will:
+
+- Run the supercell idealized convection case in CheMPAS-A.
+- Switch between two MUSICA/MICM chemistry mechanisms — the toy ABBA
+  reactant set and the LNOx + O3 lightning-NOx tropospheric setup —
+  by editing the `&musica` namelist block.
+- Compare what tracer transport looks like in isolation (ABBA) against
+  what it looks like coupled to active gas-phase chemistry and a
+  lightning-NOx source (LNOx + O3).
+
+## 2.2 The supercell case
+
+```{admonition} Work in progress
+:class: warning
+
+Section content coming.
+```
+
+The supercell test case is an idealized deep-convection setup adapted
+from Weisman and Klemp (1982): a horizontally homogeneous, strongly
+sheared environment perturbed by a warm bubble that triggers a
+long-lived rotating storm. CheMPAS-A's tracked configuration
+uses 60 stretched vertical levels spanning 0–50 km (~300 m at the
+surface, ~1 km near the lid), a 3-second dynamics timestep, Kessler
+warm-rain microphysics, and a 2-hour integration.
+
+It is a useful chemistry testbed for two reasons. First, the rotating
+updraft produces strong, well-organized vertical transport that lifts
+boundary-layer tracers into the upper troposphere; the cold-pool
+outflow then spreads species horizontally near the surface. Second,
+the dynamics are deterministic and the chemistry adds no feedback to
+the dynamics — which means a chemistry change shows up cleanly as a
+chemistry-only signal, rather than confounded with a different storm
+evolution.
+
+**[Figure 2.1: Supercell initial state — potential temperature and
+moisture cross-section. To be added.]**
+
+## 2.3 Setup checklist
+
+```{admonition} Work in progress
+:class: warning
+
+Section content coming.
+```
+
+Before you run anything, confirm:
+
+```bash
+# 1. The atmosphere_model executable exists and is from this branch.
+ls -la ~/EarthSystem/CheMPAS-A/atmosphere_model
+
+# 2. The supercell run directory is set up.
+cd ~/Data/CheMPAS/supercell
+ls namelist.atmosphere streams.atmosphere supercell.graph.info.part.8
+
+# 3. The vertical-level file is in place (read by init_atmosphere_model).
+ls supercell_zeta_levels.txt
+
+# 4. The conda env is active for plotting.
+conda activate mpas
+python -c "import netCDF4, numpy, matplotlib; print('ok')"
+```
+
+If any of these fail, see `BUILD.md` in the repository root for the
+model build, `RUN.md` in the repository root for the run-directory
+layout, and `test_cases/README.md` for the data download.
+
+## 2.4 Initialization
+
+```{admonition} Work in progress
+:class: warning
+
+Section content coming.
+```
+
+If `supercell_init.nc` is already in the run directory, you can skip
+ahead to running the model. To regenerate the initial condition from
+scratch:
+
+```bash
+cd ~/Data/CheMPAS/supercell
+mpiexec -n 8 ~/EarthSystem/CheMPAS-A/init_atmosphere_model
+```
+
+This produces `supercell_init.nc`, which contains the prognostic state
+on the unstructured Voronoi mesh, the stretched vertical levels read
+from `supercell_zeta_levels.txt`, and the Kessler microphysics
+variables.
+
+Always run with 8 MPI ranks for the supercell case — the partition
+file in the run directory (`supercell.graph.info.part.8`) is keyed to
+that rank count, and a mismatched partition file causes a segfault in
+the dynamics solver. See `RUN.md` in the repository root for the full
+rank-vs-partition table.
+
+## 2.5 Run with the ABBA mechanism
+
+```{admonition} Work in progress
+:class: warning
+
+Section content coming.
+```
+
+The ABBA mechanism (`micm_configs/abba.yaml`) is a three-species toy
+set — qA, qB, qAB — used as an advection-dominated sandbox. The
+mechanism initializes qAB to a uniform 1.0 and runs a slow two-way
+reaction (qAB → qA + qB at scaling 2e-3, qA + qB → qAB at 1e-3); on
+the supercell run duration the chemistry barely advances, so the
+tracer fields are dominated by transport rather than reaction. This
+makes ABBA a clean way to verify that tracers are being carried by
+the dynamics correctly before adding real chemistry on top.
+
+**Initialize the ABBA tracer.** Give qAB a horizontal sine pattern so
+the supercell flow has something to advect (without this step, qAB is
+uniform and the resulting plot has no structure):
+
+```bash
+cd ~/Data/CheMPAS/supercell
+~/miniconda3/envs/mpas/bin/python \
+    ~/EarthSystem/CheMPAS-A/scripts/init_tracer_sine.py \
+    -i supercell_init.nc -t qAB --waves-x 2 --amplitude 0.4 --offset 0.6
+```
+
+This sets qAB to a sine pattern with mean 0.6 and amplitude 0.4 across
+two horizontal wavelengths.
+
+**Edit the namelist.** Open `namelist.atmosphere` in
+`~/Data/CheMPAS/supercell/` and ensure the `&musica` block reads:
+
+```fortran
+&musica
+    config_micm_file = 'abba.yaml'
+/
+```
+
+ABBA does not need TUV-x photolysis or the lightning-NOx options, so
+the block is minimal.
+
+**Archive any prior output and run.** MPAS defaults to
+`clobber_mode = never_modify`; if `output.nc` already exists the run
+will silently skip all output writes. Always move the previous output
+aside before re-running:
+
+```bash
+cd ~/Data/CheMPAS/supercell
+
+timestamp=$(date +%Y%m%d_%H%M%S)
+[ -f output.nc ] && mv output.nc output.${timestamp}.nc
+[ -f log.atmosphere.0000.out ] && \
+    mv log.atmosphere.0000.out log.atmosphere.0000.${timestamp}.out
+
+mpiexec -n 8 ~/EarthSystem/CheMPAS-A/atmosphere_model
+```
+
+**Verify the run completed cleanly.** The tail of
+`log.atmosphere.0000.out` should report zero critical errors:
+
+```
+Critical error messages = 0
+```
+
+**Plot.** With the conda env active:
+
+```bash
+~/miniconda3/envs/mpas/bin/python \
+    ~/EarthSystem/CheMPAS-A/scripts/plot_chemistry.py -o supercell_abba.png
+```
+
+**[Figure 2.2: qA, qB, qAB at t = 2 h, ABBA mechanism. To be added.]**
+
+What to look for: the qAB sine pattern is advected and distorted by
+the updraft and cold-pool outflow, so qAB at t = 2 h is essentially
+the initial sine field carried by the flow. qA and qB grow slowly
+from zero where qAB is dissociating; on this run duration their
+amplitude is small but their pattern mirrors qAB.
+
+## 2.6 Run with the LNOx + O3 mechanism
+
+```{admonition} Work in progress
+:class: warning
+
+Section content coming.
+```
+
+The LNOx + O3 setup (`micm_configs/lnox_o3.yaml`) is a tropospheric
+gas-phase configuration with three prognostic species — NO, NO₂, and
+O₃ — and a parameterized lightning-NOx source term tied to the model's
+vertical velocity. It is the smallest realistic chemistry case in
+CheMPAS-A: enough species and reactions to exercise the MICM solver,
+TUV-x photolysis, and the LNOx source coupling, without the cost of a
+full tropospheric mechanism.
+
+**Initialize the LNOx tracers.** The supercell init file does not
+contain NO / NO₂ / O₃; populate them with a one-time script:
+
+```bash
+cd ~/Data/CheMPAS/supercell
+~/miniconda3/envs/mpas/bin/python \
+    ~/EarthSystem/CheMPAS-A/scripts/init_lnox_o3.py -i supercell_init.nc
+```
+
+This sets NO = 0, NO₂ = 0, and O₃ = 50 ppbv (background) throughout
+the domain.
+
+**Edit the namelist.** Replace the `&musica` block in
+`namelist.atmosphere` with the full LNOx tropospheric setup:
+
+```fortran
+&musica
+    config_micm_file = 'lnox_o3.yaml'
+    config_tuvx_config_file = 'tuvx_no2.json'
+    config_tuvx_top_extension = .true.
+    config_tuvx_extension_file = 'tuvx_upper_atm.csv'
+    config_lnox_source_rate = 0.5
+    config_lnox_w_threshold = 5.0
+    config_lnox_w_ref = 10.0
+    config_lnox_z_min = 5000.0
+    config_lnox_z_max = 12000.0
+    config_lnox_j_no2 = 0.01
+    config_lnox_nox_tau = 0.0
+    config_chemistry_latitude = 35.86
+    config_chemistry_longitude = -97.93
+/
+```
+
+The lightning-NOx source injects NO into grid cells where the vertical
+velocity exceeds `config_lnox_w_threshold` and the height falls
+between `config_lnox_z_min` and `config_lnox_z_max`. See
+[docs/chempas/guides/TUVX_INTEGRATION.md](../chempas/guides/TUVX_INTEGRATION.md)
+for the TUV-x configuration files referenced in the block.
+
+**Archive prior output and run.** Same pattern as the ABBA run:
+
+```bash
+timestamp=$(date +%Y%m%d_%H%M%S)
+[ -f output.nc ] && mv output.nc output.${timestamp}.nc
+[ -f log.atmosphere.0000.out ] && \
+    mv log.atmosphere.0000.out log.atmosphere.0000.${timestamp}.out
+
+mpiexec -n 8 ~/EarthSystem/CheMPAS-A/atmosphere_model
+```
+
+**Plot.** The dedicated LNOx plotting script produces the standard
+diagnostic set (vertical cross-sections, time series, NO₂ partitioning
+ratio):
+
+```bash
+~/miniconda3/envs/mpas/bin/python \
+    ~/EarthSystem/CheMPAS-A/scripts/plot_lnox_o3.py
+```
+
+**[Figure 2.3: NO, NO₂, O₃ at t = 2 h, LNOx + O3 mechanism. To be added.]**
+
+What to look for: a localized NO source in the updraft column where
+the vertical-velocity threshold is exceeded, downwind transport of
+NO + NO₂ along the anvil, and an O₃ depletion signature in the freshly
+emitted plume (titration by NO).
+
+## 2.7 Comparing the two runs
+
+```{admonition} Work in progress
+:class: warning
+
+Section content coming.
+```
+
+Placing the two final-state plots side by side highlights what's
+shared and what differs. The dynamics are identical: the same updraft
+and cold-pool outflow advect qAB in the ABBA run and NO/NO₂/O₃ in the
+LNOx + O3 run, so the spatial pattern of "tracer carried by the flow"
+matches between the two runs. The chemistry, on the other hand,
+diverges. ABBA's qAB → qA + qB reaction is slow on the run duration,
+so the qAB field at t = 2 h is essentially the initial sine pattern
+deformed by the storm; qA and qB grow slowly from zero everywhere
+qAB is dissociating. In the LNOx + O3 run the lightning-NOx source
+localizes NO emission to a small volume in the updraft column, fast
+NO–NO₂–O₃ photochemistry redistributes the partitioning, and an
+O₃-titration signature appears where fresh NO is concentrated.
+
+This is the pedagogical payoff of running the same dynamics with two
+mechanisms: it isolates "what the flow does" from "what the chemistry
+does."
+
+**[Figure 2.4: Side-by-side comparison of ABBA tracer transport and
+LNOx + O3 chemistry at t = 2 h. To be added.]**
+
+## 2.8 Verifying numerically
+
+```{admonition} Work in progress
+:class: warning
+
+Section content coming.
+```
+
+Visual agreement is reassuring but not sufficient. To check that the
+final-state min/max/mean of the prognostic fields match a tracked
+reference, run the regression suite from the repo root:
+
+```bash
+cd ~/EarthSystem/CheMPAS-A
+python scripts/regression.py run --case supercell
+```
+
+A PASS means every reference statistic in
+`test_cases/supercell/regression_reference.yaml` is within the
+configured relative tolerance (default `1e-3`). A FAIL prints the
+offending field and its observed-vs-expected values.
+
+The regression YAML — not this tutorial — is the source of truth for
+expected numerical values. If the YAML changes (`--bless`), the
+tutorial does not need to be edited.
+
+## 2.9 Next steps
+
+```{admonition} Work in progress
+:class: warning
+
+Section content coming.
+```
+
+- **The next chapter** is
+  [Chapman + NOx Photostationary State](03-chapman-nox.md) — a small
+  domain where the analytical PSS solution is a clean check on the
+  coupled MICM + TUV-x configuration. *(Coming soon.)*
+- **The MUSICA/MICM coupling internals** are documented in
+  [docs/chempas/musica/MUSICA_INTEGRATION.md](../chempas/musica/MUSICA_INTEGRATION.md).
+- **TUV-x photolysis** configuration is documented in
+  [docs/chempas/guides/TUVX_INTEGRATION.md](../chempas/guides/TUVX_INTEGRATION.md).
+- **Upstream MUSICA, MICM, and TUV-x docs** are linked from the
+  [project landing page](../index.rst) in the *See also* section.
