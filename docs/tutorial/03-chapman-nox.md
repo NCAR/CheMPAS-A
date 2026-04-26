@@ -80,6 +80,28 @@ supercell vertical grid (the initial state qO3 produces). To be added.]**
 Section content coming.
 ```
 
+The MPAS atmosphere lid for the supercell case sits at 50 km — that's
+roughly stratopause level, but Chapman-cycle photolysis depends on UV
+radiation that has already been attenuated by the entire ozone column
+*above* the photolysis cell, including the ~50–100 km region MPAS
+itself does not simulate. Without an extension, TUV-x sees vacuum
+above 50 km, jO₃ and jNO₂ are off by a non-trivial factor at high
+altitudes, and the Chapman steady state never establishes properly.
+
+The fix is `micm_configs/tuvx_upper_atm.csv`: a tracked CSV carrying
+temperature, air number density, and ozone number density on a
+uniform 5-km grid from 50 to 100 km. The temperature and air values
+come from the US Standard Atmosphere 1976 tables; the ozone values
+come from the AFGL mid-latitude-summer constituent profile. At
+runtime, `mpas_tuvx.F::load_extension_csv` stitches MPAS midpoint
+values (lower slice) and CSV midpoint values (upper slice) into a
+single radiator column for TUV-x, blending across the boundary so
+the profile is continuous.
+
+The stitch lives in `src/core_atmosphere/chemistry/mpas_tuvx.F`; for
+the broader integration story, see
+[docs/chempas/guides/TUVX_INTEGRATION.md](../chempas/guides/TUVX_INTEGRATION.md).
+
 ## 3.4 Generating and verifying the extension CSV
 
 ```{admonition} Work in progress
@@ -87,6 +109,39 @@ Section content coming.
 
 Section content coming.
 ```
+
+**Generate the CSV.** The generator is parameterized but defaults to
+the configuration the runtime expects (50–100 km, 10 layers, 5-km
+spacing). Run:
+
+```bash
+cd ~/EarthSystem/CheMPAS-A
+~/miniconda3/envs/mpas/bin/python \
+    scripts/gen_tuvx_upper_atm.py --out micm_configs/tuvx_upper_atm.csv
+```
+
+The script emits a header line followed by one row per edge with
+columns `z_km, T_K, n_air_molec_cm3, n_O3_molec_cm3`. The output path
+must match the `config_tuvx_extension_file` value in the namelist
+(set in section 3.6 below).
+
+**Verify the stitched column.** The companion plotter overlays the
+MPAS region with the extension-CSV region as TUV-x actually sees
+them, including the edge-blending the runtime applies at the 50-km
+boundary:
+
+```bash
+cd ~/Data/CheMPAS/supercell
+~/miniconda3/envs/mpas/bin/python \
+    ~/EarthSystem/CheMPAS-A/scripts/plot_extension_profiles.py \
+    -i output.nc
+```
+
+Note: this verification requires an `output.nc` from a CheMPAS-A run.
+You can run it now against any prior supercell `output.nc` (for
+example, the LNOx run from Chapter 2) just to inspect the column
+shape, and then run it again after the Chapman + NOx run lands in
+section 3.6 below to see the stitched column the actual run used.
 
 **[Figure 3.2: Stitched T, n_air, and n_O₃ vertical profiles from
 mpas_tuvx.F. MPAS region (below 50 km) and extension-CSV region
