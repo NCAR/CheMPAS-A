@@ -339,3 +339,72 @@ Section content coming.
   [docs/chempas/guides/TUVX_INTEGRATION.md](../chempas/guides/TUVX_INTEGRATION.md).
 - **Upstream MUSICA, MICM, and TUV-x docs** are linked from the
   [project landing page](../index.rst) in the *See also* section.
+
+## 2.10 Standalone ABBA box model
+
+```{admonition} Work in progress
+:class: warning
+
+Section content coming.
+```
+
+The same chemistry as §2.5, exercised in pure Python with no MPAS in
+the loop. `scripts/musica_python/abba_box.py` loads
+`micm_configs/abba.yaml` into a single-cell MICM solver, seeds qAB at
+1 mol m⁻³, runs the slow two-way reaction for 2 hours, and writes
+`abba_box.nc` plus `abba_box.png` next to the script. Useful for
+poking at initial conditions or temperatures without rebuilding MPAS.
+
+Pre-req:
+
+```bash
+~/miniconda3/envs/mpas/bin/pip install musica
+```
+
+Run:
+
+```bash
+~/miniconda3/envs/mpas/bin/python \
+    ~/EarthSystem/CheMPAS-A/scripts/musica_python/abba_box.py
+```
+
+**[Figure 2.5: A, B, AB concentrations from the standalone ABBA box
+model over a 2 h integration. To be added.]**
+
+What to look for: AB starts at 1 mol m⁻³ and decays slowly toward
+equilibrium with A and B; on the 2 h run duration only a small
+fraction reacts, mirroring the "advection-dominated" framing of §2.5.
+
+## 2.11 Standalone LNOx + O₃ box model
+
+```{admonition} Work in progress
+:class: warning
+
+Section content coming.
+```
+
+The standalone counterpart of §2.6, *minus* the lightning-NOx source
+(which is a CheMPAS operator-split injection in
+`mpas_lightning_nox.F`, not part of the MICM mechanism).
+`scripts/musica_python/lnox_box.py` loads `micm_configs/lnox_o3.yaml`
+into a single-cell MICM solver at mid-tropospheric conditions
+(T = 240 K, P = 5×10⁴ Pa), seeds 1 ppb total NOx (50/50 NO/NO₂) and
+50 ppb O₃, hardcodes `PHOTO.jNO2 = 0.01 s⁻¹` (matching CheMPAS-A's
+`config_lnox_j_no2`), and runs for 2 hours.
+
+Pre-req: same `pip install musica` as §2.10. Run:
+
+```bash
+~/miniconda3/envs/mpas/bin/python \
+    ~/EarthSystem/CheMPAS-A/scripts/musica_python/lnox_box.py
+```
+
+**[Figure 2.6: NO, NO₂, O₃ from the standalone LNOx + O₃ box model.
+The first ~minute shows NO/NO₂ relaxing to the Leighton PSS; over
+2 h, slow O₃ titration is visible. To be added.]**
+
+What to look for: NO and NO₂ partitioning settles within ~1 minute
+to the Leighton ratio (jNO₂ / k_{NO+O₃}·[O₃]); after that, the slow
+titration depresses O₃ over the 2 h run while keeping NO/NO₂ near
+steady state. A direct independent check of the analytical PSS
+computation referenced in Chapter 3 §3.8.

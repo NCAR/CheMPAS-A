@@ -375,3 +375,52 @@ Section content coming.
 - **Future tutorial chapters** will cover additional idealized cases
   (mountain wave, JW baroclinic wave, chem box) when they're
   written. *(Not yet scheduled.)*
+
+## 3.10 Standalone Chapman + NOx column model
+
+```{admonition} Work in progress
+:class: warning
+
+Section content coming.
+```
+
+The standalone counterpart of this whole chapter — same
+`chapman_nox.yaml` MICM mechanism, TUV-x photolysis on a vertical
+column, no MPAS in the loop. `scripts/musica_python/chapman_nox_column.py`
+loads MUSICA's bundled `vTS1` TUV-x calculator (which provides jO₂,
+jO₃→O, jO₃→O¹D, jNO₂), maps its TS1 reaction labels to
+`chapman_nox.yaml`'s `PHOTO.*` parameter names via a small alias table
+in the script, and runs a 12-hour diurnal cycle starting at 06:00
+local at the supercell case's nominal lat/lon (Norman, OK). The
+column grid is whatever vTS1 dictates — independent of the MPAS mesh
+and of the upper-atmosphere extension introduced in §3.3.
+
+Initial profiles come from `scripts/init_chapman.py`'s helpers (AFGL
+mid-latitude-summer O₃, total NOx with daytime 30/70 NO/NO₂
+partitioning), so the standalone column starts from the same vertical
+distribution the CheMPAS-A run does.
+
+Pre-req:
+
+```bash
+~/miniconda3/envs/mpas/bin/pip install musica ussa1976 pvlib
+```
+
+Run:
+
+```bash
+~/miniconda3/envs/mpas/bin/python \
+    ~/EarthSystem/CheMPAS-A/scripts/musica_python/chapman_nox_column.py
+```
+
+**[Figure 3.5: Standalone Chapman + NOx column model — solar-noon O₃
+profile, solar-noon NO and NO₂ profiles, simulated vs. analytical
+Leighton ratio with height, and O₃ time series at 10 / 30 / 45 km. To
+be added.]**
+
+What to look for: simulated NO/NO₂ ratio tracks the analytical
+Leighton expression (the same one §3.7 motivates) closely in the
+stratospheric column where photolysis is strong; O₃ peak settles
+near 25–30 km; daytime PSS visibly breaks down at sunset in the
+time-series panel. An independent numerical check on the same
+chemistry the chapter's MPAS-coupled run exercises.
