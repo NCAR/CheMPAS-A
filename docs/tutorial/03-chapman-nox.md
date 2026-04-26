@@ -155,6 +155,32 @@ mpas_tuvx.F. MPAS region (below 50 km) and extension-CSV region
 Section content coming.
 ```
 
+The Chapman + NOx mechanism needs six tracers seeded with realistic
+vertical profiles:
+
+- `qO2` — uniform 0.2313 kg/kg (the dry-air O₂ mass mixing ratio)
+- `qO3` — AFGL mid-latitude-summer profile, interpolated to the MPAS
+  grid (continuous with the upper-atmosphere extension at the lid)
+- `qO`, `qO1D` — zero (fast radicals; chemistry spins them up within
+  seconds)
+- `qNO`, `qNO2` — total-NOx profile (0.05 ppb tropospheric background
+  → ~10 ppb stratospheric peak around 25–35 km → drop near the lid),
+  partitioned ~30 % NO / 70 % NO₂ as a near-Leighton initial guess
+
+`scripts/init_chapman.py` writes these six tracers into
+`supercell_init.nc`:
+
+```bash
+cd ~/Data/CheMPAS/supercell
+~/miniconda3/envs/mpas/bin/python \
+    ~/EarthSystem/CheMPAS-A/scripts/init_chapman.py
+```
+
+Note: this rewrites tracers in `supercell_init.nc` in place. If
+you've been running the supercell + LNOx case from Chapter 2 and
+plan to switch back, copy `supercell_init.nc` aside first or be
+prepared to re-run `init_atmosphere_model` to regenerate it.
+
 ## 3.6 Run with the Chapman + NOx mechanism
 
 ```{admonition} Work in progress
@@ -163,9 +189,68 @@ Section content coming.
 Section content coming.
 ```
 
+**Edit the namelist.** Replace the `&musica` block in
+`~/Data/CheMPAS/supercell/namelist.atmosphere` with the Chapman + NOx
+configuration:
+
+```fortran
+&musica
+    config_micm_file = 'chapman_nox.yaml'
+    config_tuvx_config_file = 'tuvx_chapman_nox.json'
+    config_tuvx_top_extension = .true.
+    config_tuvx_extension_file = 'tuvx_upper_atm.csv'
+    config_chemistry_latitude = 35.86
+    config_chemistry_longitude = -97.93
+/
+```
+
+Six fields, no LNOx source terms — Chapman has no lightning channel.
+The `tuvx_chapman_nox.json` photolysis configuration provides the
+four rates the mechanism consumes (jO₂, jO₃→O, jO₃→O¹D, jNO₂); its
+description in the JSON file says explicitly that it pairs with
+`chapman_nox.yaml`.
+
+**Archive prior output and run.** Same pattern as the Chapter 2
+supercell runs:
+
+```bash
+timestamp=$(date +%Y%m%d_%H%M%S)
+[ -f output.nc ] && mv output.nc output.${timestamp}.nc
+[ -f log.atmosphere.0000.out ] && \
+    mv log.atmosphere.0000.out log.atmosphere.0000.${timestamp}.out
+
+mpiexec -n 8 ~/EarthSystem/CheMPAS-A/atmosphere_model
+```
+
+Verify the run completed cleanly by checking the tail of
+`log.atmosphere.0000.out`:
+
+```
+Critical error messages = 0
+```
+
+**Plot.** `scripts/plot_chemistry_profiles.py` produces
+horizontal-mean vertical profiles of the Chapman + NOx species and
+the four photolysis rates:
+
+```bash
+cd ~/Data/CheMPAS/supercell
+~/miniconda3/envs/mpas/bin/python \
+    ~/EarthSystem/CheMPAS-A/scripts/plot_chemistry_profiles.py
+```
+
+Panels: O₃, NO, NO₂ in ppb; atomic oxygen O = qO + qO1D summed;
+photolysis rates jO₂, jO₃→O, jO₃→O¹D, jNO₂ in s⁻¹.
+
 **[Figure 3.3: Vertical profiles of qO3, qNO, qNO2, and the NO/NO₂
 ratio at t = 2 h, mid-domain column, Chapman + NOx mechanism. To be
 added.]**
+
+What to look for: O₃ and NOx maxima in the seeded stratospheric
+layer (~25–35 km); jNO₂ rising sharply with altitude as the column
+above thins; NO/NO₂ ratio settling to a height-dependent Leighton
+value within the first few model timesteps (the reader will check
+this analytically in section 3.8).
 
 ## 3.7 The photostationary-state diagnostic
 
