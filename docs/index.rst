@@ -18,12 +18,12 @@ together with the MPAS-Atmosphere Technical Description (verbatim port of
 the v8 NCAR Technical Note draft) for the dynamical core, equations, and
 spatial discretization.
 
-.. warning::
+.. admonition:: Under construction
+   :class: warning
 
-   **Documentation under construction.** These docs are an active port and
-   are not yet feature-complete. In particular, figures from the
-   MPAS-Atmosphere User's Guide and Technical Description still need to
-   be regenerated — placeholders of the form
+   These docs are an active port and are not yet feature-complete. In
+   particular, figures from the MPAS-Atmosphere User's Guide and Technical
+   Description still need to be regenerated — placeholders of the form
    ``**[Figure N.M: caption. To be added next session.]**`` mark the
    intended location of each figure in the Technical Description, and
    figure references in the User's Guide (e.g., Figure 9.1, the vertical
