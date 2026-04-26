@@ -3,8 +3,8 @@
 This note summarizes the CheMPAS-A TUV-x integration work completed to date and
 records the development test case used to validate it. It is intended as the
 stable overview document for TUV-x work; detailed implementation planning lives
-in `docs/plans/2026-03-06-tuvx-photolysis-integration.md`, and recorded run
-results live in `docs/results/TEST_RUNS.md`.
+in `docs/chempas/plans/2026-03-06-tuvx-photolysis-integration.md`, and recorded run
+results live in `docs/chempas/results/TEST_RUNS.md`.
 
 ## Scope
 
@@ -207,7 +207,7 @@ Why the synthetic start time:
 - `NO2` remains higher in cloudy columns where photolysis recycling is reduced
 
 For the complete tables, plots, and pass/fail notes, see
-`docs/results/TEST_RUNS.md`.
+`docs/chempas/results/TEST_RUNS.md`.
 
 ## Multi-Photolysis Plumbing
 
@@ -354,8 +354,8 @@ supercell this means `z_km = 50.0` is the first CSV row.
 ## Pointers
 
 - Detailed plan:
-  `docs/plans/2026-03-06-tuvx-photolysis-integration.md`
+  `docs/chempas/plans/2026-03-06-tuvx-photolysis-integration.md`
 - Recorded test results:
-  `docs/results/TEST_RUNS.md`
+  `docs/chempas/results/TEST_RUNS.md`
 - Run instructions:
   `RUN.md`

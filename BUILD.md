@@ -504,6 +504,6 @@ cmake -DCMAKE_SYSTEM_NAME=Linux \
 
 ## Related Documentation
 
-- [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) - System architecture
-- [COMPONENTS.md](docs/architecture/COMPONENTS.md) - Component details
+- [ARCHITECTURE.md](docs/chempas/architecture/ARCHITECTURE.md) - System architecture
+- [COMPONENTS.md](docs/chempas/architecture/COMPONENTS.md) - Component details
 - `INSTALL` - Installation instructions

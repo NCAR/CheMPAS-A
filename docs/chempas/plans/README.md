@@ -5,7 +5,7 @@ Use this directory for detailed implementation plans and execution logs.
 ## Canonical Structure
 
 1. `PLAN.md` (repo root) is the high-level index and current-focus summary.
-2. `docs/plans/*.md` are detailed, dated plans for individual initiatives.
+2. `docs/chempas/plans/*.md` are detailed, dated plans for individual initiatives.
 3. Detailed plan content should not be duplicated in `PLAN.md`.
 
 ## File Naming
