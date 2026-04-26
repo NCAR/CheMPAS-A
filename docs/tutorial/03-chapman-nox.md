@@ -400,11 +400,8 @@ mid-latitude-summer O₃, total NOx with daytime 30/70 NO/NO₂
 partitioning), so the standalone column starts from the same vertical
 distribution the CheMPAS-A run does.
 
-Pre-req:
-
-```bash
-~/miniconda3/envs/mpas/bin/pip install musica ussa1976 ephem
-```
+Pre-req: see Chapter 1's [Python environment for standalone
+examples](01-overview.md) section.
 
 Run:
 

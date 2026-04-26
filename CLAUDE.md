@@ -206,7 +206,19 @@ A conda environment `mpas` is available for visualization and analysis:
 # Or activate: conda activate mpas
 ```
 
-Packages: numpy, matplotlib, netcdf4
+Core packages: `numpy`, `xarray`, `matplotlib`, `netCDF4`.
+
+Standalone MUSICA-Python tutorial extras
+(`scripts/musica_python/{abba_box,lnox_box,chapman_nox_column}.py`,
+documented in tutorial §§2.10 / 2.11 / 3.10):
+
+```bash
+~/miniconda3/envs/mpas/bin/pip install musica ussa1976 ephem
+```
+
+- `musica` — MICM solver, TUV-x calculator, mechanism config parser.
+- `ussa1976` — US Standard Atmosphere 1976 T/p profiles.
+- `ephem` — solar position from latitude / longitude / UTC time.
 
 ### Visualization Scripts (`scripts/`)
 

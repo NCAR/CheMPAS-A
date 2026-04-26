@@ -24,6 +24,30 @@ output, understand what the chemistry is doing.
 - The conda environment `mpas` is available for plotting:
   `conda activate mpas`.
 
+## Python environment for standalone examples
+
+The MPAS-coupled runs in §§2.5, 2.6, and 3.6 only need the base
+`mpas` conda environment (`numpy`, `xarray`, `matplotlib`, `netCDF4`)
+for plotting. The standalone MUSICA-Python examples in §§2.10, 2.11,
+and 3.10 need three additional packages:
+
+```bash
+conda activate mpas
+pip install musica ussa1976 ephem
+```
+
+- `musica` — MUSICA-Python bindings: MICM solver, TUV-x calculator,
+  mechanism-configuration parser.
+- `ussa1976` — US Standard Atmosphere 1976 temperature / pressure
+  profiles, used by the column model to set per-cell environmental
+  conditions.
+- `ephem` — solar position (zenith angle) from latitude / longitude
+  / UTC time, used by the column model to drive TUV-x photolysis
+  through the diurnal cycle.
+
+The standalone-example sections each link back here for the install;
+no need to re-run `pip` between sections.
+
 ## Chapters
 
 - [Chapter 2: Supercell with ABBA and LNOx](02-supercell.md) — idealized
