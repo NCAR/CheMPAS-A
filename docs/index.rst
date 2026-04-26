@@ -64,18 +64,12 @@ spatial discretization.
    species list, rate constants, and photolysis rates come from the
    MICM and TUV-x configurations loaded at startup.
 
-Contributors
-------------
-
-CheMPAS-A is led by D. Fillmore (NCAR ACOM), G. Pfister (NCAR ACOM),
-and A. Arellano (University of Arizona). Contributions across NCAR and
-collaborating institutions:
-
-- **NCAR ACOM** — M. Barth, J. Gim, K. Shores
-- **NCAR MMM** — M. Duda
-- **NCAR RAL** — R. Kumar, F. Lacey, S. Meech, V. Weeks
-- **NCAR CGD** — K. Thayer-Calder
-- **Cohere** — M. Dawson
+**Contributors:** David Fillmore (NCAR ACOM), Gabriele Pfister (NCAR ACOM),
+Avelino Arellano (University of Arizona); Mary Barth (NCAR ACOM),
+Matt Dawson (Cohere), Michael Duda (NCAR MMM), Jiwon Gim (NCAR ACOM),
+Rajesh Kumar (NCAR RAL), Forrest Lacey (NCAR RAL), Scott Meech (NCAR RAL),
+Kyle Shores (NCAR ACOM), Katherine Thayer-Calder (NCAR CGD),
+Victor Weeks (NCAR RAL).
 
 .. toctree::
    :titlesonly:
