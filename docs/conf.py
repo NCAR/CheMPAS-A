@@ -31,6 +31,14 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.napoleon',
               'myst_parser']
 
+# MyST extensions required by the technical-description subtree:
+#   dollarmath: $...$ inline and $$...$$ block math
+#   amsmath:    \begin{equation}...\end{equation} and other AMS environments
+myst_enable_extensions = [
+    'dollarmath',
+    'amsmath',
+]
+
 autosummary_generate = True
 
 # Otherwise, the Return parameter list looks different from the Parameters list

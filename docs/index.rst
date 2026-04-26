@@ -13,9 +13,13 @@ and idealized chemistry test cases.
 CheMPAS-A uses calendar versioning (YY.MM), tracked independently from the
 MPAS base model version. This documentation includes the imported
 MPAS-Atmosphere User's Guide (unmodified from the MPAS v8.3.1 release)
-covering build, mesh preparation, I/O, physics, and runtime configuration.
+covering build, mesh preparation, I/O, physics, and runtime configuration,
+together with the MPAS-Atmosphere Technical Description (verbatim port of
+the v8 NCAR Technical Note draft) for the dynamical core, equations, and
+spatial discretization.
 
 .. toctree::
    :titlesonly:
 
    users-guide/index
+   technical-description/index
