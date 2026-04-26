@@ -44,10 +44,10 @@ spatial discretization.
    tolerance / sub-stepping controls.
 
    `TUV-x documentation <https://tuv-x.readthedocs.io/>`_ —
-   **TUV-x** (modern reimplementation of the Tropospheric Ultraviolet
-   and Visible radiation model): the photolysis solver. Covers
-   wavelength grids, cross sections and quantum yields, cloud
-   radiator inputs, and the JSON configuration format.
+   **TUV-x** (Tropospheric Ultraviolet and Visible, eXtended): the
+   photolysis solver. Covers wavelength grids, cross sections and
+   quantum yields, cloud radiator inputs, and the JSON configuration
+   format.
 
    CheMPAS-A is a downstream consumer of all three; the runtime
    species list, rate constants, and photolysis rates come from the
