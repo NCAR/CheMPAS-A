@@ -56,7 +56,7 @@ def main() -> None:
         mechanism=mechanism,
         solver_type=musica.SolverType.rosenbrock_standard_order,
     )
-    state = solver.create_state(num_grid_cells=1)
+    state = solver.create_state(number_of_grid_cells=1)
     state.set_conditions(temperatures=T_REF, pressures=P_REF)
 
     # 1 ppb total NOx, 50/50 NO/NO2; 50 ppb O3 background.

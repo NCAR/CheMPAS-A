@@ -44,7 +44,7 @@ def main() -> None:
         mechanism=mechanism,
         solver_type=musica.SolverType.rosenbrock_standard_order,
     )
-    state = solver.create_state(num_grid_cells=1)
+    state = solver.create_state(number_of_grid_cells=1)
     state.set_conditions(temperatures=T_REF, pressures=P_REF)
     state.set_concentrations({"A": [0.0], "B": [0.0], "AB": [1.0]})
 

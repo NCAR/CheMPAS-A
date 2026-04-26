@@ -113,29 +113,27 @@ def get_photolysis(tuvx, utc_time, n_cells, start_idx):
 def main():
     style.apply_ncar_style()
 
-    # 1. TUV-x: vTS1 dictates the column grid.
+    # 1. TUV-x: vTS1 dictates the column grid. The bundled chapman.py
+    # example treats edge altitudes as cell labels (TUV-x photolysis
+    # rates are dimensioned on vertical_edge, not vertical_midpoint),
+    # so we follow that convention here.
     tuvx = vTS1.get_tuvx_calculator()
     grids = tuvx.get_grid_map()
-    z_edges_km = grids["height", "km"].edge_values
+    z_edges_km = np.asarray(grids["height", "km"].edges)
 
-    # Use a slice of the TS1 grid: skip the surface cell (start=1), span 0-60 km.
+    # Use a slice of the TS1 grid: skip the surface cell (start=1), span up to 60 km.
     start = 1
-    n_cells = 0
-    for i in range(start, len(z_edges_km) - 1):
-        if z_edges_km[i] >= 60.0:
-            break
-        n_cells += 1
-    z_mids_km = 0.5 * (z_edges_km[start:start + n_cells]
-                       + z_edges_km[start + 1:start + n_cells + 1])
+    n_cells = int(np.searchsorted(z_edges_km, 60.0)) - start
+    z_cells_km = z_edges_km[start:start + n_cells]
 
-    # 2. USSA76 T, P at column midpoints.
-    env = ussa1976.compute(z=z_mids_km * 1000.0, variables=["t", "p"])
+    # 2. USSA76 T, P at column cell altitudes.
+    env = ussa1976.compute(z=z_cells_km * 1000.0, variables=["t", "p"])
     T_K = env["t"].values
     P_Pa = env["p"].values
 
     # 3. Initial profile from scripts/init_chapman.py helpers.
-    qo3_kgkg = afgl_qo3_profile(z_mids_km)
-    nox_vmr = nox_vmr_profile(z_mids_km)
+    qo3_kgkg = afgl_qo3_profile(z_cells_km)
+    nox_vmr = nox_vmr_profile(z_cells_km)
     initial_concs = {
         "O2":  vmr_to_mol_m3(np.full(n_cells, 0.20946), T_K, P_Pa),
         "O":   np.zeros(n_cells),
@@ -152,7 +150,7 @@ def main():
         mechanism=mechanism,
         solver_type=musica.SolverType.rosenbrock_standard_order,
     )
-    state = solver.create_state(num_grid_cells=n_cells)
+    state = solver.create_state(number_of_grid_cells=n_cells)
     state.set_conditions(T_K, P_Pa)
     state.set_concentrations({sp: list(v) for sp, v in initial_concs.items()})
 
@@ -218,7 +216,7 @@ def main():
                 [t.astimezone(ZoneInfo("UTC")).replace(tzinfo=None) for t in times],
                 dtype="datetime64[ns]",
             ),
-            "height": z_mids_km,
+            "height": z_cells_km,
         },
         attrs={
             "mechanism": "chapman_nox.yaml",
@@ -240,7 +238,7 @@ def main():
     # Top-left: O3 profile at noon (ppb).
     ax_o3 = fig.add_subplot(gs[0, 0])
     o3_ppb_noon = ds["O3"].isel(time=noon_idx).values * GAS_CONSTANT * T_K / P_Pa * 1e9
-    ax_o3.plot(o3_ppb_noon, z_mids_km, color=palette[0])
+    ax_o3.plot(o3_ppb_noon, z_cells_km, color=palette[0])
     ax_o3.set_xlabel(f"[{style.species_label('O3')}] [ppb]")
     ax_o3.set_ylabel("Height [km]")
     ax_o3.set_title(style.format_title("Solar-noon O3 profile"))
@@ -250,8 +248,8 @@ def main():
     ax_no = fig.add_subplot(gs[0, 1])
     no_ppb = ds["NO"].isel(time=noon_idx).values * GAS_CONSTANT * T_K / P_Pa * 1e9
     no2_ppb = ds["NO2"].isel(time=noon_idx).values * GAS_CONSTANT * T_K / P_Pa * 1e9
-    ax_no.plot(no_ppb, z_mids_km, color=palette[1], label=style.species_label("NO"))
-    ax_no.plot(no2_ppb, z_mids_km, color=palette[2], label=style.species_label("NO2"))
+    ax_no.plot(no_ppb, z_cells_km, color=palette[1], label=style.species_label("NO"))
+    ax_no.plot(no2_ppb, z_cells_km, color=palette[2], label=style.species_label("NO2"))
     ax_no.set_xlabel("Concentration [ppb]")
     ax_no.set_ylabel("Height [km]")
     ax_no.set_title(style.format_title("Solar-noon NOx profile"))
@@ -268,8 +266,8 @@ def main():
     k_NO_O3 = A_NO_O3 * np.exp(-EA_R_NO_O3 / T_K)
     leighton = (ds["jNO2"].isel(time=noon_idx).values
                 / np.maximum(k_NO_O3 * o3_molec_cm3, 1e-30))
-    ax_lt.plot(sim_ratio, z_mids_km, color=palette[0], label="Simulated")
-    ax_lt.plot(leighton, z_mids_km, color=palette[2], linestyle="--", label="Leighton")
+    ax_lt.plot(sim_ratio, z_cells_km, color=palette[0], label="Simulated")
+    ax_lt.plot(leighton, z_cells_km, color=palette[2], linestyle="--", label="Leighton")
     ax_lt.set_xlabel(f"[{style.species_label('NO')}]/[{style.species_label('NO2')}]")
     ax_lt.set_ylabel("Height [km]")
     ax_lt.set_title(style.format_title("Solar-noon Leighton check"))
@@ -284,11 +282,11 @@ def main():
     hours_since_start = ((times_arr - times_arr[0]).astype("timedelta64[s]")
                          .astype(float)) / 3600.0
     for alt, color in zip(target_alts_km, palette):
-        idx = int(np.argmin(np.abs(z_mids_km - alt)))
+        idx = int(np.argmin(np.abs(z_cells_km - alt)))
         o3_at_alt_ppb = (ds["O3"].isel(height=idx).values
                          * GAS_CONSTANT * T_K[idx] / P_Pa[idx] * 1e9)
         ax_ts.plot(hours_since_start, o3_at_alt_ppb,
-                   color=color, label=f"{z_mids_km[idx]:.1f} km")
+                   color=color, label=f"{z_cells_km[idx]:.1f} km")
     ax_ts.set_xlabel("Hours since start")
     ax_ts.set_ylabel(f"[{style.species_label('O3')}] [ppb]")
     ax_ts.set_title(style.format_title("O3 time series"))
