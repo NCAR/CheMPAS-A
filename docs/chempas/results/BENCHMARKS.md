@@ -6,18 +6,18 @@ Comparison of the AI models used in CheMPAS-A agent-driven development.
 
 | Role | Model | Provider |
 |------|-------|----------|
-| Development | Claude Opus 4.6 (Max) | Anthropic |
-| Review | Codex 5.4 (Extra High) | OpenAI |
-| Deep Research | Gemini 3 Pro (Deep Think) | Google DeepMind |
+| Development | Claude Opus | Anthropic |
+| Review | Codex | OpenAI |
+| Deep Research | Gemini Pro | Google DeepMind |
 
 ## Why This Three-Model Approach Works for CheMPAS-A
 
-- **Claude Opus 4.6 for development**: Strong SWE-bench performance, debugging
+- **Claude Opus for development**: Strong SWE-bench performance, debugging
   accuracy, and terminal proficiency — relevant for writing and testing
   Fortran/MPI code.
-- **Codex 5.4 Extra High for review**: Thorough, methodical analysis across large
+- **Codex for review**: Thorough, methodical analysis across large
   codebases. Abstract reasoning advantage may catch issues that Claude misses.
-- **Gemini 3 Pro for deep research**: 1M+ token context enables full-codebase
+- **Gemini Pro for deep research**: 1M+ token context enables full-codebase
   reasoning, scientific literature review, and architectural analysis that
   neither Claude nor Codex can perform in a single pass. Top scores on
   graduate-level science benchmarks make it well-suited for assessing
@@ -45,21 +45,21 @@ but Fortran-specific validation remains an open gap for all three models.
 
 No model has been validated on MPAS-specific patterns: Registry.xml
 conventions, pool/field data structures, MPAS operator stencils, or
-coupled physics-chemistry tendencies. Human review gates exist
+coupled physics-chemistry tendencies. Maintainer review gates exist
 specifically to cover this gap.
 
 ## Role Suitability Summary
 
 | Capability | Best Model | Why |
 |------------|-----------|-----|
-| Writing Fortran/MPI code | Claude Opus 4.6 | SWE-bench performance, debugging accuracy |
-| PR code review | Codex 5.4 Extra High | Methodical, precise bug-finding |
-| Full-codebase analysis | Gemini 3 Pro | 1M token context, entire repo in one pass |
-| Scientific literature review | Gemini 3 Pro | Graduate-level science reasoning, Deep Think |
-| Architecture planning | Gemini 3 Pro + Codex 5.4 | Large context for analysis, abstract reasoning for design |
+| Writing Fortran/MPI code | Claude Opus | SWE-bench performance, debugging accuracy |
+| PR code review | Codex | Methodical, precise bug-finding |
+| Full-codebase analysis | Gemini Pro | 1M token context, entire repo in one pass |
+| Scientific literature review | Gemini Pro | Graduate-level science reasoning |
+| Architecture planning | Gemini Pro + Codex | Large context for analysis, abstract reasoning for design |
 | CI / build verification | Any (automated) | Mechanical task, model quality less critical |
 
 ## Sources
 
 - [Evaluation of OpenAI Codex for HPC Parallel Programming (ICPP 2023)](https://arxiv.org/html/2306.15121)
-- [Gemini 3 Pro — Google DeepMind](https://deepmind.google/models/gemini/pro/)
+- [Gemini Pro — Google DeepMind](https://deepmind.google/models/gemini/pro/)

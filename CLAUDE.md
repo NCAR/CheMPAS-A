@@ -134,11 +134,11 @@ Skills are defined in `.claude/commands/` and can be invoked with `/skillname`:
 
 ## Development Approach
 
-CheMPAS-A uses a coding-agent-assisted development model. Agents are used for implementation, review support, and verification, while humans retain responsibility for scientific judgment and final technical direction.
+CheMPAS-A uses a coding-agent-assisted development model. Agents are used for implementation, review support, and verification; scientific judgment and final technical direction remain with project maintainers.
 
 ## Multi-Agent Workflow
 
-CheMPAS-A uses three agents from three vendors. Codex 5.4 reviews Claude's work and may push doc edits or review findings directly to the repo, but that review remains part of a human-directed workflow rather than a fully automated merge path.
+CheMPAS-A uses three agents from three vendors. Codex reviews Claude's work and may push doc edits or review findings directly to the repo, but that review remains part of a maintainer-directed workflow rather than a fully automated merge path.
 
 **Convention for cross-agent communication:**
 - Codex writes review findings to `CODEX_REVIEW.md` and pushes to `develop`
