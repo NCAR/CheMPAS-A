@@ -21,6 +21,7 @@ import xarray as xr
 import matplotlib.pyplot as plt
 
 import musica
+from musica.constants import GAS_CONSTANT
 from musica.mechanism_configuration import Parser
 from musica.micm.solver_result import SolverState
 
@@ -84,13 +85,17 @@ def main() -> None:
         ds[sp].attrs["units"] = "mol m-3"
     ds.to_netcdf(OUT_DIR / "abba_box.nc", engine="scipy")
 
+    # mol/m^3 -> ppm via VMR = n*R*T/P; ppm = VMR * 1e6.
+    to_ppm = GAS_CONSTANT * T_REF / P_REF * 1e6
+
     fig, ax = plt.subplots(figsize=(7, 4.5))
     palette = style.get_palette(3)
     for sp, color in zip(("AB", "A", "B"), palette):
-        ax.plot(minutes, ds[sp].values, color=color, label=style.species_label(sp))
+        ax.plot(minutes, ds[sp].values * to_ppm, color=color,
+                label=style.species_label(sp))
     ax.set_xlabel("Time [min]")
-    ax.set_ylabel("Concentration [mol m$^{-3}$]")
-    ax.set_title(style.format_title("Standalone ABBA box model"))
+    ax.set_ylabel("Mixing ratio [ppm]")
+    ax.set_title(style.format_title("ABBA box model"))
     ax.legend()
     ax.grid(True, alpha=0.4)
     fig.tight_layout()
