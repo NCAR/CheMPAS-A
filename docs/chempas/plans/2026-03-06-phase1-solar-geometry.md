@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Add namelist parameters for lat/lon
+## Task 1: Add namelist parameters for lat/lon
 
 **Files:**
 - Modify: `src/core_atmosphere/Registry.xml:397-431`
@@ -57,7 +57,7 @@ git commit -m "feat(phase1): add lat/lon namelist params and DC3 start time"
 
 ---
 
-### Task 2: Create `mpas_solar_geometry.F`
+## Task 2: Create `mpas_solar_geometry.F`
 
 **Files:**
 - Create: `src/core_atmosphere/chemistry/mpas_solar_geometry.F`
@@ -163,7 +163,7 @@ git commit -m "feat(phase1): add mpas_solar_geometry module with Spencer SZA"
 
 ---
 
-### Task 3: Thread model time into chemistry call path
+## Task 3: Thread model time into chemistry call path
 
 **Files:**
 - Modify: `src/core_atmosphere/mpas_atm_core.F:1020-1057`
@@ -279,7 +279,7 @@ git commit -m "feat(phase1): thread model time into chemistry, compute SZA each 
 
 ---
 
-### Task 4: Add `musica_set_photolysis` to `mpas_musica.F`
+## Task 4: Add `musica_set_photolysis` to `mpas_musica.F`
 
 **Files:**
 - Modify: `src/core_atmosphere/chemistry/musica/mpas_musica.F`
@@ -402,7 +402,7 @@ git commit -m "feat(phase1): add musica_set_photolysis for per-step rate updates
 
 ---
 
-### Task 5: Build and verify
+## Task 5: Build and verify
 
 **Step 1: Build**
 
@@ -418,7 +418,7 @@ Expected: Clean build, `atmosphere_model` produced.
 
 ---
 
-### Task 6: Run supercell test and verify SZA
+## Task 6: Run supercell test and verify SZA
 
 **Step 1: Update run directory namelist**
 
@@ -477,15 +477,16 @@ Expected: All min values >= 0.
 
 ---
 
-### Task 7: Update plan and commit final Phase 1
+## Task 7: Update plan and commit final Phase 1
 
 **Step 1: Update the TUV-x plan document**
 
 Mark Phase 1 checklist items as complete in `docs/chempas/plans/2026-03-06-tuvx-photolysis-integration.md`.
 
-**Step 2: Update docs/project/TODO.md**
+**Step 2: Update the active TUV-x plan index**
 
-Mark "Solar geometry / day-night physics for j_NO2 (Phase 1)" as complete.
+Mark "Solar geometry / day-night physics for j_NO2 (Phase 1)" as complete in
+`docs/chempas/plans/2026-03-06-tuvx-photolysis-integration.md`.
 
 **Step 3: Commit**
 

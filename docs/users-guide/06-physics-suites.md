@@ -46,7 +46,7 @@ The only other recognized physics suite in CheMPAS-A is the `none` suite, which 
 
 ```
 config_physics_suite = 'none'
-config_microp_scheme = 'kessler'
+config_microp_scheme = 'mp_kessler'
 ```
 
 ## 6.4 Selecting Individual Physics Parameterizations
@@ -61,23 +61,32 @@ Selecting or disabling an individual physics parameterization may be accomplishe
 | | | `cu_ntiedtke` | New Tiedtke (WRF 4.5) |
 | | | `cu_grell_freitas` | Modified version of scale-aware Grell-Freitas (WRF 3.6.1) |
 | | | `cu_kain_fritsch` | Kain-Fritsch (WRF 3.2.1) |
+| | | `off` | Disable convection |
 | Microphysics | `config_microp_scheme` | `mp_wsm6` | WSM 6-class (WRF 4.5) |
 | | | `mp_thompson` | Thompson non-aerosol aware (WRF 3.8.1) |
 | | | `mp_thompson_aerosols` | Thompson aerosol-aware (WRF 4.1.4) |
 | | | `mp_kessler` | Kessler |
+| | | `off` | Disable cloud microphysics |
 | Land surface | `config_lsm_scheme` | `sf_noah` | Noah (WRF 4.5) |
 | | | `sf_noahmp` | Noah-MP 5.0.1 |
+| | | `off` | Disable the land-surface scheme |
 | Boundary layer | `config_pbl_scheme` | `bl_ysu` | YSU (WRF 4.5) |
 | | | `bl_mynn` | MYNN (WRF 3.6.1) |
+| | | `off` | Disable boundary-layer parameterization |
 | Surface layer | `config_sfclayer_scheme` | `sf_monin_obukhov` | Monin-Obukhov (WRF 4.5) |
 | | | `sf_monin_obukhov_rev` | Revised Monin-Obukhov (WRF 4.5) |
 | | | `sf_mynn` | MYNN (WRF 3.6.1) |
+| | | `off` | Disable the surface-layer scheme |
 | Radiation, LW | `config_radt_lw_scheme` | `rrtmg_lw` | RRTMG (WRF 3.8.1) |
 | | | `cam_lw` | CAM (WRF 3.3.1) |
+| | | `off` | Disable long-wave radiation |
 | Radiation, SW | `config_radt_sw_scheme` | `rrtmg_sw` | RRTMG (WRF 3.8.1) |
 | | | `cam_sw` | CAM (WRF 3.3.1) |
+| | | `off` | Disable short-wave radiation |
 | Cloud fraction for radiation | `config_radt_cld_scheme` | `cld_fraction` | Xu and Randall (1996) |
 | | | `cld_incidence` | 0/1 cloud fraction depending on q_c + q_i |
 | | | `cld_fraction_thompson` | Thompson cloud fraction scheme |
+| | | `off` | Disable cloud-fraction calculation; if radiation remains enabled, the model switches this to `cld_incidence` at runtime |
 | Gravity wave drag by orography | `config_gwdo_scheme` | `bl_ysu_gwdo` | YSU (WRF 4.5) |
 | | | `bl_ugwp_gwdo` | NOAA/GSL orographic gravity wave drag (see also `config_ngw_scheme`) |
+| | | `off` | Disable orographic gravity wave drag |

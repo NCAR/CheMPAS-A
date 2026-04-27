@@ -1,3 +1,5 @@
 # Chapter 9: Physics
 
-In preparation.
+This chapter is a skeletal placeholder in the upstream draft. The current
+CheMPAS-A documentation therefore keeps the chapter visible for numbering
+continuity, but it should not be used as a physics reference.

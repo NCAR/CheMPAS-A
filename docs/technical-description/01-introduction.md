@@ -16,9 +16,9 @@ The MPAS atmosphere consists of an atmospheric fluid-flow solver (the dynamical 
 
 The purpose of this technical note is to provide a description of the MPAS-Atmosphere model. Importantly, this includes a complete description of the governing equations in the fluid-flow solver and their discretization. While aspects of the solver are described in the peer-reviewed literature, a comprehensive and detailed description appears only here in this technical note, along with updates to the techniques. It is our intent to keep this technical note up-to-date with the latest MPAS-Atmosphere release.
 
-We begin in Chapter 2 with a description of the unstructured horizontal MPAS centroidal Voronoi mesh and with the structured vertical component that make up the full 3-dimensional MPAS mesh. An understanding of this mesh is a prerequisite to understanding the discretization of the dynamical core (the MPAS-Atmosphere fluid-flow solver). Chapter 3 introduces the continuous fluid flow equations used in MPAS-A and describes the time integration of these equations. MPAS-A uses a split-explicit time integration technique (similar to that used in the WRF model, Skamarock et al. 2021b) that requires defining mean and perturbation quantities for the prognostic variables and time-dependent equations for these variables that are used in specific sections of the solver. Chapter 4 describes the spatial discretization of the fluid-flow equations. Chapter 5 describes the discretization of the primary filters employed in MPAS-A, including 2nd and 4th order horizontal filters for cell-centered variables and for the horizontal velocity, and some aspects of filters applied to absorb vertically-propagating gravity waves. Chapter 6 describes the computation of the cell-centered zonal and meridional velocity using radial basis functions, and the horizontal frontogenesis function. Chapter 7 describes the regional configuration of MPAS focussing on the boundary conditions and how they are applied in the time integration. Chapter 8 describes MPAS-A initialization options, focussing on the real-data initialization but also providing an overview of available idealized cases. Initialization of an idealized or real atmospheric state that can be used in MPAS is accomplished by a separate MPAS model call *init_atmosphere_model*, in contrast to *atmosphere_model*. Chapter 9 provides a brief overview of physics parameterizations available in MPAS-Atmosphere. The physics schemes available in MPAS are evolving quickly both in their formulation and in how MPAS-A accesses them. The final chapter in the technical note, Chapter 10, outlines key aspects of the MPAS infrastructure that supports the atmosphere model.
+We begin in Chapter 2 with a description of the unstructured horizontal MPAS centroidal Voronoi mesh together with the structured vertical component that makes up the full three-dimensional MPAS mesh. An understanding of this mesh is a prerequisite to understanding the discretization of the dynamical core (the MPAS-Atmosphere fluid-flow solver). Chapter 3 introduces the continuous fluid flow equations used in MPAS-A and describes the time integration of these equations. MPAS-A uses a split-explicit time integration technique (similar to that used in the WRF model, Skamarock et al. 2021b) that requires defining mean and perturbation quantities for the prognostic variables and time-dependent equations for these variables that are used in specific sections of the solver. Chapter 4 describes the spatial discretization of the fluid-flow equations. Chapter 5 describes the discretization of the primary filters employed in MPAS-A, including 2nd- and 4th-order horizontal filters for cell-centered variables and for the horizontal velocity, and some aspects of filters applied to absorb vertically-propagating gravity waves. Chapter 6 describes the computation of the cell-centered zonal and meridional velocity using radial basis functions, and the horizontal frontogenesis function. Chapter 7 describes the regional configuration of MPAS, focusing on the boundary conditions and how they are applied in the time integration. Chapter 8 describes MPAS-A initialization options, focusing on the real-data initialization but also providing an overview of available idealized cases. Initialization of an idealized or real atmospheric state that can be used in MPAS is accomplished by a separate MPAS executable, *init_atmosphere_model*, in contrast to *atmosphere_model*. Chapter 9 provides a brief overview of physics parameterizations available in MPAS-Atmosphere. The physics schemes available in MPAS are evolving quickly both in their formulation and in how MPAS-A accesses them. The final chapter in the technical note, Chapter 10, outlines key aspects of the MPAS infrastructure that supports the atmosphere model.
 
-In additional to describing the MPAS-A model and utilities, this technical note references the MPAS model code, and references to that code will appear in boxes with a pink background:
+In addition to describing the MPAS-A model and utilities, this technical note references the MPAS model code, and references to that code will appear in boxes with a pink background:
 
 :::{admonition} MPAS code
 :class: note
@@ -30,14 +30,14 @@ In future MPAS-Atmosphere releases we will include comments in the MPAS source c
 
 ## 1.3 MPAS-Atmosphere Code Overview
 
-MPAS-Atmosphere is comprised of two main executables that can be built from the system contained in the MPAS-A Github repository, and these executables are called *cores* in the MPAS system. The *init_atmosphere* core is responsible for producing atmospheric states that the *atmosphere* core can use as an initial state that it integrates forward in time.
+MPAS-Atmosphere comprises two main executables that can be built from the MPAS-A GitHub repository, and these executables are called *cores* in the MPAS system. The *init_atmosphere* core is responsible for producing atmospheric states that the *atmosphere* core can use as an initial state that it integrates forward in time.
 
 ### 1.3.1 The init_atmosphere core
 
 The *init_atmosphere* core is responsible for
 
 - Interpolating *static* fields to the MPAS horizontal mesh, including terrain heights, land-use categorizations, etc.
-- Creating the 3-dimensional MPAS mesh. See Chapter 2.
+- Creating the three-dimensional MPAS mesh. See Chapter 2.
 - Interpolating analytic or an idealized initial state to the 3D MPAS mesh.
 - Interpolating 3D analyses, or 3D states from other MPAS integrations, to the 3D MPAS mesh.
 - Enforcing hydrostatic balance on the interpolated 3D state. See Chapter 8 for information on interpolations and the MPAS-Atmosphere discrete hydrostatic balance.
@@ -46,7 +46,7 @@ The *init_atmosphere* core is responsible for
 :::{admonition} MPAS code
 :class: note
 
-The *init_atmosphere* core code can be found in `MPAS/src/core_init_atmosphere/`. The main functionality that users access is contained in the source file `MPAS/src/core_init_atmosphere/mpas_init_atm_cases.F`, that contains the routines that drive the idealized and real-data initializations.
+The *init_atmosphere* core code can be found in `src/core_init_atmosphere/`. The main functionality that users access is contained in `src/core_init_atmosphere/mpas_init_atm_cases.F`, which contains the routines that drive the idealized and real-data initializations.
 :::
 
 ### 1.3.2 The atmosphere core
@@ -60,10 +60,10 @@ The *atmosphere* core is responsible for integrating the MPAS-Atmosphere state f
 :::{admonition} MPAS code
 :class: note
 
-The code that controls the sequencing of the flow chart items (2) through (5) can be found in `MPAS/src/core_atmosphere/mpas_atm_core.F` and function `atm_core_init`.
+The code that controls the sequencing of the flow chart items (2) through (5) can be found in `src/core_atmosphere/mpas_atm_core.F` and function `atm_core_init`.
 :::
 
-(2) There are two modes used to begin an integration - a restart mode (starting from a *restart* file produced by a previous simulation) of starting from an MPAS-Atmosphere initialization file produced be the MPAS *init_atmosphere* core. For more information see the MPAS-Atmosphere Users Guide.
+(2) There are two modes used to begin an integration: restart mode (starting from a *restart* file produced by a previous simulation) or starting from an MPAS-Atmosphere initialization file produced by the MPAS *init_atmosphere* core. For more information, see the MPAS-Atmosphere User's Guide.
 
 :::{admonition} MPAS code
 :class: note
@@ -76,7 +76,7 @@ Configuration as a restart run, as opposed to starting from an MPAS-A initializa
 :::{admonition} MPAS code
 :class: note
 
-The routine that does the coupling (subroutine `atm_init_coupled_diagnostics`) is found in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`, and diagnostic variables (e.g. vorticity, etc) are computed in subroutine `atm_compute_solve_diagnostics`. These computations are described later in the technical note.
+The routine that does the coupling (subroutine `atm_init_coupled_diagnostics`) is found in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`, and diagnostic variables (e.g. vorticity, etc) are computed in subroutine `atm_compute_solve_diagnostics`. These computations are described later in the technical note.
 :::
 
 (4) Any aspects of the physics that need initialization is performed, including computing or reading from files any needed data (e.g. lookup tables used in radiation and microphysics) not included in the initialization or restart files.
@@ -84,7 +84,7 @@ The routine that does the coupling (subroutine `atm_init_coupled_diagnostics`) i
 :::{admonition} MPAS code
 :class: note
 
-The MPAS-Atmosphere physics code is located in `MPAS/src/core_atmosphere/physics/`, including any code associated with the init/run/finalize structure of the MPAS-A model.
+The MPAS-Atmosphere physics code is located in `src/core_atmosphere/physics/`, including any code associated with the init/run/finalize structure of the MPAS-A model.
 :::
 
 (5) MPAS-A uses *alarms* to determine when tasks that need to be executed periodically are to be performed during the integration. The bulk of these alarms are used to determine when I/O tasks need to be performed or when physics need to be called.
@@ -92,7 +92,7 @@ The MPAS-Atmosphere physics code is located in `MPAS/src/core_atmosphere/physics
 :::{admonition} MPAS code
 :class: note
 
-The code that controls the sequencing of the flow chart items (6) through (10) can be found in `MPAS/src/core_atmosphere/mpas_atm_core.F` and function `atm_core_run`.
+The code that controls the sequencing of the flow chart items (6) through (10) can be found in `src/core_atmosphere/mpas_atm_core.F` and function `atm_core_run`.
 :::
 
 (6) MPAS-A will produce stream output files at the initial time for a simulation starting from an MPAS-A initialization (i.e. a file produced by the MPAS-A *init_atmosphere* core). If the simulation is configured as a restart, then these files will not be produced as they will have been produced by the previous simulation that produced the restart file.
@@ -101,11 +101,11 @@ The code that controls the sequencing of the flow chart items (6) through (10) c
 
 (8) While forcings from most atmospheric physics are updated each MPAS-Atmosphere timestep, some physics forcings (e.g. radiation) are updated less frequently, hence the alarm checks.
 
-(9) This is the main time step for them model, and a high-level overview can be found in section 3.2.
+(9) This is the main time step for the model, and a high-level overview can be found in section 3.2.
 
 (10) Output (restarts, history and diagnostic output) are performed here.
 
-As described earlier in this chapter, the bulk of this technical note describes the spatial and temporal discretization utilized in the time integration. Atmospheric physics used in this integration is briefly described in Chapter 9. Aspects of the Infrastructure are described in Chapter 10. While some practical aspects of running the MPAS-Atmosphere model are given in the **MPAS code** callouts, a much more detailed and useful guide to running MPAS is found in the MPAS Users Guide:
+As described earlier in this chapter, the bulk of this technical note describes the spatial and temporal discretization utilized in the time integration. Atmospheric physics used in this integration is briefly described in Chapter 9. Aspects of the Infrastructure are described in Chapter 10. While some practical aspects of running the MPAS-Atmosphere model are given in the **MPAS code** callouts, a much more detailed and useful guide to running MPAS is found in the MPAS User's Guide:
 <https://www2.mmm.ucar.edu/projects/mpas/site/documentation/users_guide.html>.
 
 Additional descriptions of the MPAS systems and instructions for using it are given in the MPAS-Atmosphere tutorials, with tutorial presentations available at

@@ -1,8 +1,8 @@
-# Chapter 3: Building MPAS
+# Chapter 3: Building CheMPAS-A
 
 ## 3.1 Prerequisites
 
-To build MPAS, compatible C and Fortran compilers are required. Additionally, the MPAS software relies on the PIO parallel I/O library to read and write model fields, and the PIO library requires the standard netCDF library as well as the parallel-netCDF library from Argonne National Laboratory. All libraries must be compiled with the same compilers that will be used to build MPAS. Section 3.2 summarizes the basic procedure of installing the required I/O libraries for MPAS.
+To build CheMPAS-A, compatible C and Fortran compilers are required. Additionally, the MPAS software relies on the PIO parallel I/O library to read and write model fields, and the PIO library requires the standard netCDF library as well as the parallel-netCDF library from Argonne National Laboratory. All libraries must be compiled with the same compilers that will be used to build CheMPAS-A. Section 3.2 summarizes the basic procedure of installing the required I/O libraries.
 
 In order for the MPAS makefiles to find the PIO, parallel-netCDF, and netCDF include files and libraries, the environment variables `PIO`, `PNETCDF`, and `NETCDF` should be set to the root installation directories of the PIO, parallel-netCDF, and netCDF installations, respectively.
 
@@ -24,7 +24,7 @@ Version 1.8.x of the parallel-netCDF library may be downloaded from <https://tra
 
 ### 3.2.3 PIO
 
-Beginning with the MPAS v5.2 release, either of the PIO 1.x or 2.x library versions may be used. The two major versions have slightly different APIs; by default, the MPAS build system assumes the PIO 1.x API, but the PIO 2.x library versions may be used by adding the `USE_PIO2=true` option when compiling MPAS as described in Section 3.3.
+Beginning with the MPAS v5.2 release, either of the PIO 1.x or 2.x library versions may be used. The two major versions have slightly different APIs. The current CheMPAS-A `Makefile` detects the available PIO API during its link test and defines the appropriate compile flag automatically; the legacy `USE_PIO2=true` option is deprecated and ignored.
 
 If compiling with the PIO 1.x library versions, users are strongly encouraged to choose either PIO 1.7.1 or PIO 1.9.23, as other 1.x versions may not work; these two specific versions may be obtained from:
 - <https://github.com/NCAR/ParallelIO/releases/tag/pio1_7_1>
@@ -105,20 +105,21 @@ Available Options:
                        TIMER_LIB=gptl   - Uses gptl for the timer interface
                        TIMER_LIB=tau    - Uses TAU for the timer interface
     OPENMP=true      - builds and links with OpenMP flags. Default is to not use OpenMP.
-    USE_PIO2=true    - links with the PIO 2 library. Default is to use the PIO 1.x library.
-    PRECISION=single - builds with default single-precision real kind. Default is double-precision.
+    OPENACC=true     - builds and links with OpenACC flags when supported by the target.
+    PRECISION=double - builds with default double-precision real kind. Default is single-precision.
+    SHAREDLIB=true   - generates position-independent code suitable for a shared library.
 
 ************ ERROR ************
 No CORE specified. Quitting.
 ************ ERROR ************
 ```
 
-## 3.4 Selecting a Single-Precision Build
+## 3.4 Selecting Model Precision
 
-Beginning with version 2.0, MPAS-Atmosphere can be compiled and run in single-precision, offering faster model execution and smaller input and output files. Beginning with version 5.0, the selection of the model precision can be made on the command-line, with no need to edit the `Makefile`. To compile a single-precision CheMPAS-A executable, add `PRECISION=single` to the build command, e.g.,
+Beginning with version 2.0, MPAS-Atmosphere can be compiled and run in single precision, offering faster model execution and smaller input and output files. In CheMPAS-A, single precision is the default when `PRECISION` is omitted; specifying `PRECISION=single` is accepted but unnecessary. To compile a double-precision executable, add `PRECISION=double` to the build command, e.g.,
 
 ```
-make gfortran CORE=atmosphere PRECISION=single
+make gfortran CORE=atmosphere PRECISION=double
 ```
 
 Regardless of which precision the CheMPAS-A `init_atmosphere` and `atmosphere` cores were compiled with, either single- or double-precision input files may be used. In general, the MPAS infrastructure should correctly detect the precision of input files, but one may also explicitly specify the precision of files in an input stream by adding the `precision` attribute to the stream definition as described in [Section 5.2](05-configuring-io.md#52-optional-stream-attributes).

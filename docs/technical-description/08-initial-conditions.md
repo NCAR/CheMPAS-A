@@ -1,6 +1,6 @@
 # Chapter 8: Initial Conditions
 
-The method for producing an initial state for MPAS-Atmosphere to integrate involves executing a different MPAS model called *init_atmosphere*. The practical aspects of producing an initial state are covered in the *MPAS-Atmosphere Users Guide*. In this chapter we describe the physical configurations of the different states along with some technical aspects concerning how they are produced. Here are the initial states for the cases that can be produced by the *init_atmosphere* model along with the case numbers used within the *init_atmosphere* model:
+The method for producing an initial state for MPAS-Atmosphere to integrate involves executing a different MPAS model called *init_atmosphere*. The practical aspects of producing an initial state are covered in the *MPAS-Atmosphere User's Guide*. In this chapter we describe the physical configurations of the different states along with some technical aspects concerning how they are produced. Here are the initial states for the cases that can be produced by the *init_atmosphere* model along with the case numbers used within the *init_atmosphere* model:
 
 **(1, 2, 3):** Three variants of the Jablonowski and Williamson (2006) baroclinic wave case.
 
@@ -10,7 +10,7 @@ The method for producing an initial state for MPAS-Atmosphere to integrate invol
 
 **(7):** Initialization for full earth atmosphere simulations on the sphere or regional domains on the sphere.
 
-**(8):** Produce sea-surface temperature (SST) and surface surface fields at specified times. These are typically used to update the SSTs and surface fields during long integrations of MPAS-A.
+**(8):** Produce sea-surface temperature (SST) and surface fields at specified times. These are typically used to update the SSTs and surface fields during long integrations of MPAS-A.
 
 **(9):** Produce boundary conditions for regional MPAS-A simulations on the sphere.
 
@@ -24,7 +24,7 @@ The numbers attached to the test cases listed above correspond to the case confi
 
 ## 8.1 Initialization Commonalities
 
-MPAS-Atmosphere integrates an equation set that uses perturbation variables for density and potential temperature defined relative to a reference state (see chapter 3). The reference state can be specified as a continuous function or a discrete function. The perturbation state density and potential temperature, along with a specified water vapor profile, satisfies an MPAS-A discrete hydrostatic balance.
+MPAS-Atmosphere integrates an equation set that uses perturbation variables for density and potential temperature defined relative to a reference state (see chapter 3). The reference state can be specified as a continuous function or a discrete function. The perturbation state density and potential temperature, along with a specified water vapor profile, satisfy an MPAS-A discrete hydrostatic balance.
 
 ### 8.1.1 Reference States
 
@@ -54,9 +54,9 @@ $$
 p(k) - p(k-1) = -\Delta\zeta(k)\,\overline{g\bigl(\tilde{\rho}'_d + \tilde{\rho}_d q_v\bigr)}^{k},
 $$ (eq:8.2)
 
-where $k$ indicates the layer number, with layer height increasing with increasing $k$. The operator $\overline{()}^{k}$ represents either a vertical interpolation to the midpoint of the interval or the average value computed from integrating the quantity over the integral, both options described in Section 2.2.3 with weights defined in {eq}`eq:2.9` and {eq}`eq:2.10`, respectively.
+where $k$ indicates the layer number, with layer height increasing with increasing $k$. The operator $\overline{()}^{k}$ represents either a vertical interpolation to the midpoint of the interval or the average value computed from integrating the quantity over the interval, both options described in Section 2.2.3 with weights defined in {eq}`eq:2.9` and {eq}`eq:2.10`, respectively.
 
-Another form of the hydrostatic relation used in some of the initializations in that cast in terms of the Exner function:
+Another form of the hydrostatic relation used in some of the initializations is cast in terms of the Exner function:
 
 $$
 \frac{\partial\Pi}{\partial z} = -\frac{g}{c_p\theta\,\dfrac{1+\dfrac{R_v}{R_d}q_v}{1+q_v}}
@@ -70,7 +70,7 @@ $$
 
 ## 8.2 Initialization for Idealized Cases
 
-The idealized atmosphere cases are comprised of cases 1 through 6 as described below.
+The idealized atmosphere cases comprise cases 1 through 6 as described below.
 
 ### 8.2.1 Idealized Baroclinic Wave Case
 
@@ -101,7 +101,7 @@ The initialization integrates the hydrostatic balance equation {eq}`eq:8.2` from
 :::{admonition} MPAS code
 :class: note
 
-The initialization code for this test case is found in subroutine `init_atm_case_jw` in the source code file `MPAS/src/core_init_atmosphere/mpas_init_atm_cases.F`. The wind perturbations in equations {eq}`eq:8.4` and {eq}`eq:8.5` are integrated between the latitudes of the edge endpoints and projected onto (dotted with) the normal vector in the zonal direction so as to get the average edge-normal wind component on the edge. Additionally, the horizontal winds of the unperturbed jet are computed so that the horizontal mass divergence in the initial state is minimized.
+The initialization code for this test case is found in subroutine `init_atm_case_jw` in the source code file `src/core_init_atmosphere/mpas_init_atm_cases.F`. The wind perturbations in equations {eq}`eq:8.4` and {eq}`eq:8.5` are integrated between the latitudes of the edge endpoints and projected onto (dotted with) the normal vector in the zonal direction so as to get the average edge-normal wind component on the edge. Additionally, the horizontal winds of the unperturbed jet are computed so that the horizontal mass divergence in the initial state is minimized.
 :::
 
 ### 8.2.2 Squall Line and Supercell Case
@@ -148,12 +148,12 @@ $$
 
 where $u_m = 12$ m/s, $u_s = 10$ m/s and $z_{ts} = 2500$ m for the squall line case, and $u_m = 30$ m/s, $u_s = 15$ m/s and $z_{ts} = 5000$ m for the supercell case.
 
-The reference state for these simulations is that given in {eq}`eq:8.6` and {eq}`eq:8.7` for a dry atmosphere $(H(z) = 0)$. The hydrostatic balance for the reference state uses the hydrostatic relation cast in terms of the Exner function {eq}`eq:8.3`. This equation is also used to compute the mixing ratios based on the relative humidities {eq}`eq:8.8` and {eq}`eq:8.9`. The hydrostatic balance for the full state uses a upward vertical integration of {eq}`eq:8.3` to estimate the pressure at the top of the domain, using a reference pressure $p_o = 10^5$ Pa as the boundary condition at the surface, and then uses a downward integration of {eq}`eq:8.2` that is used with the state equation to specify the density. This hydrostatic balance includes a warm low-level temperature perturbation (a warm bubble) to initiate convection. The integrations are applied iteratively to arrive at a converged solution that satisfies both the hydrostatic relation and the state equation. Given that the vapor mixing ratio $q_v$ is computed using the Exner-function-based hydrostatic relation, the relative humidity {eq}`eq:8.8` and {eq}`eq:8.9` will not be exactly satisfied in the MPAS atmosphere computed using the hydrostatic relation {eq}`eq:8.2`. We also note that an upper bound of $q_{v_{\max}} = 14$ g/kg is set in this initialization.
+The reference state for these simulations is that given in {eq}`eq:8.6` and {eq}`eq:8.7` for a dry atmosphere $(H(z) = 0)$. The hydrostatic balance for the reference state uses the hydrostatic relation cast in terms of the Exner function {eq}`eq:8.3`. This equation is also used to compute the mixing ratios based on the relative humidities {eq}`eq:8.8` and {eq}`eq:8.9`. The hydrostatic balance for the full state uses an upward vertical integration of {eq}`eq:8.3` to estimate the pressure at the top of the domain, using a reference pressure $p_o = 10^5$ Pa as the boundary condition at the surface, and then uses a downward integration of {eq}`eq:8.2` that is used with the state equation to specify the density. This hydrostatic balance includes a warm low-level temperature perturbation (a warm bubble) to initiate convection. The integrations are applied iteratively to arrive at a converged solution that satisfies both the hydrostatic relation and the state equation. Given that the vapor mixing ratio $q_v$ is computed using the Exner-function-based hydrostatic relation, the relative humidity {eq}`eq:8.8` and {eq}`eq:8.9` will not be exactly satisfied in the MPAS atmosphere computed using the hydrostatic relation {eq}`eq:8.2`. We also note that an upper bound of $q_{v_{\max}} = 14$ g/kg is set in this initialization.
 
 :::{admonition} MPAS code
 :class: note
 
-The initialization code for this test case is found in subroutine `init_atm_case_squall_line` in the source code file `MPAS/src/core_init_atmosphere/mpas_init_atm_cases.F`. The hydrostatic balance loops and iterations do not assume a flat lower boundary, thus many of the calculations are redundant, particularly for the reference state. Also note that the variable `p` refers to the Exner function in the hydrostatic balancing of the reference state and the variable `pp` refers to a perturbation pressure in the balancing of the MPAS-A perturbation state.
+The initialization code for this test case is found in subroutine `init_atm_case_squall_line` in the source code file `src/core_init_atmosphere/mpas_init_atm_cases.F`. The hydrostatic balance loops and iterations do not assume a flat lower boundary, thus many of the calculations are redundant, particularly for the reference state. Also note that the variable `p` refers to the Exner function in the hydrostatic balancing of the reference state and the variable `pp` refers to a perturbation pressure in the balancing of the MPAS-A perturbation state.
 :::
 
 ### 8.2.3 Mountain Wave Case
@@ -185,12 +185,12 @@ The hydrostatic balance in this case uses the same procedure as used in the squa
 :::{admonition} MPAS code
 :class: note
 
-The initialization code for this test case is found in subroutine `init_atm_case_mtn_wave` in the source code file `MPAS/src/core_init_atmosphere/mpas_init_atm_cases.F`. There are a number of options for terrain profiles and stability configurations that can be changed by editing and recompiling the *init_atmosphere* core.
+The initialization code for this test case is found in subroutine `init_atm_case_mtn_wave` in the source code file `src/core_init_atmosphere/mpas_init_atm_cases.F`. There are a number of options for terrain profiles and stability configurations that can be changed by editing and recompiling the *init_atmosphere* core.
 :::
 
 ## 8.3 Initialization for Earth-Atmosphere Simulations
 
-The initialization for a real-data full-earth-atmosphere case is much more complex compared to the idealized cases. In the following we describe only the hydrostatic balancing and a few other numerical aspects of the initialization. Other aspects of the initialization scheme are described in the MPAS-Atmosphere Users Guide.
+The initialization for a real-data full-earth-atmosphere case is much more complex compared to the idealized cases. In the following we describe only the hydrostatic balancing and a few other numerical aspects of the initialization. Other aspects of the initialization scheme are described in the MPAS-Atmosphere User's Guide.
 
 ### 8.3.1 Initialization of the 3D State
 
@@ -199,7 +199,7 @@ Here we only discuss the initialization of the atmospheric state on the MPAS mes
 :::{admonition} MPAS code
 :class: note
 
-The initialization code for this test case is found in subroutine `init_atm_case_gfs` in the source code file `MPAS/src/core_init_atmosphere/mpas_init_atm_cases.F`. Note that most of the subroutine, after the 3D MPAS mesh is created, involves the reading in and interpolating the analysis to the MPAS mesh.
+The initialization code for this test case is found in subroutine `init_atm_case_gfs` in the source code file `src/core_init_atmosphere/mpas_init_atm_cases.F`. Note that most of the subroutine, after the 3D MPAS mesh is created, involves the reading in and interpolating the analysis to the MPAS mesh.
 :::
 
 ### 8.3.2 Lateral Boundary Conditions for Regional Simulations

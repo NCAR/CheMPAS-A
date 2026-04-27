@@ -47,5 +47,5 @@ For each cell we compute and store the coefficients for each edge $e$ on the cel
 :::{admonition} MPAS code
 :class: note
 
-The computation of the least-squares-fit 2nd derivative weights occurs within the *init_atmosphere* core in `MPAS/src/core_init_atmosphere/mpas_atm_advection.F`. The 2nd derivative coefficients are stored in the array `deriv_two(source_cell,cells,edges)`, where `edges` are all the edges on the mesh, `cells` are the two cells that share the edge, and `source_cells` are the cells used in the least-squares fit polynomial. These operations are performed in subroutine `atm_initialize_advection_rk`.
+The computation of the least-squares-fit 2nd derivative weights occurs within the *init_atmosphere* core in `src/core_init_atmosphere/mpas_atm_advection.F`. The 2nd derivative coefficients are stored in the array `deriv_two(source_cell,cells,edges)`, where `edges` are all the edges on the mesh, `cells` are the two cells that share the edge, and `source_cells` are the cells used in the least-squares fit polynomial. These operations are performed in subroutine `atm_initialize_advection_rk`.
 :::

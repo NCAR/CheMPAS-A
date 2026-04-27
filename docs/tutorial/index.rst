@@ -10,8 +10,9 @@ worked examples specific to CheMPAS-A's MUSICA/MICM coupling.
    :class: warning
 
    This tutorial is being actively written. All chapters carry a
-   per-section WIP banner; figures are placeholders that will be
-   replaced with rendered PNGs in a later pass.
+   per-section WIP banner; figure slots are intentionally left without
+   rendered PNGs until the corresponding model runs and plots are
+   archived.
 
 .. toctree::
    :titlesonly:

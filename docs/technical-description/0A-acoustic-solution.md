@@ -68,7 +68,7 @@ where we have also indicated where they are defined (levels or interfaces). The 
 :::{admonition} MPAS code
 :class: note
 
-The coefficients {eq}`eq:A.4`–{eq}`eq:A.8` are set in subroutine `atm_compute_vert_imp_coefs` in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
+The coefficients {eq}`eq:A.4`–{eq}`eq:A.8` are set in subroutine `atm_compute_vert_imp_coefs` in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
 In the MPAS-A code the coefficients are named as follows:
 
 $$
@@ -115,6 +115,6 @@ where the three coefficients are the three bracketed terms in {eq}`eq:A.9`. This
 :::{admonition} MPAS code
 :class: note
 
-The coefficients for the tridiagonal solver, $C$, $C_{-}$ and $C_{+}$, are computed in subroutine `atm_compute_vert_imp_coefs` in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
+The coefficients for the tridiagonal solver, $C$, $C_{-}$ and $C_{+}$, are computed in subroutine `atm_compute_vert_imp_coefs` in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
 In the code, $C_{-}$ is stored in the array `a_tri`, $C$ is stored in the array `b_tri`, and $C_{+}$ is stored in the array `c_tri`. The coefficients are used to precompute other coefficients (`alpha_tri` and `gamma_tri`) that are used along with `a_tri` to perform the implicit solve in subroutine `atm_advance_acoustic_step`.
 :::

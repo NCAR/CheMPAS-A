@@ -1,16 +1,17 @@
 # CheMPAS-A Documentation
 
 CheMPAS-specific design notes, integration guides, plans, and results.
-The MPAS Sphinx user guide and ocean docs live one level up under
-`docs/users-guide/` and `docs/ocean/`.
+The imported MPAS-Atmosphere user guide and technical-description chapters
+live one level up under `docs/users-guide/` and
+`docs/technical-description/`.
 
 ## Top-Level Entry Points
 
-- [README.md](../../README.md) - Project overview
-- [BUILD.md](../../BUILD.md) - Build instructions
-- [RUN.md](../../RUN.md) - Run instructions
-- [PLAN.md](../../PLAN.md) - Current focus and active plans
-- [CLAUDE.md](../../CLAUDE.md) - Claude-specific repo guidance
+- `README.md` - Project overview
+- `BUILD.md` - Build instructions
+- `RUN.md` - Run instructions
+- `PLAN.md` - Current focus and active plans
+- `CLAUDE.md` - Claude-specific repo guidance
 
 ## Subdirectories
 
@@ -23,4 +24,5 @@ The MPAS Sphinx user guide and ocean docs live one level up under
 - [guides/VISUALIZE.md](guides/VISUALIZE.md) - Visualization workflows
 - [guides/TUVX_INTEGRATION.md](guides/TUVX_INTEGRATION.md) - TUV-x summary and development test case
 - [plans/README.md](plans/README.md) - Dated implementation plans
+- [upstream/2026-04-19-vs-mpas-v8.3.1.md](upstream/2026-04-19-vs-mpas-v8.3.1.md) - Baseline comparison against upstream MPAS v8.3.1
 - [../users-guide/00-foreword.md](../users-guide/00-foreword.md) - Imported MPAS user guide chapters

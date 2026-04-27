@@ -8,8 +8,10 @@ results live in `docs/chempas/results/TEST_RUNS.md`.
 
 ## Scope
 
-CheMPAS-A currently uses TUV-x to compute `j_no2` for the idealized supercell
-LNOx-O3 chemistry mechanism. The integration was developed in phases:
+CheMPAS-A uses TUV-x to compute photolysis rates for idealized chemistry
+mechanisms, including `jNO2` for the supercell LNOx-O3 case and the Chapman
+rates (`jO2`, `jO3_O`, `jO3_O1D`, `jNO2`) for Chapman + NOx. The integration
+was developed in phases:
 
 1. Phase 0: fixed-rate LNOx-O3 chemistry and lightning-NOx source
 2. Phase 1: solar-zenith-angle fallback photolysis
@@ -28,12 +30,12 @@ hardening and follow-on photolysis realism, not the original Phase 1-2 bring-up.
 - `src/core_atmosphere/chemistry/mpas_solar_geometry.F`
   - fallback solar geometry for idealized chemistry runs
 - `src/core_atmosphere/chemistry/mpas_tuvx.F`
-  - TUV-x initialization, per-column profile updates, and `j_no2` extraction
+  - TUV-x initialization, per-column profile updates, and photolysis-rate extraction
 - `src/core_atmosphere/chemistry/mpas_atm_chemistry.F`
   - provider selection between fallback photolysis and TUV-x
   - MPAS host-state extraction for `rho_air`, temperature, `qv`, `qO3`, `qc`,
     and `qr`
-  - `j_no2` diagnostic writing
+  - `j_jNO2`, `j_jO2`, `j_jO3_O`, and `j_jO3_O1D` diagnostic writing
 - `src/core_atmosphere/chemistry/musica/mpas_musica.F`
   - scalar photolysis setter for Phase 1
   - field photolysis setter for Phase 2 and Phase 3
@@ -42,7 +44,7 @@ hardening and follow-on photolysis realism, not the original Phase 1-2 bring-up.
 
 - `src/core_atmosphere/Registry.xml`
   - `config_tuvx_config_file`
-  - `j_no2` diagnostic field
+  - `j_j*` photolysis diagnostic fields
   - updated `config_lnox_j_no2` semantics as daytime `j_max`
 - `micm_configs/tuvx_no2.json`
   - minimal TUV-x NO2 photolysis configuration using host profiles
@@ -52,7 +54,7 @@ hardening and follow-on photolysis realism, not the original Phase 1-2 bring-up.
 ### Validation tooling
 
 - `scripts/check_tuvx_phase.py`
-  - Phase-gate checks adapted to `qNO`, `qNO2`, `qO3`, and `j_no2`
+  - Phase-gate checks adapted to `qNO`, `qNO2`, `qO3`, and photolysis diagnostics
 - `scripts/run_tuvx_phase_gate.sh`
   - wrapper for Phase 0-2 gate checks
 - `scripts/verify_ox_conservation.py`
@@ -63,8 +65,8 @@ hardening and follow-on photolysis realism, not the original Phase 1-2 bring-up.
 ### Phase 0: LNOx-O3 prerequisite
 
 Purpose:
-- replace the earlier placeholder chemistry with a scientifically meaningful
-  tropospheric NO-NO2-O3 cycle
+- replace the initial ABBA-only coupling exercise with a scientifically
+  meaningful tropospheric NO-NO2-O3 cycle
 - establish the operator-split lightning source path before adding TUV-x
 
 Delivered:
@@ -86,29 +88,29 @@ Purpose:
 
 Delivered:
 - Spencer-style solar geometry helper in `mpas_solar_geometry.F`
-- `j_no2 = j_max * max(0, cos_sza)` fallback path
-- `j_no2` diagnostic output in MPAS history files
+- `jNO2 = j_max * max(0, cos_sza)` fallback path
+- `j_jNO2` diagnostic output in MPAS history files
 
 Outcome:
-- daytime `j_no2` scaled exactly with `cos_sza`
-- nighttime `j_no2` went to zero
+- daytime `j_jNO2` scaled exactly with `cos_sza`
+- nighttime `j_jNO2` went to zero
 - fallback path remained available when `config_tuvx_config_file = ''`
 
 ### Phase 2: clear-sky TUV-x
 
 Purpose:
-- replace scalar `j_no2` with column-dependent clear-sky photolysis computed
+- replace scalar `jNO2` with column-dependent clear-sky photolysis computed
   from host atmospheric profiles
 
 Delivered:
 - `config_tuvx_config_file` namelist switch
 - TUV-x module initialization and per-column execution
 - extraction of height, density, temperature, water vapor, and ozone from MPAS
-- `j_no2(level, cell)` write-back into MICM rate parameters
+- `jNO2(level, cell)` write-back into MICM rate parameters
 
 Outcome:
 - physically plausible clear-sky vertical structure
-- surface `j_no2` in the expected order of magnitude
+- surface `j_jNO2` in the expected order of magnitude
 - stable 15-minute idealized supercell chemistry runs
 
 ### Phase 3: cloud attenuation
@@ -120,17 +122,21 @@ Purpose:
 Delivered:
 - host-driven cloud radiator in TUV-x
 - cloud optical depth derived from Kessler `qc` and `qr`
-- cloud-aware `j_no2` attenuation and above-cloud enhancement
+- cloud-aware `j_jNO2` attenuation and above-cloud enhancement
 
 Outcome:
-- strong `j_no2` suppression inside cloudy columns
+- strong `j_jNO2` suppression inside cloudy columns
 - clear-sky columns preserved Phase 2 behavior
 - above-cloud enhancement consistent with cloud albedo feedback
 
 ## Development Test Case
 
 The TUV-x development case is the idealized supercell already used for the
-LNOx-O3 chemistry work.
+LNOx-O3 chemistry work. The values below describe the historical phase-gate
+runs recorded in `docs/chempas/results/TEST_RUNS.md`; the tracked
+`test_cases/supercell/namelist.atmosphere` template currently defaults to a
+2-hour midnight run and carries the LNOx/TUV-x and Chapman blocks as commented
+examples to enable per-case editing.
 
 ### Location and runtime
 
@@ -138,8 +144,8 @@ LNOx-O3 chemistry work.
 |------|-------|
 | Run directory | `~/Data/CheMPAS/supercell` |
 | Grid / case | Idealized supercell, 60 stretched levels (0–50 km) |
-| Start time | `0000-01-01_18:00:00` |
-| Nominal run duration | `00:30:00` for Phase 1, `00:15:00` for Phase 2/3 comparisons |
+| Phase-gate start time | `0000-01-01_18:00:00` |
+| Phase-gate run duration | `00:30:00` for Phase 1, `00:15:00` for Phase 2/3 comparisons |
 | Dynamics timestep | `3.0 s` |
 | MPI layout | `mpiexec -n 8` |
 | Decomposition prefix | `supercell.graph.info.part.` |
@@ -149,7 +155,8 @@ LNOx-O3 chemistry work.
 
 ### Chemistry configuration
 
-The tracked `test_cases/supercell/namelist.atmosphere` development settings are:
+The commented LNOx/TUV-x block in
+`test_cases/supercell/namelist.atmosphere` uses these settings:
 
 | Namelist option | Value | Meaning |
 |-----------------|-------|---------|
@@ -185,13 +192,13 @@ Why the synthetic start time:
 
 - `cos_sza = 0.508` at `18:00 UTC`
 - `cos_sza = 0.516` by `18:30 UTC`
-- `j_no2 = 0.00508 -> 0.00516 s^-1`
-- midnight test produced `j_no2 = 0`
+- `j_jNO2 = 0.00508 -> 0.00516 s^-1`
+- midnight test produced `j_jNO2 = 0`
 
 ### Phase 2
 
-- surface `j_no2 = 7.2e-3 s^-1`
-- top-of-domain `j_no2 = 1.2e-2 s^-1`
+- surface `j_jNO2 = 7.2e-3 s^-1`
+- top-of-domain `j_jNO2 = 1.2e-2 s^-1`
 - `NO` peak `29.9 ppbv`
 - `NO2` peak `6.5 ppbv`
 - `O3` minimum `43.5 ppbv`
@@ -201,9 +208,9 @@ Why the synthetic start time:
 
 - cloud develops after about 5 minutes in the supercell
 - `346` cloudy columns and `27,734` clear columns at `t = 15 min`
-- cloudy minimum `j_no2 = 6.27e-5 s^-1`
-- clear-sky surface `j_no2 = 7.16e-3 s^-1`
-- above-cloud `j_no2` reaches about `1.5e-2 s^-1`
+- cloudy minimum `j_jNO2 = 6.27e-5 s^-1`
+- clear-sky surface `j_jNO2 = 7.16e-3 s^-1`
+- above-cloud `j_jNO2` reaches about `1.5e-2 s^-1`
 - `NO2` remains higher in cloudy columns where photolysis recycling is reduced
 
 For the complete tables, plots, and pass/fail notes, see
@@ -336,7 +343,7 @@ supercell this means `z_km = 50.0` is the first CSV row.
 ## Current Limits And Follow-On Work
 
 - **No cloud shadows.** TUV-x runs as independent 1D columns (plane-parallel).
-  At SZA ~59° the `j_no2` cross-section shows purely vertical structure — a
+  At SZA ~59° the `j_jNO2` cross-section shows purely vertical structure — a
   cloud attenuates photolysis directly below it but has zero effect on
   neighboring columns. In reality the solar beam enters at an angle, so clouds
   should cast shadows to one side, reducing photolysis in adjacent clear-sky
@@ -344,8 +351,9 @@ supercell this means `z_km = 50.0` is the first CSV row.
   columns at the geometric SZA, accumulate their cloud OD as above-column
   attenuation) would capture the dominant effect without full 3D radiative
   transfer.
-- current TUV-x work targets `j_no2` in the tropospheric LNOx-O3 mechanism, not
-  the full Chapman photolysis set
+- the LNOx-O3 supercell remains the primary development case; Chapman and
+  Chapman + NOx use the same multi-rate plumbing but still need their own
+  MPAS-coupled validation plots
 - aerosols, earth-sun-distance refinement, and ice hydrometeors are later work
 - clear-sky/cloudy column split optimization is deferred
 - some extended gate checks remain future work, including longer transition

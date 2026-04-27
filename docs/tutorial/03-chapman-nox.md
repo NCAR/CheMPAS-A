@@ -4,7 +4,8 @@
 :class: warning
 
 This chapter is being actively written. Commands and expected output
-are provisional; figures are placeholders.
+are provisional; figure slots are left without rendered PNGs until the
+corresponding model runs and plots are archived.
 ```
 
 The Chapman + NOx photostationary-state (PSS) tutorial walks through a
@@ -29,7 +30,8 @@ By the end of this chapter you will:
 - Generate the TUV-x upper-atmosphere extension CSV and understand
   why TUV-x needs photons from above the model lid.
 - Verify the chemistry against the analytical Leighton photostationary
-  state and the regression suite.
+  state; the planned regression suite will eventually automate the
+  reference-value checks.
 
 ## 3.2 The Chapman + NOx case
 
@@ -338,18 +340,12 @@ Section content coming.
 
 Two complementary checks.
 
-**Regression suite.** The same source-of-truth used in Chapter 2:
-
-```bash
-cd ~/EarthSystem/CheMPAS-A
-python scripts/regression.py run --case supercell
-```
-
-A PASS means every reference statistic in
-`test_cases/supercell/regression_reference.yaml` is within the
-configured relative tolerance (default `1e-3`). The regression YAML
-— not this tutorial — is the source of truth for expected numerical
-values.
+**Regression suite.** The planned regression suite will eventually
+provide a source-of-truth numerical check for this case, but the
+`scripts/regression.py` entry point and reference YAML files are not
+present in this branch yet. See
+`docs/superpowers/specs/2026-04-19-regression-suite-design.md` for the
+design.
 
 **Analytical PSS check.** Pull jNO₂, [O₃], [NO], [NO₂] from
 `output.nc` at the final timestep and compare the simulated ratio

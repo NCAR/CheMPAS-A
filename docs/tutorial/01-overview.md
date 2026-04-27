@@ -8,8 +8,7 @@ are provisional and may change.
 ```
 
 The CheMPAS Tutorial walks through CheMPAS-A's idealized chemistry test
-cases, the same cases driven by the numerical regression suite
-(`scripts/regression.py`). Where the [User's Guide](../users-guide/index.rst)
+cases. Where the [User's Guide](../users-guide/index.rst)
 is reference-style — a verbatim port of the upstream MPAS-Atmosphere
 documentation — this tutorial is narrative: run the case, look at the
 output, understand what the chemistry is doing.
@@ -55,17 +54,16 @@ no need to re-run `pip` between sections.
   side-by-side comparison.
 - [Chapter 3: Chapman + NOx Photostationary State](03-chapman-nox.md) —
   small-domain Chapman cycle plus NOx, where the analytical PSS solution
-  is a clean numerical sanity check. *(Placeholder; content coming.)*
+  is a clean numerical sanity check.
 
 ## Verifying numerically
 
 The tutorial focuses on what each run looks like. For numerical match
-against tracked reference values, the source of truth is the regression
-suite:
+against tracked reference values, use the regression suite once it is
+implemented. Its design is captured in
+`docs/superpowers/specs/2026-04-19-regression-suite-design.md`; the
+`scripts/regression.py` entry point and reference YAML files are not
+present in this branch yet.
 
-```bash
-python scripts/regression.py run --case supercell
-```
-
-See `docs/superpowers/specs/2026-04-19-regression-suite-design.md` for
-the regression suite's design.
+Until that lands, use the explicit log checks and plotting commands in
+Chapters 2 and 3.

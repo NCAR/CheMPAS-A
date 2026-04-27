@@ -41,7 +41,7 @@ where $L_{e_i}$ is the length of the horizontal cell edge $e_i$, and $\Delta\zet
 :::{admonition} MPAS code
 :class: note
 
-The mass flux divergence {eq}`eq:4.4` appears in a number of locations in MPAS-A. For example, it is used to compute $R^t_{\tilde{\rho}_d}$ in {eq}`eq:3.33` (the array `rho_tend` in the code), and this occurs early in subroutine `atm_compute_dyn_tend` in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The quantity $1/\Delta\zeta_w$ is stored in the array `rdzw` in the MPAS code. {eq}`eq:4.3` and {eq}`eq:4.4` are identical for the shallow atmosphere approximated equations on the discrete MPAS mesh.
+The mass flux divergence {eq}`eq:4.4` appears in a number of locations in MPAS-A. For example, it is used to compute $R^t_{\tilde{\rho}_d}$ in {eq}`eq:3.33` (the array `rho_tend` in the code), and this occurs early in subroutine `atm_compute_dyn_tend` in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The quantity $1/\Delta\zeta_w$ is stored in the array `rdzw` in the MPAS code. {eq}`eq:4.3` and {eq}`eq:4.4` are identical for the shallow atmosphere approximated equations on the discrete MPAS mesh.
 :::
 
 We repeat here that the momentum $\mathbf{V} = (\mathbf{V}_{\mathbf{H}}, \Omega) = (\overline{\tilde{\rho}_d}^{c_e}\mathbf{v}_{\mathbf{H}}, \overline{\tilde{\rho}_d}^{k}\omega)$, where here $\overline{\tilde{\rho}_d}^{c_e}$ denotes the horizontal average of $\tilde{\rho}_d$ to the cell edge and $\overline{\tilde{\rho}_d}^{k}$ is interpolation of $\tilde{\rho}_d$ to the interface level $k$. This represents a simple 2nd order projection of $\tilde{\rho}_d$ to the cell faces, and we use it because the density is a very smoothly varying field while other scalar mass fields are often not smooth. In the following section we describe transport for cell-centered scalars other than the dry-air mass, where a higher order projection is described.
@@ -86,8 +86,8 @@ As noted in Appendix B, the least-squares-polynomial computation (B.2) requires 
 :::{admonition} MPAS code
 :class: note
 
-The coefficients used in the transport routines are precomputed (and stored) in subroutine `atm_adv_coef_compression` found in `MPAS/src/core_atmosphere/mpas_atm_core.F`.
-For a given edge, a list of cells needed in the flux computation is constructed and stored. For example, the list would consist of cells $c_0$ through $c_9$ for edge $e_1$ in Figure B.1. Two set of coefficients are computed and stored. The set corresponding to the 4th-order flux for edge $e_1$
+The coefficients used in the transport routines are precomputed (and stored) in subroutine `atm_adv_coef_compression` found in `src/core_atmosphere/mpas_atm_core.F`.
+For a given edge, a list of cells needed in the flux computation is constructed and stored. For example, the list would consist of cells $c_0$ through $c_9$ for edge $e_1$ in Figure B.1. Two sets of coefficients are computed and stored. The set corresponding to the 4th-order flux for edge $e_1$
 
 $$
 L_{e_1}\!\left[\frac{1}{2}(\phi_{c_0} + \phi_{c_i}) - \Delta x^2_{e_i}\,\frac{1}{12}\!\left\{\left(\frac{\partial^2\phi}{\partial x^2_{e_i}}\right)\!\bigg|_{c_1} + \left(\frac{\partial^2\phi}{\partial x^2_{e_i}}\right)\!\bigg|_{c_0}\right\}\right]
@@ -127,7 +127,7 @@ As with the horizontal fluxes, the parameter $\beta$ controls the level of upwin
 :::{admonition} MPAS code
 :class: note
 
-The vertical flux divergence calculations for scalars occur in the scalar transport routines `atm_advance_scalars` and `atm_advance_scalars_mono` found in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. Given the horizontal and vertical flux formulae described in sections 4.2.1 and 4.2.2, the updates in the first two substeps of the RK3 integration, {eq}`eq:3.46` and {eq}`eq:3.47`, can be computed, and the fluxes are also needed for the final monotonic update. The vertical flux divergence for potential temperature (the remaining cell-centered prognostic variable) is computed in subroutine `atm_compute_dyn_tend`. The quantity $1/\Delta\zeta_w$ in the flux divergence {eq}`eq:4.6` is stored in the array `rdnw` which is computed in the initialization routines for various cases in `MPAS/src/core_init_atmosphere/mpas_init_atm_cases.F`.
+The vertical flux divergence calculations for scalars occur in the scalar transport routines `atm_advance_scalars` and `atm_advance_scalars_mono` found in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. Given the horizontal and vertical flux formulae described in sections 4.2.1 and 4.2.2, the updates in the first two substeps of the RK3 integration, {eq}`eq:3.46` and {eq}`eq:3.47`, can be computed, and the fluxes are also needed for the final monotonic update. The vertical flux divergence for potential temperature (the remaining cell-centered prognostic variable) is computed in subroutine `atm_compute_dyn_tend`. The quantity $1/\Delta\zeta_w$ in the flux divergence {eq}`eq:4.6` is stored in the array `rdnw` which is computed in the initialization routines for various cases in `src/core_init_atmosphere/mpas_init_atm_cases.F`.
 :::
 
 ### 4.2.3 Boundary Conditions for the Vertical Fluxes
@@ -164,7 +164,7 @@ $$ (eq:4.10)
 :::{admonition} MPAS code
 :class: note
 
-The shape-preserving (monotonic) transport scheme is contained in subroutine `atm_advance_scalars_mono` found in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. This routine is called to execute updates {eq}`eq:3.48` and {eq}`eq:3.49` in the described in section 3.5. The first action in this subroutine is to compute the update {eq}`eq:3.48` by adding the physics tendencies to the scalars to produce the intermediate values $q_j^{***}$. The code then follows steps 1 through 8 which is the update {eq}`eq:3.49` with the flux renormalization. The main loops in the code often include calculations from multiple steps. In contrast to the scalar updates in the first two substeps, {eq}`eq:3.46` and {eq}`eq:3.47`, here each scalar is updated individually given the need to store the fluxes and the scaling factors.
+The shape-preserving (monotonic) transport scheme is contained in subroutine `atm_advance_scalars_mono` found in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. This routine is called to execute updates {eq}`eq:3.48` and {eq}`eq:3.49` described in section 3.5. The first action in this subroutine is to compute the update {eq}`eq:3.48` by adding the physics tendencies to the scalars to produce the intermediate values $q_j^{***}$. The code then follows steps 1 through 8, which is the update {eq}`eq:3.49` with the flux renormalization. The main loops in the code often include calculations from multiple steps. In contrast to the scalar updates in the first two substeps, {eq}`eq:3.46` and {eq}`eq:3.47`, here each scalar is updated individually given the need to store the fluxes and the scaling factors.
 :::
 
 ## 4.3 Horizontal Momentum Equation
@@ -175,7 +175,7 @@ MPAS uses a C-grid staggering of the horizontal velocity, thus the prognostic ve
 
 ### 4.3.1 Pressure and Kinetic Energy
 
-There are two places where the pressure gradient term in the horizontal momentum equation needs to be evaluated, first in the RK3 integration using {eq}`eq:3.15`, and also in the acoustic integration using {eq}`eq:3.25`. The kinetic energy gradient is only needed for the RK3 in integration {eq}`eq:3.15`. Consider the velocity $u_{13}$ on edge $ab$ given in Figure 2.1. The line connecting cell centers $A$ and $C$ is perpendicular to the cell edge and is bisected by the cell edge, thus the difference of the cell center values divided by the distance between the cell centers will give a second-order accurate representation of the gradient at the $u_{13}$ edge point. With this gradient formula, and with pressure $\Theta_m$, $\rho$, and the diagnostic quantities $K$ (horizontal kinetic energy), pressure, and exner function defined at the cell centers, we can write the discrete terms as
+There are two places where the pressure gradient term in the horizontal momentum equation needs to be evaluated, first in the RK3 integration using {eq}`eq:3.15`, and also in the acoustic integration using {eq}`eq:3.25`. The kinetic energy gradient is only needed for the RK3 integration {eq}`eq:3.15`. Consider the velocity $u_{13}$ on edge $ab$ given in Figure 2.1. The line connecting cell centers $A$ and $C$ is perpendicular to the cell edge and is bisected by the cell edge, thus the difference of the cell center values divided by the distance between the cell centers will give a second-order accurate representation of the gradient at the $u_{13}$ edge point. With this gradient formula, and with pressure $\Theta_m$, $\rho$, and the diagnostic quantities $K$ (horizontal kinetic energy), pressure, and exner function defined at the cell centers, we can write the discrete terms as
 
 $$
 \begin{aligned}
@@ -216,7 +216,7 @@ $$ (eq:4.16)
 :::{admonition} MPAS code
 :class: note
 
-The horizontal pressure gradient and kinetic energy operators {eq}`eq:4.11` and {eq}`eq:4.12` for the RK3 timestep can be found in subroutine `atm_compute_dyn_tend` in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The acoustic step horizontal pressure gradient operator {eq}`eq:4.13` can be found in subroutine `atm_advance_acoustic_step` in the same source file. The coefficients $\rho_d/\rho_m$ for the cell edges {eq}`eq:4.16` are computed in subroutine `atm_compute_moist_coefficients` and the array storing the coefficients is `cqu(levels, edge)`. The cell order in the gradient operator is given by the integer array `cellsOnEdge(2, edges)`, where the positive flow direction across an edge is always from `cellsOnEdge(1, edge)` to `cellsOnEdge(2, edge)` by convention.
+The horizontal pressure gradient and kinetic energy operators {eq}`eq:4.11` and {eq}`eq:4.12` for the RK3 timestep can be found in subroutine `atm_compute_dyn_tend` in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The acoustic step horizontal pressure gradient operator {eq}`eq:4.13` can be found in subroutine `atm_advance_acoustic_step` in the same source file. The coefficients $\rho_d/\rho_m$ for the cell edges {eq}`eq:4.16` are computed in subroutine `atm_compute_moist_coefficients` and the array storing the coefficients is `cqu(levels, edge)`. The cell order in the gradient operator is given by the integer array `cellsOnEdge(2, edges)`, where the positive flow direction across an edge is always from `cellsOnEdge(1, edge)` to `cellsOnEdge(2, edge)` by convention.
 :::
 
 **Cell-Centered Kinetic Energy Evaluation**
@@ -252,7 +252,7 @@ MPAS-A uses a value $\alpha = 0.375$ in its default configuration.
 :::{admonition} MPAS code
 :class: note
 
-The kinetic energy is computed each RK3 substep in subroutine `atm_compute_solve_diagnostics`. The coefficient $\alpha$ in {eq}`eq:4.20` is set in the code before {eq}`eq:4.20` is evaluated. The subroutine is found in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
+The kinetic energy is computed each RK3 substep in subroutine `atm_compute_solve_diagnostics`. The coefficient $\alpha$ in {eq}`eq:4.20` is set in the code before {eq}`eq:4.20` is evaluated. The subroutine is found in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
 :::
 
 ### 4.3.2 Nonlinear Coriolis Term
@@ -285,7 +285,7 @@ The reader is advised to consult Thuburn et al. (2009) for a detailed descriptio
 :::{admonition} MPAS code
 :class: note
 
-The weights $w_{e,e'}$ are computed as one of the final steps in the MPAS mesh generation; the evaluation of {eq}`eq:4.22` is not part of the MPAS release. We are considering putting the calculation into the release in the future. The reconstruction of the tangential velocity, e.g. {eq}`eq:4.21`, takes place in subroutine `atm_compute_solve_diagnostics` found in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The weights $w_{e,e'}$ are stored in the array `weightsOnEdge(e,e')`, the source edges $e$ are stored in the integer array `edgesOnEdge(e,e')` and the number of edges contributing to each reconstruction is stored in the array `nEdgesOnEdge(e')`.
+The weights $w_{e,e'}$ are computed as one of the final steps in the MPAS mesh generation; the evaluation of {eq}`eq:4.22` is not part of the MPAS release. We are considering putting the calculation into the release in the future. The reconstruction of the tangential velocity, e.g. {eq}`eq:4.21`, takes place in subroutine `atm_compute_solve_diagnostics` found in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The weights $w_{e,e'}$ are stored in the array `weightsOnEdge(e,e')`, the source edges $e$ are stored in the integer array `edgesOnEdge(e,e')` and the number of edges contributing to each reconstruction is stored in the array `nEdgesOnEdge(e')`.
 :::
 
 **Vertical Vorticity**
@@ -301,7 +301,7 @@ where $A_a$ is the area of the triangle centered at vertex $a$. The indicator fu
 :::{admonition} MPAS code
 :class: note
 
-The vertical vorticity is computed in subroutine `atm_compute_solve_diagnostics` found in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The relative vertical vorticity at a vertex $\zeta_v$ is stored in the array `vorticity(level,vertex)`. The indicator function $t_{e,v}$ is stored in the array `edgesOnVertex_sign(edge,vertex)`.
+The vertical vorticity is computed in subroutine `atm_compute_solve_diagnostics` found in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The relative vertical vorticity at a vertex $\zeta_v$ is stored in the array `vorticity(level,vertex)`. The indicator function $t_{e,v}$ is stored in the array `edgesOnVertex_sign(edge,vertex)`.
 The absolute vorticity at the vertices $\eta_v$ is stored in the array `pv_vertex(level,vertex)`. The name goes back to MPAS-A's initial implementation of a shallow water model.
 :::
 
@@ -328,7 +328,7 @@ This upwind estimate has a damping effect on the absolute vorticity and it was f
 :::{admonition} MPAS code
 :class: note
 
-The vertical vorticity at edges are computed in subroutine `atm_compute_solve_diagnostics` found in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The absolute vertical vorticity is stored in the array `pv_edge(level,edge)`. The upwind estimate is also computed in this routine where first `pv_cell(level,cell)` is computed and then {eq}`eq:4.24` is evaluated.
+The vertical vorticity at edges is computed in subroutine `atm_compute_solve_diagnostics` found in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The absolute vertical vorticity is stored in the array `pv_edge(level,edge)`. The upwind estimate is also computed in this routine where first `pv_cell(level,cell)` is computed and then {eq}`eq:4.24` is evaluated.
 :::
 
 **MPAS-A Formulation for the Nonlinear Coriolis Term**
@@ -344,7 +344,7 @@ Here the summation is over the edges that contribute to the tangential velocity 
 :::{admonition} MPAS code
 :class: note
 
-The nonlinear Coriolis term is computed in subroutine `atm_compute_dyn_tend` in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The absolute vertical vorticity is computed in subroutine `atm_compute_solve_diagnostics` as noted earlier. The nonlinear Coriolis term is added directly to the tendency for the momentum at the edge. Note that the reconstructed tangential velocity at the edges is not directly used in {eq}`eq:4.26`.
+The nonlinear Coriolis term is computed in subroutine `atm_compute_dyn_tend` in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The absolute vertical vorticity is computed in subroutine `atm_compute_solve_diagnostics` as noted earlier. The nonlinear Coriolis term is added directly to the tendency for the momentum at the edge. Note that the reconstructed tangential velocity at the edges is not directly used in {eq}`eq:4.26`.
 :::
 
 ### 4.3.3 Vertical Transport for the Horizontal Velocity
@@ -360,7 +360,7 @@ The flux is evaluated as in {eq}`eq:4.9` with $u$ replacing $\phi$ and $\overlin
 :::{admonition} MPAS code
 :class: note
 
-The vertical flux divergence for the horizontal velocity is computed in subroutine `atm_compute_dyn_tend` found in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
+The vertical flux divergence for the horizontal velocity is computed in subroutine `atm_compute_dyn_tend` found in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
 :::
 
 ### 4.3.4 Horizontal Mass Flux Divergence
@@ -376,7 +376,7 @@ Here the horizontal mass flux divergence in the two cells sharing the edge is av
 :::{admonition} MPAS code
 :class: note
 
-The discrete term {eq}`eq:4.28` is computed in subroutine `atm_compute_dyn_tend` found in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
+The discrete term {eq}`eq:4.28` is computed in subroutine `atm_compute_dyn_tend` found in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
 :::
 
 ### 4.3.5 Vertical Momentum Equation
@@ -400,7 +400,7 @@ where the interpolation of the moist variables to the interface levels uses {eq}
 :::{admonition} MPAS code
 :class: note
 
-The pressure gradient and body force terms {eq}`eq:4.29` are computed in subroutine `atm_compute_dyn_tend` in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The moist coefficient {eq}`eq:4.30` is computed in subroutine `atm_compute_moist_coefficients`.
+The pressure gradient and body force terms {eq}`eq:4.29` are computed in subroutine `atm_compute_dyn_tend` in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The moist coefficient {eq}`eq:4.30` is computed in subroutine `atm_compute_moist_coefficients`.
 :::
 
 **Transport for the Vertical Velocity**
@@ -425,5 +425,5 @@ The evaluation of the horizontal portion of the flux divergence occurs in the ex
 :::{admonition} MPAS code
 :class: note
 
-The horizontal and vertical transport for the vertical velocity is computed in subroutine `atm_compute_dyn_tend` in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
+The horizontal and vertical transport for the vertical velocity is computed in subroutine `atm_compute_dyn_tend` in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
 :::

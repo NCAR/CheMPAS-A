@@ -44,7 +44,7 @@ Having set the rotation parameters in the `namelist.input` file, the `grid_rotat
 grid_rotate grid.nc grid_SE_Asia_refinement.nc
 ```
 
-The original grid file will not be altered, and a new, rotated grid file will be created. The NCL script `mesh.ncl` may be used to plot either of the original or rotated grid files after suitable setting the name of the grid file in the script.
+The original grid file will not be altered, and a new, rotated grid file will be created. The NCL script `mesh.ncl` may be used to plot either the original or rotated grid file after the grid-file name is set in the script.
 
 > *Note: The grid\_rotate program initializes the new, rotated grid file to a copy of the original grid file. If the original grid file has only read permission (i.e., no write permission), then so will the copy, and consequently, the grid\_rotate program will fail when attempting to update the fields in the copy.*
 

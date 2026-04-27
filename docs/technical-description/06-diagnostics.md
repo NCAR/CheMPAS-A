@@ -16,4 +16,8 @@ $$ (eq:6.1)
 
 This frontogenesis function considers only the horizontal component of frontogenesis, and it is based on the formulation described in Richter et al. (2010). The finite-volume computation of components of the function are described in Appendix C.
 
-## 6.3 Other Diagnostics to Follow
+## 6.3 Additional Diagnostics
+
+This section is intentionally incomplete in the upstream draft. The current
+ported chapter documents the RBF cell-centered velocity reconstruction and
+the frontogenesis function only.

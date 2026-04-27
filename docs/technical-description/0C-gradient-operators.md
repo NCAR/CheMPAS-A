@@ -159,7 +159,7 @@ In MPAS we pre-compute the coefficients $(a_{c,e} - b_{c,e})$ and $2c_{c,e}$ for
 :::{admonition} MPAS code
 :class: note
 
-The two coefficients in {eq}`eq:C.16` and {eq}`eq:C.17`, $(a_{c,e} - b_{c,e})$ and $2c_{c,e}$, are computed in subroutine `atm_initialize_deformation_weights` in `MPAS/src/core_init_atmosphere/mpas_atm_advection.F` in subroutine `atm_initialize_deformation_weights`. The coefficients are stored in the arrays `defc_a` $(a_{c,e} - b_{c,e})$ and `defc_b` $(2c_{c,e})$. The Smagorinsky viscosity {eq}`eq:C.11` is computed in subroutine `atm_compute_dyn_tend` in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F` as are the 2nd-order filter tendencies for the dynamics variables $u$, $w$, and $\theta_m$ for the RK3 time integration.
+The two coefficients in {eq}`eq:C.16` and {eq}`eq:C.17`, $(a_{c,e} - b_{c,e})$ and $2c_{c,e}$, are computed in subroutine `atm_initialize_deformation_weights` in `src/core_init_atmosphere/mpas_atm_advection.F`. The coefficients are stored in the arrays `defc_a` $(a_{c,e} - b_{c,e})$ and `defc_b` $(2c_{c,e})$. The Smagorinsky viscosity {eq}`eq:C.11` is computed in subroutine `atm_compute_dyn_tend` in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`, as are the 2nd-order filter tendencies for the dynamics variables $u$, $w$, and $\theta_m$ for the RK3 time integration.
 :::
 
 ## C.3 Frontogenesis Function
@@ -185,5 +185,5 @@ Derivatives of the potential temperature $(\theta_x, \theta_y)$ are also needed 
 :::{admonition} MPAS code
 :class: note
 
-The coefficients involving hearing deformation and the stretching deformation are computed stored as described in the case of the Smagorinsky eddy viscosity calculation. The coefficients for the scalar gradient calculations, {eq}`eq:C.5` and {eq}`eq:C.6`, are computed in subroutine `atm_initialize_deformation_weights` in `MPAS/src/core_init_atmosphere/mpas_atm_advection.F` in subroutine `atm_initialize_deformation_weights`. The coefficients are stored in the arrays `cell_gradient_coef_x` $(c_{x_{c,e}})$ and `cell_gradient_coef_y` $(c_{y_{c,e}})$. They are not presently used in MPAS-A but are used in the frontogenesis computation in CAM-MPAS.
+The coefficients involving shearing deformation and stretching deformation are computed and stored as described in the case of the Smagorinsky eddy viscosity calculation. The coefficients for the scalar gradient calculations, {eq}`eq:C.5` and {eq}`eq:C.6`, are computed in subroutine `atm_initialize_deformation_weights` in `src/core_init_atmosphere/mpas_atm_advection.F`. The coefficients are stored in the arrays `cell_gradient_coef_x` $(c_{x_{c,e}})$ and `cell_gradient_coef_y` $(c_{y_{c,e}})$. They are not presently used in MPAS-A but are used in the frontogenesis computation in CAM-MPAS.
 :::
