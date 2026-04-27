@@ -38,6 +38,9 @@ build_tables
 # macOS Finder metadata
 .DS_Store
 
+# Local TODO/scratchpad notes (not part of the project history).
+/DOCS_TODO.md
+
 # Restart timestamp file
 restart_timestamp
 
