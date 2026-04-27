@@ -1,7 +1,7 @@
 # Standalone MUSICA-Python Tutorials — Design
 
 Date: 2026-04-26
-Status: Design (awaiting user review)
+Status: Implemented
 
 Target files (new):
 - `scripts/musica_python/README.md`

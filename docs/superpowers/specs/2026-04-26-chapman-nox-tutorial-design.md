@@ -1,7 +1,7 @@
 # CheMPAS Tutorial Chapter 3 — Design
 
 Date: 2026-04-26
-Status: Design (awaiting user review)
+Status: Implemented
 
 Target file (modified, not new):
 - `docs/tutorial/03-chapman-nox.md`

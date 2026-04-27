@@ -13,7 +13,6 @@ CheMPAS-A (Chemistry for MPAS - Atmosphere) is a standalone project derived from
 - `docs/chempas/architecture/COMPONENTS.md` - Detailed component descriptions
 - `docs/chempas/musica/MUSICA_INTEGRATION.md` - MUSICA/MICM coupling details
 - `docs/chempas/musica/MUSICA_API.md` - MUSICA Fortran API reference
-- `docs/chempas/results/BENCHMARKS.md` - Agent model benchmark comparison
 - `docs/chempas/results/TEST_RUNS.md` - Test run documentation
 
 ## Sister Project Reference

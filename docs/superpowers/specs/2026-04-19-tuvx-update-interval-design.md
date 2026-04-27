@@ -1,7 +1,7 @@
 # TUV-x Update Interval — Design
 
 Date: 2026-04-19
-Status: Design (awaiting user review)
+Status: Implemented
 Target files: `src/core_atmosphere/Registry.xml`,
               `src/core_atmosphere/chemistry/mpas_atm_chemistry.F`
 
