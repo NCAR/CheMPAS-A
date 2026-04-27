@@ -299,7 +299,7 @@ def main():
     ax_ts.legend()
     ax_ts.grid(True, alpha=0.4)
 
-    fig.suptitle(style.format_title("Standalone Chapman + NOx column model"))
+    fig.suptitle(style.format_title("Chapman + NOx column model"))
     fig.tight_layout()
     fig.savefig(OUT_DIR / "chapman_nox_column.png", dpi=150)
     print(f"Wrote {OUT_DIR / 'chapman_nox_column.nc'} and "

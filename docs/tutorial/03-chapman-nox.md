@@ -58,6 +58,18 @@ On any timescale longer than a few seconds, [NO] / [NO₂] in sunlight
 relaxes to the **Leighton photostationary state**, the analytical
 target of section 3.7.
 
+The MICM solver evolves all six prognostic species (O₂, O, O¹D, O₃,
+NO, NO₂) every timestep — including O₃, which is produced by
+O + O₂ + M → O₃ and destroyed by both photolysis and titration.
+The Chapman O₃ column itself is *not* prescribed. What `init_chapman.py`
+does is supply realistic *initial conditions*: starting the run from
+zero would force the chemistry to build the column from scratch, which
+takes hours in the upper stratosphere where jO₂ is non-negligible and
+months-to-years in the lower stratosphere where the Schumann–Runge
+bands are extinguished. The AFGL mid-latitude-summer climatology gets
+the run close enough to a reasonable starting state that the diurnal
+photochemistry the run actually demonstrates is meaningful.
+
 The Chapman cycle is global-stratospheric physics, but
 `scripts/init_chapman.py` seeds a 1-D AFGL mid-latitude-summer ozone
 profile uniformly across the supercell mesh, and the chemistry has no
@@ -155,17 +167,25 @@ mpas_tuvx.F. MPAS region (below 50 km) and extension-CSV region
 Section content coming.
 ```
 
-The Chapman + NOx mechanism needs six tracers seeded with realistic
-vertical profiles:
+The Chapman + NOx mechanism needs six prognostic tracers seeded with
+realistic vertical profiles. These are *initial conditions only* —
+the MICM solver evolves all six over the run via the Chapman cycle
+plus NOx reactions:
 
-- `qO2` — uniform 0.2313 kg/kg (the dry-air O₂ mass mixing ratio)
+- `qO2` — uniform 0.2313 kg/kg (the dry-air O₂ mass mixing ratio).
+  Effectively constant under the run; O₂ is consumed only by
+  Schumann–Runge photolysis, which is small.
 - `qO3` — AFGL mid-latitude-summer profile, interpolated to the MPAS
-  grid (continuous with the upper-atmosphere extension at the lid)
-- `qO`, `qO1D` — zero (fast radicals; chemistry spins them up within
-  seconds)
+  grid (continuous with the upper-atmosphere extension at the lid).
+  Starting near the climatology avoids the months-to-years
+  Chapman spin-up in the lower stratosphere.
+- `qO`, `qO1D` — zero (fast radicals; chemistry spins them up to
+  Chapman quasi-steady-state within seconds).
 - `qNO`, `qNO2` — total-NOx profile (0.05 ppb tropospheric background
   → ~10 ppb stratospheric peak around 25–35 km → drop near the lid),
-  partitioned ~30 % NO / 70 % NO₂ as a near-Leighton initial guess
+  partitioned ~30 % NO / 70 % NO₂ as a near-Leighton initial guess.
+  The Leighton partitioning settles within seconds; the total NOx
+  burden is preserved over the run.
 
 `scripts/init_chapman.py` writes these six tracers into
 `supercell_init.nc`:
@@ -279,6 +299,20 @@ k_{\mathrm{NO+O_3}}(T)
 $$
 
 comes from JPL kinetics.
+
+**The Leighton curve** is what you get when you evaluate the right-hand
+side of the expression above at every level of the column: it's the
+analytical [NO]/[NO₂] partitioning the simple two-reaction system
+*should* settle to, given the local jNO₂ and [O₃]. Plotting the
+simulated NO/NO₂ ratio alongside the Leighton curve (Figure 3.4 in
+§3.8 and the bottom-left panel of the standalone column-model plot in
+§3.10) is a direct visual check on the photolysis–titration balance.
+Where the two curves agree, the chemistry is at PSS as expected; where
+they diverge, either the system hasn't relaxed yet, or some other
+reaction the simple expression doesn't capture is perturbing the
+partitioning (in the chapman_nox mechanism, the small additional
+contribution from O / O¹D photochemistry shows up as a few-tens-of-
+percent offset in the stratosphere).
 
 **Where it should hold.** In the seeded stratospheric NOx peak layer
 (~25–35 km), photolysis is strong, [O₃] is high, and the partitioning
@@ -420,10 +454,15 @@ column tracks the analytical Leighton expression (the same one
 §3.7 motivates) to within a factor of ~1.3 — close enough to
 confirm the photolysis–titration balance qualitatively, with the
 residual reflecting the O / O¹D coupling the simple [NO]/[NO₂]
-formula omits. O₃ peaks near ~20 km in the modeled column. The
-12-hour run captures the diurnal SZA cycle from predawn
-(SZA ≈ 99°) through solar noon (SZA ≈ 22°) to late afternoon, so
-the photolysis-driven O₃ modulation (~10 % swing at 30 km in the
-time-series panel) is visible across the column. An independent
+formula omits. The O₃ mixing-ratio profile peaks at ~6 ppm near
+~42 km (consistent with the AFGL mid-latitude-summer
+climatology used by `init_chapman.py`; tropical and US-standard
+profiles peak higher, closer to 8–10 ppm). The O₃ *number-density*
+peak sits lower in the column, near ~20 km, because air density
+falls off faster than mixing ratio rises — a classic stratospheric
+O₃ feature. The 12-hour run captures the diurnal SZA cycle from
+predawn (SZA ≈ 99°) through solar noon (SZA ≈ 22°) to late
+afternoon, so the photolysis-driven O₃ modulation (~10 % swing
+at 30 km in the time-series panel) is visible across the column. An independent
 numerical check on the same chemistry the chapter's MPAS-coupled
 run exercises.
