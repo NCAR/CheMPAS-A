@@ -39,6 +39,10 @@ myst_enable_extensions = [
     'amsmath',
 ]
 
+# Generate deterministic anchors for Markdown headings so intra-doc and
+# cross-doc links such as ``03-building.md#33-compiling-mpas`` resolve.
+myst_heading_anchors = 4
+
 autosummary_generate = True
 
 # Otherwise, the Return parameter list looks different from the Parameters list
@@ -51,10 +55,10 @@ napoleon_use_ivar = True
 templates_path = ['_templates']
 
 # The suffix(es) of source filenames.
-# You can specify multiple suffix as a list of string:
-#
-source_suffix = ['.rst', '.md']
-# source_suffix = '.rst'
+source_suffix = {
+    '.rst': 'restructuredtext',
+    '.md': 'markdown',
+}
 
 # The master toctree document.
 master_doc = 'index'
@@ -84,13 +88,14 @@ else:
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store',
-                    'design_docs/template.md']
+                    'design_docs/template.md',
+                    'superpowers/**']
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
@@ -112,7 +117,6 @@ on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 if not on_rtd:  # only import and set the theme if we're building docs locally
     import sphinx_rtd_theme
     html_theme = 'sphinx_rtd_theme'
-    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -188,9 +192,9 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/', None),
-    'numpy': ('http://docs.scipy.org/doc/numpy/', None),
-    'xarray': ('http://xarray.pydata.org/en/stable/', None)}
+    'python': ('https://docs.python.org/3/', None),
+    'numpy': ('https://numpy.org/doc/stable/', None),
+    'xarray': ('https://docs.xarray.dev/en/stable/', None)}
 
 
 github_doc_root = 'https://github.com/rtfd/recommonmark/tree/master/doc/'

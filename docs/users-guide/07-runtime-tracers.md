@@ -4,8 +4,8 @@ CheMPAS-A treats chemistry tracers as *runtime* state: rather than hard-coding
 the species list in `Registry.xml`, the model reads a MICM configuration file
 at startup and extends the MPAS `scalars` pool to hold whatever species that
 mechanism declares. Switching mechanisms — for example between a stratospheric
-Chapman cycle, a tropospheric NOx–O3 mechanism, or a placeholder
-advection-only configuration — requires only changing the MICM config file;
+Chapman cycle, a tropospheric NOx-O3 mechanism, or the ABBA
+coupling-test configuration — requires only changing the MICM config file;
 no Fortran source edits, no Registry edits, no rebuild.
 
 This chapter describes how to select a chemistry mechanism, what the runtime
@@ -46,10 +46,11 @@ several reference configurations under `micm_configs/`:
 
 | File | Mechanism |
 |------|-----------|
-| `abba.yaml` | Two-species `A ⇌ B` placeholder (advection-only sanity tests) |
+| `abba.yaml` | Three-species `AB ⇌ A + B` coupling-test mechanism |
 | `chapman.yaml`, `chapman_full.yaml`, `chapman_only.yaml` | Stratospheric Chapman cycle variants |
 | `chapman_nox.yaml`, `chapman_nox_no_O.yaml`, `chapman_nox_noO1D.yaml`, `chapman_nox_slow.yaml` | Chapman + NOx variants for stiffness studies |
-| `lnox_o3_sink.yaml` | Tropospheric NOx–O3 with a relaxation sink |
+| `lnox_o3.yaml` | Tropospheric NOx-O3 mechanism used by the LNOx tutorial case |
+| `lnox_o3_sink.yaml` | Tropospheric NOx-O3 variant with a relaxation sink |
 
 The `&musica` record also gates lightning NOx, the TUV-x photolysis
 coupling, the chemistry sub-stepping count, and the MICM relative
@@ -76,6 +77,9 @@ At model startup, for each MPAS block:
 4. Chemistry initialization (`chemistry_init`) constructs the persistent
    MICM solver, resolves the per-species `index_qXX` dimensions from the
    pool metadata, and seeds the MPAS scalars from the MICM initial state.
+   If any chemistry tracer already contains spatial gradients in the input
+   state, the MICM seed is skipped for the whole chemistry set so that
+   file-provided tracer fields are preserved.
 
 After this point, chemistry species are first-class scalars: they appear
 in output streams under their MICM names, they are advected by the

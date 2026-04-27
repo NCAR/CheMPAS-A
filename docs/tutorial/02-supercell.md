@@ -303,23 +303,15 @@ LNOx + O3 chemistry at t = 2 h. To be added.]**
 Section content coming.
 ```
 
-Visual agreement is reassuring but not sufficient. To check that the
-final-state min/max/mean of the prognostic fields match a tracked
-reference, run the regression suite from the repo root:
+Visual agreement is reassuring but not sufficient. The planned regression
+suite will compare final-state min/max/mean statistics against tracked
+reference YAML files, but that tooling is not present in this branch yet.
+See `docs/superpowers/specs/2026-04-19-regression-suite-design.md` for
+the design.
 
-```bash
-cd ~/EarthSystem/CheMPAS-A
-python scripts/regression.py run --case supercell
-```
-
-A PASS means every reference statistic in
-`test_cases/supercell/regression_reference.yaml` is within the
-configured relative tolerance (default `1e-3`). A FAIL prints the
-offending field and its observed-vs-expected values.
-
-The regression YAML — not this tutorial — is the source of truth for
-expected numerical values. If the YAML changes (`--bless`), the
-tutorial does not need to be edited.
+For now, use this section as a manual checklist: confirm the log reports
+`Critical error messages = 0`, inspect the plotted tracer fields, and
+spot-check the key fields with `ncdump`, `ncks`, or a short Python script.
 
 ## 2.9 Next steps
 
@@ -332,7 +324,7 @@ Section content coming.
 - **The next chapter** is
   [Chapman + NOx Photostationary State](03-chapman-nox.md) — a small
   domain where the analytical PSS solution is a clean check on the
-  coupled MICM + TUV-x configuration. *(Coming soon.)*
+  coupled MICM + TUV-x configuration.
 - **The MUSICA/MICM coupling internals** are documented in
   [docs/chempas/musica/MUSICA_INTEGRATION.md](../chempas/musica/MUSICA_INTEGRATION.md).
 - **TUV-x photolysis** configuration is documented in

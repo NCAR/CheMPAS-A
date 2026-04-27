@@ -44,7 +44,8 @@ The dynamics component handles atmospheric motion and time integration.
 
 ### Physics (`physics/`)
 
-Physics parameterizations from multiple sources (~50 modules).
+Physics parameterizations from multiple sources (MPAS drivers plus WRF, MMM,
+NOAA/UGWP, and NoahMP scheme code).
 
 #### Main Physics Drivers
 
@@ -106,7 +107,7 @@ chemistry layer manages:
 - MPAS <-> MICM state transfer
 - operator-split lightning NOx source injection
 - fallback `cos(SZA)` photolysis and TUV-x photolysis
-- chemistry diagnostics such as `j_no2`
+- chemistry diagnostics such as `j_jNO2`
 
 ```
 chemistry/
@@ -129,7 +130,7 @@ See [MUSICA_INTEGRATION.md](../musica/MUSICA_INTEGRATION.md) for details.
 | `musica/mpas_musica.F` | Owns MICM state, species mapping, and photolysis-rate updates into MUSICA |
 | `mpas_lightning_nox.F` | Applies the altitude- and updraft-dependent NO source before the chemistry solve (see below) |
 | `mpas_solar_geometry.F` | Computes fallback solar geometry for Phase 1-style photolysis |
-| `mpas_tuvx.F` | Computes profile-dependent `j_no2` with TUV-x, including cloud-opacity support |
+| `mpas_tuvx.F` | Computes profile-dependent photolysis rates with TUV-x, including cloud-opacity support |
 
 #### Lightning NOx Source Parameterization
 
@@ -148,7 +149,7 @@ to mass mixing ratio (kg/kg) for MPAS scalars.
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `config_lnox_source_rate` | 0.5 ppbv/s | NO production rate when w_excess = w_ref |
+| `config_lnox_source_rate` | 0.0 ppbv/s | NO production rate when w_excess = w_ref; set to 0.5 ppbv/s in the tutorial LNOx case |
 | `config_lnox_w_threshold` | 5.0 m/s | Minimum updraft to activate source |
 | `config_lnox_w_ref` | 10.0 m/s | Reference excess updraft for scaling |
 | `config_lnox_z_min` | 5000 m | Minimum altitude for source |
@@ -346,6 +347,6 @@ Each core has a `Registry.xml` file defining:
 ## Related Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) - High-level architecture
-- [BUILD.md](../../BUILD.md) - Build system
+- `BUILD.md` - Build system
 - [MUSICA_INTEGRATION.md](../musica/MUSICA_INTEGRATION.md) - Chemistry integration
 - [TEST_RUNS.md](../results/TEST_RUNS.md) - Runtime validation notes and case summaries

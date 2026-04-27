@@ -186,7 +186,8 @@ ax.tricontourf(tri, values, ...)
 **Limitations:**
 - Uses Delaunay triangulation of cell centers (not actual MPAS Voronoi topology)
 - May have minor artifacts at domain edges
-- Future: consider uxarray for proper mesh handling (see ../project/TODO.md)
+- Future: consider uxarray for proper mesh handling if visualization artifacts
+  near mesh boundaries become important.
 
 ### Output Variables
 

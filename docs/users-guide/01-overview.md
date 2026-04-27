@@ -27,7 +27,7 @@ At present, MPAS-A includes parameterizations of physical processes taken from t
 
 ## 1.2 Model Components
 
-MPAS-A is comprised of two main components: the model, which includes atmospheric dynamics and physics; and an initialization component for generating initial conditions for the atmospheric and land-surface state, update files for sea-surface temperature and sea ice, and lateral boundary conditions. Both components (model and initialization) are built as *cores* within the MPAS software framework and make use of the same driver program and software infrastructure. However, each component is compiled as a separate executable.
+MPAS-A comprises two main components: the model, which includes atmospheric dynamics and physics; and an initialization component for generating initial conditions for the atmospheric and land-surface state, update files for sea-surface temperature and sea ice, and lateral boundary conditions. Both components (model and initialization) are built as *cores* within the MPAS software framework and make use of the same driver program and software infrastructure. However, each component is compiled as a separate executable.
 
 ```
 +--------------------------------------+

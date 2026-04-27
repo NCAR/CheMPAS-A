@@ -99,13 +99,11 @@ CheMPAS-A/
 ├── CMakeLists.txt          # Main CMake build configuration
 ├── Makefile                # Legacy Makefile build system
 ├── cmake/                  # CMake modules and functions
-├── docs/                   # Markdown documentation by topic
-│   ├── architecture/       # System and component architecture
-│   ├── guides/             # User/developer guides
-│   ├── musica/             # MUSICA/MICM integration notes
-│   ├── plans/              # Dated implementation plans
-│   ├── project/            # Project-management docs
-│   └── results/            # Run results and benchmarks
+├── docs/                   # Sphinx documentation source
+│   ├── chempas/            # CheMPAS-specific developer notes
+│   ├── tutorial/           # CheMPAS-A tutorial chapters
+│   ├── users-guide/        # Imported MPAS-Atmosphere user's guide
+│   └── technical-description/
 ├── micm_configs/           # MICM and TUV-x chemistry configuration files
 ├── scripts/                # Analysis, plotting, and helper scripts
 ├── src/                    # Main source code
@@ -201,26 +199,27 @@ The registry is processed by tools in `src/tools/registry/` to generate Fortran 
 
 ## Selected Source Counts
 
-Approximate Fortran/C source counts in the current tree:
+Approximate source/config counts in the current tree:
 
 | Component | Files | Description |
 |-----------|-------|-------------|
-| Framework | 35 | Core infrastructure |
+| Framework | 61 | Core infrastructure |
 | Operators | 10 | Mathematical kernels |
-| Atmosphere | 276 | Dynamics, physics, and chemistry |
-| Init Atmosphere | 22 | Preprocessing |
+| Atmosphere | 297 | Dynamics, physics, and chemistry |
+| Init Atmosphere | 35 | Preprocessing |
 | Chemistry | 5 | Driver, source, solar geometry, TUV-x, MUSICA coupler |
-| Ocean | 153 | Ocean modeling |
+| Ocean | 308 | Ocean modeling |
 
-These are current source counts for orientation, not architectural limits.
+These counts include Fortran/C source, include files, and XML configuration
+under each component. They are for orientation, not architectural limits.
 
 ## Related Documentation
 
-- [BUILD.md](../../BUILD.md) - Build system documentation
+- `BUILD.md` - Build system documentation
 - [COMPONENTS.md](COMPONENTS.md) - Detailed component documentation
 - [MUSICA_INTEGRATION.md](../musica/MUSICA_INTEGRATION.md) - Chemistry integration details
 - [TEST_RUNS.md](../results/TEST_RUNS.md) - Recorded runtime validation results
-- [PLAN.md](../../PLAN.md) - Current focus and active plan index
+- `PLAN.md` - Current focus and active plan index
 
 ## External Resources
 

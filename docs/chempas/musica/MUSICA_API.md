@@ -1,6 +1,10 @@
 # MUSICA API Reference
 
-This document provides a reference for the MUSICA (Multi-Scale Infrastructure for Chemistry and Aerosols) Fortran API used in MPAS-Atmosphere. The MUSICA library is located at `~/EarthSystem/MUSICA-LLVM`.
+This document provides a reference for the MUSICA (Multi-Scale Infrastructure
+for Chemistry and Aerosols) Fortran API used by CheMPAS-A. The active build
+discovers MUSICA-Fortran through `pkg-config`; local development checkouts
+often live next to this repository as `../MUSICA-LLVM`, but the path is not
+hard-coded in the source.
 
 ## Table of Contents
 
@@ -497,34 +501,40 @@ config_directory/
 
 ### v1 Format (Modern - Single File)
 
-Single JSON file with all definitions:
+Single YAML or JSON file with all definitions. CheMPAS-A's tracked mechanisms
+under `micm_configs/` use YAML:
 
-```json
-{
-  "version": "1.0.0",
-  "name": "Chapman",
-  "species": [
-    {
-      "name": "O3",
-      "molecular weight [kg mol-1]": 0.048,
-      "__initial concentration": 8.1e-6
-    }
-  ],
-  "phases": [
-    {"name": "gas", "species": ["O2", "O", "O3"]}
-  ],
-  "reactions": [
-    {
-      "type": "ARRHENIUS",
-      "A": 2.9e19,
-      "reactants": [{"species name": "O"}, {"species name": "O2"}],
-      "products": [{"species name": "O3"}]
-    }
-  ]
-}
+```yaml
+version: "1.0.0"
+name: LNOx-O3
+species:
+  - name: NO
+    __molar mass: 0.030
+    __initial concentration: 0.0
+  - name: NO2
+    __molar mass: 0.046
+    __initial concentration: 0.0
+  - name: O3
+    __molar mass: 0.048
+    __initial concentration: 0.0
+phases:
+  - name: gas
+    species: [NO, NO2, O3]
+reactions:
+  - type: PHOTOLYSIS
+    gas phase: gas
+    reactants:
+      - species name: NO2
+        coefficient: 1
+    products:
+      - species name: NO
+        coefficient: 1
+      - species name: O3
+        coefficient: 1
+    name: jNO2
 ```
 
-**Path:** `micm => micm_t("configs/v1/chapman/config.json", solver_type, error)`
+**Path:** `micm => micm_t("lnox_o3.yaml", solver_type, error)`
 
 ### Reaction Types
 
@@ -586,7 +596,7 @@ subroutine run_chemistry(dt, nCells, nLevels, T, P, rho, tracers)
   total_cells = nCells * nLevels
 
   ! Initialize
-  micm => micm_t("micm_config.json", RosenbrockStandardOrder, error)
+  micm => micm_t("lnox_o3.yaml", RosenbrockStandardOrder, error)
   state => micm%get_state(total_cells, error)
 
   ! Get strides and species index
@@ -681,7 +691,11 @@ A_micm [m³/mol/s] = A_atm [cm³/molecule/s] × Nₐ × 10⁻⁶
 |----------|-------------------|--------------|
 | NO + O3 → NO2 | 1.8×10⁻¹² | 1.084×10⁶ |
 
-**Photolysis reactions**: Rate parameter (j-value) is set externally via `state%rate_parameters` in **s⁻¹**. Until TUV-x is integrated, these default to 0 (photolysis disabled).
+**Photolysis reactions**: Rate parameters (j-values) are set externally via
+`state%rate_parameters` in **s⁻¹**. CheMPAS-A fills them from TUV-x when
+`config_tuvx_config_file` is set, or from the single-rate `cos(SZA)`
+fallback for `jNO2` when TUV-x is disabled. Before the first photolysis
+update, `PHOTO.*` parameters default to 0.
 
 ### MPAS to MICM
 
@@ -729,4 +743,5 @@ state%conditions(i)%air_density = rho_air_kg_m3 / M_AIR
 
 - [ARCHITECTURE.md](../architecture/ARCHITECTURE.md) - MPAS system architecture
 - [MUSICA_INTEGRATION.md](MUSICA_INTEGRATION.md) - MPAS-MUSICA integration details
-- [MUSICA-LLVM Source](~/EarthSystem/MUSICA-LLVM) - Full library source code
+- `../MUSICA-LLVM` or another MUSICA-Fortran checkout/install tree discovered
+  by `pkg-config`

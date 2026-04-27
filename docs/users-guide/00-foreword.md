@@ -8,7 +8,7 @@ Last updated: 26 April 2026
 
 ## Foreword
 
-This user's guide describes the Model for Prediction Across Scales -- Atmosphere (MPAS-A) Version 8.3.0. MPAS-A is the non-hydrostatic atmosphere model built within the MPAS framework. Users guides for other MPAS components, such as MPAS-Ocean, are separate from this guide.
+This user's guide describes CheMPAS-A 26.04, a chemistry-enabled derivative of the Model for Prediction Across Scales -- Atmosphere (MPAS-A) based on MPAS-Atmosphere v8.3.1. MPAS-A is the non-hydrostatic atmosphere model built within the MPAS framework. User guides for other MPAS components, such as MPAS-Ocean, are separate from this guide.
 
 The component models and framework that comprise MPAS are being developed collaboratively between Los Alamos National Laboratory (LANL) and the U.S. National Science Foundation National Center for Atmospheric Research (NSF NCAR). Common functionality required by different MPAS component models, such as parallel input/output, time management, block decomposition, etc., is provided by the MPAS framework, while development of specific component models, referred to in MPAS as *cores*, is handled by the individual development groups. Currently, LANL is responsible for the ocean, land-ice, and sea-ice cores, while NSF NCAR is responsible for the atmospheric core, MPAS-A.
 
@@ -16,7 +16,7 @@ MPAS is very much a collaborative development of both the shared architectures a
 
 The software developed for MPAS is open source, and it has been copyrighted under a BSD license. The simple copyright statement can be found at the beginning of MPAS source files and the complete copyright statement can be found in this user's guide or in the `LICENSE` file accompanying the source code.
 
-We conclude by noting that this user's guide is a work in progress. We welcome suggestions for improvements to this guide, including additions, corrections, clarifications, etc. Updates to MPAS-A, including the most recent code, user's guide, and test cases, may be found at <https://mpas-dev.github.io/>.
+We conclude by noting that this user's guide is a work in progress. We welcome suggestions for improvements to this guide, including additions, corrections, clarifications, etc. Upstream MPAS-A code, user-guide material, and test cases may be found at <https://mpas-dev.github.io/>.
 
 **Contributors to this guide:**
 Michael Duda, Laura Fowler, Bill Skamarock, Conrad Roesch, Doug Jacobsen, and Todd Ringler.

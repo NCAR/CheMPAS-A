@@ -3,10 +3,11 @@ MPAS-Atmosphere Technical Description
 
 A Description of the Model for Prediction Across Scales, Atmosphere, Version 8.
 
-Verbatim port of the draft NCAR Technical Note by W. C. Skamarock, M. G. Duda,
-J. B. Klemp, and L. Fowler (29 May 2025). Text and equations are ported
-first; figures are deferred to a follow-on session — see ``README.md`` in
-this subtree for the figure plan.
+Lightly edited port of the draft NCAR Technical Note by W. C. Skamarock,
+M. G. Duda, J. B. Klemp, and L. Fowler (29 May 2025). Text and equations
+are ported first; source paths have been normalized to this repository, and
+figures are deferred to a follow-on session — see ``README.md`` in this
+subtree for the figure plan.
 
 .. note::
 

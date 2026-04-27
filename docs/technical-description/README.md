@@ -1,12 +1,13 @@
 # Technical Description — port notes
 
-This subtree is a verbatim port of the draft NCAR Technical Note
+This subtree is a lightly edited port of the draft NCAR Technical Note
 *A Description of the Model for Prediction Across Scales, Atmosphere,
 Version 8* by Skamarock, Duda, Klemp, and Fowler (29 May 2025).
 
 ## Port status
 
-- **Text and equations:** ported verbatim.
+- **Text and equations:** ported from the upstream draft, with light
+  editorial fixes and source paths normalized to this repository layout.
 - **Figures:** deferred to a follow-on session. Placeholders of the form
   `**[Figure N.M: caption. To be added next session.]**` mark the
   intended figure location in each chapter.

@@ -56,9 +56,9 @@ order:
    `atm_extend_scalars_for_chemistry` (Chapter 7).
 4. `chemistry_seed_chem` (`mpas_atm_chemistry.F:895`) — copy the MICM
    initial state back to the MPAS scalars on both time levels via
-   `micm_to_mpas_chem` (`musica/mpas_musica.F:447`). Skipped per-tracer when
-   the MPAS array already shows spatial gradients (i.e., the tracer was
-   initialized from the input file).
+   `micm_to_mpas_chem` (`musica/mpas_musica.F:447`). If any chemistry tracer
+   already shows spatial gradients (i.e., tracer fields were initialized from
+   the input file), seeding is skipped for the whole chemistry set.
 5. `chemistry_lightning_nox_init` (`mpas_atm_chemistry.F:1027`) — read
    `config_lnox_*`; remains a no-op when `qNO` is not in the mechanism.
 6. `tuvx_init` (`mpas_tuvx.F:118`) — register from-host grids and profiles,
@@ -258,7 +258,7 @@ top mid-layer T so the join is continuous (the MPAS sounding may lack a
 stratopause, while the climatology does not). Heights must be strictly
 increasing; the file format is one header row plus N data rows.
 
-**Phase 1 fallback.** When `config_tuvx_config_file` is empty, the driver
+**Single-rate fallback.** When `config_tuvx_config_file` is empty, the driver
 falls back to a single rate `jNO2 = config_lnox_j_no2 · max(0, cos(SZA))`,
 filling slot 1 of `photo_rates`. The MICM mechanism must then declare
 `PHOTO.jNO2` for `musica_cache_photo_indices` to wire up — otherwise
@@ -280,7 +280,7 @@ NO + O3) is handled by MICM.
 
 `lightning_nox_init` (`mpas_lightning_nox.F:61`) looks up `index_qNO` in
 the scalars pool. If `qNO` is not in the active mechanism (e.g., the
-placeholder `abba.yaml`), the module sets `lnox_active = .false.` and
+ABBA coupling-test mechanism), the module sets `lnox_active = .false.` and
 the inject hook becomes a no-op. The same disabled state results when
 `config_lnox_source_rate ≤ 0` or `config_lnox_w_ref ≤ 0`.
 
@@ -312,7 +312,7 @@ full MPAS dt; sub-stepping or tighter tolerances avoid the bad root.
 
 **`config_chem_substeps`** (default 1). The MPAS dt is divided into N
 sub-steps and `musica_step` is called N times with `dt / N`
-(`mpas_atm_chemistry.F:548`). Photolysis rates are set once per outer
+(`mpas_atm_chemistry.F:554`). Photolysis rates are set once per outer
 step and frozen across sub-steps.
 
 **`config_micm_relative_tolerance`** (default 1e-6, MICM's own default).

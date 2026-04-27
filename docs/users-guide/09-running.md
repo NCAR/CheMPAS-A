@@ -79,7 +79,7 @@ The following steps summarize the creation of `static.nc`:
 - Edit the `streams.init_atmosphere` I/O configuration file (described below)
 - Run `init_atmosphere_model` *with only one MPI task specified* to create `static.nc`
 
-Note that it is critical for this step that the initialization core is run serially; afterward, however, the steps described in 7.2.2 may be run with more than one MPI task.
+Note that it is critical for this step that the initialization core is run serially; afterward, however, the steps described in Section 9.2.2 may be run with more than one MPI task.
 
 ```
 &nhyd_model
@@ -88,7 +88,7 @@ config_init_case        = 7                    ! must be 7, the real-data initia
 
 &dimensions
 config_nvertlevels      = 1                    ! the following dimensions should be set to 1 now,
-config_nsoillevels      = 1                    ! and their values will become significant in §7.2.2
+config_nsoillevels      = 1                    ! and their values will become significant in Section 9.2.2
 config_nfglevels        = 1
 config_nfgsoillevels    = 1
 /
@@ -158,7 +158,7 @@ config_use_spechumd     = true                 ! if available, use specific humi
 config_ztop                    = 30000.0       ! model top height (m)
 config_nsmterrain              = 1             ! number of smoothing passes for terrain
 config_smooth_surfaces         = true          ! whether to smooth zeta surfaces
-config_blend_boundary_terrain  = false         ! whether to blend terrain along domain boundaries;
+config_blend_bdy_terrain       = false         ! whether to blend terrain along domain boundaries;
                                                ! only for regional simulations as in Section 10.2
 /
 
@@ -182,7 +182,7 @@ After editing the `namelist.init_atmosphere` namelist file, the name of the stat
 
 ## 9.3 Running the Model
 
-Having generated the model initial conditions, `init.nc`, as described in either Section 9.1 or 7.2, we have completed the prerequisites to run the model. The only step remaining before running the model itself is the configuration of `namelist.atmosphere`. When the `atmosphere` core is built, a default `namelist.atmosphere` namelist file will be automatically generated; this namelist can serve as a starting point for any modifications made following the steps below. This section will discuss both running the model from a cold start and restarting the model from some point in a previous run.
+Having generated the model initial conditions, `init.nc`, as described in either Section 9.1 or 9.2, we have completed the prerequisites to run the model. The only step remaining before running the model itself is the configuration of `namelist.atmosphere`. When the `atmosphere` core is built, a default `namelist.atmosphere` namelist file will be automatically generated; this namelist can serve as a starting point for any modifications made following the steps below. This section will discuss both running the model from a cold start and restarting the model from some point in a previous run.
 
 The following steps summarize running the model:
 

@@ -22,12 +22,12 @@ runtime tracer allocation, MUSICA/MICM state transfer, TUV-x photolysis,
 and idealized chemistry test cases.
 
 CheMPAS-A uses calendar versioning (YY.MM), tracked independently from the
-MPAS base model version. This documentation includes the imported
-MPAS-Atmosphere User's Guide (unmodified from the MPAS v8.3.1 release)
-covering build, mesh preparation, I/O, physics, and runtime configuration,
-together with the MPAS-Atmosphere Technical Description (verbatim port of
-the v8 NCAR Technical Note draft) for the dynamical core, equations, and
-spatial discretization.
+MPAS base model version. This documentation includes an MPAS-Atmosphere
+User's Guide adapted from the MPAS v8.3.1 release with CheMPAS-specific
+chemistry chapters and namelist entries; a CheMPAS tutorial and developer
+notes; and a lightly edited port of the MPAS-Atmosphere Technical
+Description from the v8 NCAR Technical Note draft for the dynamical core,
+equations, and spatial discretization.
 
 .. admonition:: Under construction
    :class: warning
@@ -76,4 +76,5 @@ Victor Weeks (NCAR RAL).
 
    users-guide/index
    tutorial/index
+   chempas/index
    technical-description/index

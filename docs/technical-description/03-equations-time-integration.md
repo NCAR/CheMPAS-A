@@ -80,7 +80,7 @@ $$
 
 where $\mathbf{V}_{\mathbf{H}}$ and $\mathbf{v}_{\mathbf{H}}$ are the horizontal momentum and velocity, respectively.
 
-The current release of MPAS, Version 8, does not contain the solver for the deep atmosphere (full) equations, rather MPAS-Atmosphere employs the shallow atmosphere approximation in the release. A MPAS-Atmosphere solver for the full equations {eq}`eq:3.6`–{eq}`eq:3.10` has been developed and tested as reported in Skamarock et al. (2021a).
+The current release of MPAS, Version 8, does not contain the solver for the deep atmosphere (full) equations; MPAS-Atmosphere employs the shallow atmosphere approximation in the release. An MPAS-Atmosphere solver for the full equations {eq}`eq:3.6`–{eq}`eq:3.10` has been developed and tested as reported in Skamarock et al. (2021a).
 
 ## 3.2 Time Integration Overview
 
@@ -88,20 +88,20 @@ MPAS integrates the equations of motion using a Runge-Kutta (RK3) time integrati
 
 **[Figure 3.1: The MPAS time integration methodology. To be added next session.]**
 
-The MPAS time step integration sequence is depicted in Figure 3.1. The main MPAS time step, `config_dt` in the `namelist.atmosphere`, is the time step for the scalar transport which is performed as the final process in the time integration, and this scalar integration appears as the final loop in the pseudo-code in Figure 3.1. The dynamics can be integrated with a smaller time step than the main MPAS time step, and this time step is specified through the `namelist.atmosphere` parameters as `config_dt/config_dynamics_split`, where `config_dynamics_split` is an integer. The loop for the dynamics steps is the first loop in Figure 3.1, and within it are the RK3 substeps within which appear a loop for the acoustic time steps that integrate each RK3 substep.
+The MPAS time step integration sequence is depicted in Figure 3.1. The main MPAS time step, `config_dt` in the `namelist.atmosphere`, is the time step for the scalar transport which is performed as the final process in the time integration, and this scalar integration appears as the final loop in the pseudo-code in Figure 3.1. The dynamics can be integrated with a smaller time step than the main MPAS time step, and this time step is specified through the `namelist.atmosphere` parameters as `config_dt/config_dynamics_split_steps`, where `config_dynamics_split_steps` is an integer. The loop for the dynamics steps is the first loop in Figure 3.1, and within it are the RK3 substeps within which appear a loop for the acoustic time steps that integrate each RK3 substep.
 
 :::{admonition} MPAS code
 :class: note
 
-The time step integration is performed in subroutine `atm_srk3` in `MPAS/src/core_atmosphere/dynamics/MPAS_atm_time_integration.F`.
-The dynamics RK3 integration is in the named loop `rk3_dynamics`. The number of dynamics steps taken each transport step is given by the `namelist.atmosphere` variable `config_dynamics_split` and the loop executing these steps is the named loop `dynamics_substeps`. The acoustic steps inside the dynamics integration are controlled by the named loop `dynamics_acoustic_steps`. The scalar RK3 transport is performed in in the named loop `rk3_split_transport`.
+The time step integration is performed in subroutine `atm_srk3` in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
+The dynamics RK3 integration is in the named loop `rk3_dynamics`. The number of dynamics steps taken each transport step is given by the `namelist.atmosphere` variable `config_dynamics_split_steps` and the loop executing these steps is the named loop `dynamics_substeps`. The acoustic steps inside the dynamics integration are controlled by the named loop `dynamics_acoustic_steps`. The scalar RK3 transport is performed in the named loop `rk3_split_transport`.
 :::
 
 In the following sections we will describe the RK3 time integration scheme and the perturbation equations it employs, followed by a description of the splitting of the acoustic and gravity-wave modes (the acoustic steps within the dynamics integration), a summary of the dynamics step, and a summary of the scalar transport time integration.
 
 ## 3.3 RK3 Time Integration Scheme
 
-The RK3 time integration scheme, described in Wicker and Skamarock (2002), is comprised of three steps to advance a solution over a time step $\Delta t$. To advance a variable $\phi$ from time $t$ to time $t + \Delta t$ using RK3, where $\phi_t = L(\phi)$,
+The RK3 time integration scheme, described in Wicker and Skamarock (2002), comprises three steps to advance a solution over a time step $\Delta t$. To advance a variable $\phi$ from time $t$ to time $t + \Delta t$ using RK3, where $\phi_t = L(\phi)$,
 
 $$
 \phi^{*} = \phi^{t} + \frac{\Delta t}{3}\,L(\phi^{t}),
@@ -120,7 +120,7 @@ The scheme {eq}`eq:3.12`–{eq}`eq:3.14` is third-order accurate in time for lin
 :::{admonition} MPAS code
 :class: note
 
-The RK3 time-step coefficients are set in two places in the main MPAS time integration driver in `MPAS/src/core_atmosphere/dynamics/MPAS_atm_time_integration.F`, in subroutine `atm_srk3`. The first location is before the main Runge-Kutta loop for integrating the dry dynamics, and the coefficients are used for the named loop `rk3_dynamics`. The second location is immediately before the named loop `rk3_split_transport` where, as the name implies, an RK3 integration of the scalar transport is accomplished.
+The RK3 time-step coefficients are set in two places in the main MPAS time integration driver in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`, in subroutine `atm_srk3`. The first location is before the main Runge-Kutta loop for integrating the dry dynamics, and the coefficients are used for the named loop `rk3_dynamics`. The second location is immediately before the named loop `rk3_split_transport` where, as the name implies, an RK3 integration of the scalar transport is accomplished.
 :::
 
 **[Figure 3.2: Runge-Kutta time integration response. RK3 unstable for $k\Delta t > 1.73$; RK3/2 unstable for $k\Delta t > 2$. To be added next session.]**
@@ -181,7 +181,7 @@ The operator $L(\phi)$ in {eq}`eq:3.12`–{eq}`eq:3.14` includes all the terms e
 :::{admonition} MPAS code
 :class: note
 
-The RK3 tendencies for the dynamics, the bracketed terms $[\ ]_{t_1}$ in {eq}`eq:3.15`–{eq}`eq:3.18`, are computed in a call to subroutine `atm_compute_dyn_tend` from the main MPAS time integration routine `atm_srk3` in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
+The RK3 tendencies for the dynamics, the bracketed terms $[\ ]_{t_1}$ in {eq}`eq:3.15`–{eq}`eq:3.18`, are computed in a call to subroutine `atm_compute_dyn_tend` from the main MPAS time integration routine `atm_srk3` in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
 For the $[\ ]_{t_2}$ terms in {eq}`eq:3.15`–{eq}`eq:3.18`, the terms associated with MPAS model filters and subgrid transport, aside from the column physics, are computed in subroutine `atm_compute_dyn_tend` during the first RK3 substep and saved. The tendencies from the column physics are acquired in the call to `subroutine physics_get_tend` in routine `atm_srk3` at the beginning of the main MPAS timestep. The dynamics tendencies, the saved physics tendencies and saved model filter and subgrid transport tendencies are summed in `subroutine atm_compute_dyn_tend` to construct $L(\phi)$ in each RK3 substep {eq}`eq:3.12`–{eq}`eq:3.14`.
 :::
 
@@ -336,7 +336,7 @@ Equations {eq}`eq:3.37`–{eq}`eq:3.39` form a coupled system for $(\Omega'', \T
 :::{admonition} MPAS code
 :class: note
 
-The acoustic timestep is accomplished in subroutine `atm_advance_acoustic_step`. The tridiagonal solver coefficients are computed in subroutine `atm_compute_vert_imp_coefs`. The tendency for $\Omega$ involving $R_w$ and $R_{V_H}$, the right-hand-side of {eq}`eq:3.26`, is computed in subroutine `atm_set_smlstep_pert_variables`, while other pieces involving multiplication by $\zeta_z$ are picked up directly in subroutine `atm_compute_dyn_tend`. All of these routines can be found in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
+The acoustic timestep is accomplished in subroutine `atm_advance_acoustic_step`. The tridiagonal solver coefficients are computed in subroutine `atm_compute_vert_imp_coefs`. The tendency for $\Omega$ involving $R_w$ and $R_{V_H}$, the right-hand-side of {eq}`eq:3.26`, is computed in subroutine `atm_set_smlstep_pert_variables`, while other pieces involving multiplication by $\zeta_z$ are picked up directly in subroutine `atm_compute_dyn_tend`. All of these routines can be found in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
 :::
 
 ### 3.4.3 Filters in the Acoustic Timestep
@@ -370,7 +370,7 @@ where $z$ is the height of an $\Omega$ point, $z_d$ is the height above which th
 :::{admonition} MPAS code
 :class: note
 
-The gravity wave filter application takes place in subroutine `atm_advance_acoustic_step` in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The coefficient $R_\Omega$ is set in subroutine `atm_compute_damping_coefs` in in `MPAS/src/core_atmosphere/mpas_atm_core.F` and the values are stored in the array variable named `dss`. The maximum value of the damping coefficient $R_\Omega$ is given by the `namelist.atmosphere` configuration variable `config_xnutr` and the filtering begins at `namelist.atmosphere` configuration variable height `config_zd` (m).
+The gravity wave filter application takes place in subroutine `atm_advance_acoustic_step` in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The coefficient $R_\Omega$ is set in subroutine `atm_compute_damping_coefs` in `src/core_atmosphere/mpas_atm_core.F` and the values are stored in the array variable named `dss`. The maximum value of the damping coefficient $R_\Omega$ is given by the `namelist.atmosphere` configuration variable `config_xnutr` and the filtering begins at `namelist.atmosphere` configuration variable height `config_zd` (m).
 :::
 
 **Acoustic Filter**
@@ -386,7 +386,7 @@ where $\delta_\tau\Theta''_m = (\Theta''^{\,\tau+\Delta\tau}_m - \Theta''^{\,\ta
 :::{admonition} MPAS code
 :class: note
 
-The acoustic filter application takes place in subroutine `atm_divergence_damping_3d` in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The damping coefficient is `config_smdiv` in `namelist.atmosphere`.
+The acoustic filter application takes place in subroutine `atm_divergence_damping_3d` in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`. The damping coefficient is `config_smdiv` in `namelist.atmosphere`.
 :::
 
 ## 3.5 Scalar Transport Time Integration
@@ -416,5 +416,5 @@ To accommodate the limiters, on the third RK3 substep we first update the scalar
 :::{admonition} MPAS code
 :class: note
 
-There are two routines that perform scalar advection in MPAS. Substeps {eq}`eq:3.46` and {eq}`eq:3.47` are performed in subroutine `atm_advance_scalars`, and substeps {eq}`eq:3.48` and {eq}`eq:3.49` are performed in a single call to subroutine `atm_advance_scalars_mono`. These routines are found in `MPAS/src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
+There are two routines that perform scalar advection in MPAS. Substeps {eq}`eq:3.46` and {eq}`eq:3.47` are performed in subroutine `atm_advance_scalars`, and substeps {eq}`eq:3.48` and {eq}`eq:3.49` are performed in a single call to subroutine `atm_advance_scalars_mono`. These routines are found in `src/core_atmosphere/dynamics/mpas_atm_time_integration.F`.
 :::

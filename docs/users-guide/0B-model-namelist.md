@@ -806,7 +806,7 @@ This appendix summarizes the complete set of namelist options available when run
 |---|---|
 | Units | - |
 | Description | Configuration for calculation of horizontal cloud fraction *(hidden by default)* |
-| Possible Values | `'suite'`, `'cld_fraction'`, `'cld_incidence'` *(default: suite)* |
+| Possible Values | `'suite'`, `'cld_fraction'`, `'cld_incidence'`, `'cld_fraction_thompson'`, `'off'` *(default: suite)* |
 
 ### `config_radt_lw_scheme` (character)
 
@@ -830,7 +830,7 @@ This appendix summarizes the complete set of namelist options available when run
 |---|---|
 | Units | - |
 | Description | Configuration for surface layer scheme *(hidden by default)* |
-| Possible Values | `'suite'`, `'sf_monin_obukhov'`, `'sf_mynn'`, `'off'` *(default: suite)* |
+| Possible Values | `'suite'`, `'sf_monin_obukhov'`, `'sf_monin_obukhov_rev'`, `'sf_mynn'`, `'off'` *(default: suite)* |
 
 ### `config_radt_cld_overlap` (character)
 
@@ -1316,7 +1316,7 @@ coupling).
 | | |
 |---|---|
 | Units | s^-1 |
-| Description | Maximum daytime NO2 photolysis rate used in the Phase-1 fallback `j = j_max * max(0, cos(SZA))`. Ignored when TUV-x is active. |
+| Description | Maximum daytime NO2 photolysis rate used in the single-rate fallback `j = j_max * max(0, cos(SZA))`. Ignored when TUV-x is active. |
 | Possible Values | Any non-negative real *(default: 0.0)* |
 
 ### `config_lnox_nox_tau` (real)
@@ -1332,7 +1332,7 @@ coupling).
 | | |
 |---|---|
 | Units | - |
-| Description | TUV-x configuration file name. Empty selects the Phase-1 `cos(SZA)` fallback. |
+| Description | TUV-x configuration file name. Empty selects the single-rate `cos(SZA)` fallback. |
 | Possible Values | Any valid filename *(default: '')* |
 
 ### `config_tuvx_top_extension` (logical)
@@ -1373,7 +1373,7 @@ coupling).
 |---|---|
 | Units | - |
 | Description | If `.true.`, compute per-cell solar geometry from `latCell`/`lonCell`. If `.false.`, broadcast `config_chemistry_latitude`/`config_chemistry_longitude` to every cell (preserves idealized-case behavior). |
-| Possible Values | .true. or .false. *(default: false)* |
+| Possible Values | .true. or .false. *(default: .false.)* |
 
 ### `config_tuvx_update_interval` (real)
 
