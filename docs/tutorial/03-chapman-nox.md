@@ -17,10 +17,10 @@ coupled MICM + TUV-x configuration.
 
 ## 3.1 What you'll learn
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 By the end of this chapter you will:
@@ -35,10 +35,10 @@ By the end of this chapter you will:
 
 ## 3.2 The Chapman + NOx case
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 The Chapman cycle is the canonical four-reaction pure-oxygen
@@ -88,10 +88,10 @@ supercell vertical grid (the initial state qO3 produces). To be added.]**
 
 ## 3.3 The TUV-x column extension
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 The MPAS atmosphere lid for the supercell case sits at 50 km — that's
@@ -114,14 +114,14 @@ the profile is continuous.
 
 The stitch lives in `src/core_atmosphere/chemistry/mpas_tuvx.F`; for
 the broader integration story, see
-[docs/chempas/guides/TUVX_INTEGRATION.md](../chempas/guides/TUVX_INTEGRATION.md).
+[docs/chempas/guides/TUVX_INTEGRATION.md](https://github.com/NCAR/CheMPAS-A/blob/develop/docs/chempas/guides/TUVX_INTEGRATION.md).
 
 ## 3.4 Generating and verifying the extension CSV
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 **Generate the CSV.** The generator is parameterized but defaults to
@@ -163,10 +163,10 @@ mpas_tuvx.F. MPAS region (below 50 km) and extension-CSV region
 
 ## 3.5 Initializing the Chapman tracers
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 The Chapman + NOx mechanism needs six prognostic tracers seeded with
@@ -205,10 +205,10 @@ prepared to re-run `init_atmosphere_model` to regenerate it.
 
 ## 3.6 Run with the Chapman + NOx mechanism
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 **Edit the namelist.** Replace the `&musica` block in
@@ -276,10 +276,10 @@ this analytically in section 3.8).
 
 ## 3.7 The photostationary-state diagnostic
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 In sunlight, the NO–NO₂–O₃ system relaxes within seconds to a steady
@@ -332,10 +332,10 @@ to settle in the stratospheric column.
 
 ## 3.8 Verifying numerically
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 Two complementary checks.
@@ -389,17 +389,17 @@ height at the final timestep. To be added.]**
 
 ## 3.9 Next steps
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 - **The MUSICA/MICM coupling internals** are documented in
-  [docs/chempas/musica/MUSICA_INTEGRATION.md](../chempas/musica/MUSICA_INTEGRATION.md).
+  [docs/chempas/musica/MUSICA_INTEGRATION.md](https://github.com/NCAR/CheMPAS-A/blob/develop/docs/chempas/musica/MUSICA_INTEGRATION.md).
 - **TUV-x integration engineering** (the integration story behind
   `mpas_tuvx.F` and the column extension) is documented in
-  [docs/chempas/guides/TUVX_INTEGRATION.md](../chempas/guides/TUVX_INTEGRATION.md).
+  [docs/chempas/guides/TUVX_INTEGRATION.md](https://github.com/NCAR/CheMPAS-A/blob/develop/docs/chempas/guides/TUVX_INTEGRATION.md).
 - **Upstream MUSICA, MICM, and TUV-x docs** are linked from the
   [project landing page](../index.rst) in the *See also* section.
 - **Future tutorial chapters** will cover additional idealized cases
@@ -408,10 +408,10 @@ Section content coming.
 
 ## 3.10 Standalone Chapman + NOx column model
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 The standalone counterpart of this whole chapter — same

@@ -5,7 +5,7 @@ User's Guide for CheMPAS-A 26.04 (pre-release / beta), based on
 MPAS-Atmosphere v8.3.1.
 
 .. toctree::
-   :titlesonly:
+   :maxdepth: 2
    :caption: Chapters
 
    00-foreword
@@ -22,7 +22,7 @@ MPAS-Atmosphere v8.3.1.
    11-visualization
 
 .. toctree::
-   :titlesonly:
+   :maxdepth: 2
    :caption: Appendices
 
    0A-init-namelist

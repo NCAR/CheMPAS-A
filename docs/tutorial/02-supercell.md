@@ -2,10 +2,10 @@
 
 ## 2.1 What you'll learn
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 By the end of this chapter you will:
@@ -20,10 +20,10 @@ By the end of this chapter you will:
 
 ## 2.2 The supercell case
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 The supercell test case is an idealized deep-convection setup adapted
@@ -48,10 +48,10 @@ moisture cross-section. To be added.]**
 
 ## 2.3 Setup checklist
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 Before you run anything, confirm:
@@ -78,10 +78,10 @@ layout, and `test_cases/README.md` for the data download.
 
 ## 2.4 Initialization
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 If `supercell_init.nc` is already in the run directory, you can skip
@@ -106,10 +106,10 @@ rank-vs-partition table.
 
 ## 2.5 Run with the ABBA mechanism
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 The ABBA mechanism (`micm_configs/abba.yaml`) is a three-species toy
@@ -187,10 +187,10 @@ amplitude is small but their pattern mirrors qAB.
 
 ## 2.6 Run with the LNOx + O3 mechanism
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 The LNOx + O3 setup (`micm_configs/lnox_o3.yaml`) is a tropospheric
@@ -237,7 +237,7 @@ the domain.
 The lightning-NOx source injects NO into grid cells where the vertical
 velocity exceeds `config_lnox_w_threshold` and the height falls
 between `config_lnox_z_min` and `config_lnox_z_max`. See
-[docs/chempas/guides/TUVX_INTEGRATION.md](../chempas/guides/TUVX_INTEGRATION.md)
+[docs/chempas/guides/TUVX_INTEGRATION.md](https://github.com/NCAR/CheMPAS-A/blob/develop/docs/chempas/guides/TUVX_INTEGRATION.md)
 for the TUV-x configuration files referenced in the block.
 
 **Archive prior output and run.** Same pattern as the ABBA run:
@@ -269,10 +269,10 @@ emitted plume (titration by NO).
 
 ## 2.7 Comparing the two runs
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 Placing the two final-state plots side by side highlights what's
@@ -297,10 +297,10 @@ LNOx + O3 chemistry at t = 2 h. To be added.]**
 
 ## 2.8 Verifying numerically
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 Visual agreement is reassuring but not sufficient. The planned regression
@@ -315,10 +315,10 @@ spot-check the key fields with `ncdump`, `ncks`, or a short Python script.
 
 ## 2.9 Next steps
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 - **The next chapter** is
@@ -326,18 +326,18 @@ Section content coming.
   domain where the analytical PSS solution is a clean check on the
   coupled MICM + TUV-x configuration.
 - **The MUSICA/MICM coupling internals** are documented in
-  [docs/chempas/musica/MUSICA_INTEGRATION.md](../chempas/musica/MUSICA_INTEGRATION.md).
+  [docs/chempas/musica/MUSICA_INTEGRATION.md](https://github.com/NCAR/CheMPAS-A/blob/develop/docs/chempas/musica/MUSICA_INTEGRATION.md).
 - **TUV-x photolysis** configuration is documented in
-  [docs/chempas/guides/TUVX_INTEGRATION.md](../chempas/guides/TUVX_INTEGRATION.md).
+  [docs/chempas/guides/TUVX_INTEGRATION.md](https://github.com/NCAR/CheMPAS-A/blob/develop/docs/chempas/guides/TUVX_INTEGRATION.md).
 - **Upstream MUSICA, MICM, and TUV-x docs** are linked from the
   [project landing page](../index.rst) in the *See also* section.
 
 ## 2.10 Standalone ABBA box model
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 The same chemistry as §2.5, exercised in pure Python with no MPAS in
@@ -370,10 +370,10 @@ the storm flow.
 
 ## 2.11 Standalone LNOx + O₃ box model
 
-```{admonition} Work in progress
+```{admonition} Draft - revisions in progress
 :class: warning
 
-Section content coming.
+This section is being revised.
 ```
 
 The standalone counterpart of §2.6, *minus* the lightning-NOx source
