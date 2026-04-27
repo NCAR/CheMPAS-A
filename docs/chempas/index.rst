@@ -26,7 +26,6 @@ plans, validation results, and upstream-comparison notes.
    :caption: Results And Upstream
 
    results/TEST_RUNS
-   results/BENCHMARKS
    upstream/2026-04-19-vs-mpas-v8.3.1
 
 .. toctree::

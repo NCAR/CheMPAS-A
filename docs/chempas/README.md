@@ -20,7 +20,6 @@ live one level up under `docs/users-guide/` and
 - [musica/MUSICA_INTEGRATION.md](musica/MUSICA_INTEGRATION.md) - MUSICA/MICM coupling details
 - [musica/MUSICA_API.md](musica/MUSICA_API.md) - MUSICA Fortran API reference
 - [results/TEST_RUNS.md](results/TEST_RUNS.md) - Recorded run outcomes
-- [results/BENCHMARKS.md](results/BENCHMARKS.md) - Model and agent benchmarks
 - [guides/VISUALIZE.md](guides/VISUALIZE.md) - Visualization workflows
 - [guides/TUVX_INTEGRATION.md](guides/TUVX_INTEGRATION.md) - TUV-x summary and development test case
 - [plans/README.md](plans/README.md) - Dated implementation plans

@@ -1,5 +1,16 @@
 # README ACOM-Pilot Reframe Implementation Plan
 
+## Document Status
+
+- `Historical Context:` Task-by-task plan used to deliver the ACOM-pilot
+  README rewrite.
+- `Current State:` Implemented; the live `README.md` has since received
+  follow-on edits (e.g., dropping the `PURPOSE.md` / `AGENTS.md`
+  references). Relative paths in this plan reflect the pre-reorg
+  `docs/<topic>/` layout — the dev-notes tree was later moved under
+  `docs/chempas/<topic>/`.
+- `Use This As:` Implementation history, not active task instructions.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the contents of `README.md` with the ACOM-pilot-reframed version specified in `docs/superpowers/specs/2026-04-19-readme-acom-pilot-reframe-design.md`.

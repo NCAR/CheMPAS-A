@@ -1,7 +1,7 @@
 # Numerical Regression Suite — Design
 
 Date: 2026-04-19
-Status: Design (awaiting user review)
+Status: Deferred — design complete; implementation not shipped as of 2026-04-26
 Target files (new):
 - `scripts/regression.py`
 - `scripts/regression_lib.py`

@@ -1,5 +1,18 @@
 # Numerical Regression Suite Implementation Plan
 
+## Document Status
+
+- `Historical Context:` Task-by-task plan drafted alongside
+  `docs/superpowers/specs/2026-04-19-regression-suite-design.md`.
+- `Current State:` **Deferred.** Design complete; implementation never
+  shipped. As of 2026-04-26 there is no `scripts/regression.py`,
+  `scripts/regression_lib.py`, or `test_cases/<case>/regression_reference.yaml`
+  in the repo.
+- `Use This As:` A starting point if/when the regression suite work is
+  picked up. Re-validate paths and assumptions against the current
+  codebase before executing — this plan was authored against the
+  2026-04-19 state of the repo.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a Python-driven numerical-regression suite for two CheMPAS cases (`chem_box`, `supercell`) that runs each case in an ephemeral run directory, compares min/max/mean of named output fields against a tracked YAML reference table, and reports PASS/FAIL per case. A `bless` flag rewrites the YAML in place (snapshot-test pattern).
@@ -868,7 +881,7 @@ is pre-seeded with values spot-checked through the prior TUV-x work;
 the chem_box reference is a stub that the first `bless` populates.
 
 Spec: docs/superpowers/specs/2026-04-19-regression-suite-design.md
-Plan: docs/superpowers/plans/2026-04-19-regression-suite.md
+Plan: docs/superpowers/plans/2026-04-19-regression-suite-deferred.md
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF

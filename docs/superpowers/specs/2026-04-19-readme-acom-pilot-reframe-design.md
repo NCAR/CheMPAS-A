@@ -1,7 +1,7 @@
 # README Reframing as ACOM Integration Pilot — Design
 
 Date: 2026-04-19
-Status: Design (awaiting user review)
+Status: Implemented
 Target file: `README.md`
 
 ## Goal
