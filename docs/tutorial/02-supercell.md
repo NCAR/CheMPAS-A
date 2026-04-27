@@ -368,6 +368,60 @@ mol m⁻³) within the first ~30 minutes of the run; the rest of the
 advection the box runs to its endpoint instead of being shaped by
 the storm flow.
 
+**Source listings.** Both files are reproduced inline below for
+reference; they are the same files used by the script invocation
+above.
+
+```{literalinclude} ../../scripts/musica_python/abba_box.py
+:caption: scripts/musica_python/abba_box.py
+:language: python
+:linenos:
+```
+
+The script imports the MUSICA bindings (`MICM`, the mechanism-config
+parser, `SolverState`) plus `numpy`, `xarray`, and `matplotlib` for
+I/O and plotting, and the project's `scripts/style.py` for
+NCAR-palette plotting. After parsing `abba.yaml`, it constructs a
+Rosenbrock standard-order solver, creates a single-cell state at
+T = 273 K and P = 101 325 Pa, and seeds A = B = 0, AB = 1 mol m⁻³.
+
+The two `USER.<reaction-name>` rate parameters are *multipliers* on
+the YAML `scaling factor`; setting both to 1.0 gives effective rates
+of k_fwd = 2 × 10⁻³ s⁻¹ and k_rev = 1 × 10⁻³ m³ mol⁻¹ s⁻¹ — the same
+values the MPAS-coupled run sees in §2.5, where the Fortran side
+leaves the multipliers at 1. The integration loop runs for 7 200 s
+with a 60-second output cadence; the inner `while elapsed < dt_out`
+drives MICM through whatever sub-stepping the solver chooses while
+ensuring each output sample lands exactly on the cadence.
+
+Output is written next to the script: `abba_box.nc` (xarray Dataset
+with `time` in minutes and species in mol m⁻³) and `abba_box.png`
+(mixing-ratio time series in ppm, converted via VMR = nRT / P).
+
+```{literalinclude} ../../micm_configs/abba.yaml
+:caption: micm_configs/abba.yaml
+:language: yaml
+:linenos:
+```
+
+The mechanism declares three gas-phase species (`A`, `B`, `AB`) and
+a single `gas` phase that lists them. Each species declaration
+carries CheMPAS extension fields under `__`-prefixed keys
+(`do advect`, `absolute tolerance`, `molar mass`,
+`initial concentration`); these are non-standard and are read by the
+CheMPAS chemistry coupler to wire each species into MPAS's tracer
+transport.
+
+The two reactions are both `USER_DEFINED`: AB → A + B with
+`scaling factor: 2.0e-3` and A + B → AB with `scaling factor:
+1.0e-3`. `USER_DEFINED` means the host code (the Python script above
+or, in the MPAS-coupled case, `mpas_musica.F`) supplies a runtime
+multiplier on top of the YAML factor — this is what
+`state.set_user_defined_rate_parameters(...)` does in the script.
+The 2:1 ratio of the forward and reverse scaling factors fixes the
+analytical equilibrium quoted earlier (AB ≈ 0.268, A = B ≈ 0.732
+mol m⁻³ for the seeded mass budget).
+
 ## 2.11 Standalone LNOx + O₃ box model
 
 ```{admonition} Draft - revisions in progress
