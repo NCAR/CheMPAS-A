@@ -72,9 +72,8 @@ Kyle Shores (NCAR ACOM), Katherine Thayer-Calder (NCAR CGD),
 Victor Weeks (NCAR RAL).
 
 .. toctree::
-   :titlesonly:
+   :maxdepth: 3
 
    users-guide/index
    tutorial/index
-   chempas/index
    technical-description/index

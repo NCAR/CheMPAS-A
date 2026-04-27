@@ -16,7 +16,7 @@ subtree for the figure plan.
    used to reference MPAS-Atmosphere in their current form.
 
 .. toctree::
-   :titlesonly:
+   :maxdepth: 2
    :caption: Chapters
 
    00-acknowledgments
@@ -32,7 +32,7 @@ subtree for the figure plan.
    10-infrastructure
 
 .. toctree::
-   :titlesonly:
+   :maxdepth: 2
    :caption: Appendices
 
    0A-acoustic-solution

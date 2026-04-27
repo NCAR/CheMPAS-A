@@ -15,7 +15,7 @@ worked examples specific to CheMPAS-A's MUSICA/MICM coupling.
    archived.
 
 .. toctree::
-   :titlesonly:
+   :maxdepth: 2
    :caption: Chapters
 
    01-overview
