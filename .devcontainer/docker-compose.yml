@@ -1,0 +1,15 @@
+services:
+  dev:
+    build:
+      context: ..
+      dockerfile: docker/Containerfile
+      target: dev
+    volumes:
+      - ..:/mpas
+      - data:/mpas/data
+    working_dir: /mpas
+    stdin_open: true
+    tty: true
+
+volumes:
+  data:

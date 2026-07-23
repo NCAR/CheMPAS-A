@@ -1,0 +1,193 @@
+
+# CheMPAS-A build container
+FROM docker.io/library/fedora:41 AS deps
+
+RUN dnf -y update && dnf -y install \
+        autoconf \
+        automake \
+        cmake \
+        curl \
+        gcc \
+        gcc-c++ \
+        gcc-gfortran \
+        git \
+        hdf5-devel \
+        lapack-devel \
+        libcurl-devel \
+        libtool \
+        libxml2-devel \
+        m4 \
+        make \
+        openmpi-devel \
+        perl \
+        python3 \
+        wget \
+        which \
+        zlib-devel \
+    && dnf clean all
+
+ENV PATH="/usr/lib64/openmpi/bin:${PATH}" \
+    LD_LIBRARY_PATH="/usr/lib64/openmpi/lib:${LD_LIBRARY_PATH}" \
+    MPI_DIR="/usr/lib64/openmpi"
+
+# ---- PnetCDF ----
+ARG PNETCDF_VERSION=1.14.0
+RUN cd /tmp \
+    && wget -q https://parallel-netcdf.github.io/Release/pnetcdf-${PNETCDF_VERSION}.tar.gz \
+    && tar xzf pnetcdf-${PNETCDF_VERSION}.tar.gz \
+    && cd pnetcdf-${PNETCDF_VERSION} \
+    && ./configure --prefix=/usr/local \
+                   --enable-shared \
+                   CC=mpicc FC=mpif90 CXX=mpicxx \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig \
+    && rm -rf /tmp/pnetcdf-*
+
+ENV PNETCDF=/usr/local
+
+# ---- NetCDF-C ----
+ARG NETCDF_C_VERSION=4.9.2
+RUN cd /tmp \
+    && wget -q https://downloads.unidata.ucar.edu/netcdf-c/${NETCDF_C_VERSION}/netcdf-c-${NETCDF_C_VERSION}.tar.gz \
+    && tar xzf netcdf-c-${NETCDF_C_VERSION}.tar.gz \
+    && cd netcdf-c-${NETCDF_C_VERSION} \
+    && ./configure --prefix=/usr/local \
+                   --enable-shared \
+                   --enable-pnetcdf \
+                   CC=mpicc \
+                   CPPFLAGS="-I/usr/local/include" \
+                   LDFLAGS="-L/usr/local/lib" \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig \
+    && rm -rf /tmp/netcdf-c-*
+
+ENV LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}"
+
+# ---- NetCDF-Fortran ----
+ARG NETCDF_F_VERSION=4.6.1
+RUN cd /tmp \
+    && wget -q https://downloads.unidata.ucar.edu/netcdf-fortran/${NETCDF_F_VERSION}/netcdf-fortran-${NETCDF_F_VERSION}.tar.gz \
+    && tar xzf netcdf-fortran-${NETCDF_F_VERSION}.tar.gz \
+    && cd netcdf-fortran-${NETCDF_F_VERSION} \
+    && ./configure --prefix=/usr/local \
+                   --enable-shared \
+                   CC=mpicc FC=mpif90 \
+                   CPPFLAGS="-I/usr/local/include" \
+                   LDFLAGS="-L/usr/local/lib" \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig \
+    && rm -rf /tmp/netcdf-fortran-*
+
+ENV NETCDF=/usr/local
+ENV PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH}"
+
+# ---- MUSICA ----
+ARG MUSICA_GIT_TAG=main
+RUN cd /tmp \
+    && git clone --depth 1 --branch ${MUSICA_GIT_TAG} https://github.com/NCAR/musica.git \
+    && cd musica \
+    && cmake -S . -B build \
+             -DCMAKE_BUILD_TYPE=Release \
+             -DCMAKE_INSTALL_PREFIX=/usr/local \
+             -DMUSICA_BUILD_FORTRAN_INTERFACE=ON \
+             -DMUSICA_ENABLE_CARMA=OFF \
+    && cmake --build build -j"$(nproc)" \
+    && cmake --install build \
+    && rm -rf /tmp/musica \
+    && find /usr/local -name 'musica-fortran.pc' \
+           -exec sed -i 's/^Libs:.*/& -lfmt -lstdc++/' {} \;
+
+# ---------------------------------------------------------------------------
+# Compile MPAS-A from source
+# ---------------------------------------------------------------------------
+FROM deps AS build
+
+WORKDIR /mpas
+COPY . .
+
+# Pre-fetch WRF physics lookup tables in a dedicated serial step.
+# The script exits early on subsequent calls once physics_wrf/files/COMPATIBILITY
+# is present, so this prevents the race condition that occurs when parallel make
+# runs multiple checkout_data_files.sh instances simultaneously.
+RUN cd src/core_atmosphere/physics \
+    && ./checkout_data_files.sh
+
+# Build init_atmosphere core first, then atmosphere core
+RUN make -j"$(nproc)" gnu CORE=init_atmosphere AUTOCLEAN=true MUSICA=true \
+    && make -j"$(nproc)" gnu CORE=atmosphere AUTOCLEAN=true MUSICA=true
+
+# ---------------------------------------------------------------------------
+# Lean runtime image with MPAS executables
+# ---------------------------------------------------------------------------
+FROM docker.io/library/fedora:41 AS run
+
+RUN dnf -y update && dnf -y install \
+        hdf5 \
+        openmpi \
+        wget \
+        zlib \
+    && dnf clean all
+
+COPY --from=deps /usr/local /usr/local
+
+ENV PATH="/usr/lib64/openmpi/bin:${PATH}" \
+    LD_LIBRARY_PATH="/usr/local/lib:/usr/lib64/openmpi/lib" \
+    PNETCDF=/usr/local \
+    NETCDF=/usr/local
+
+RUN ldconfig
+
+WORKDIR /mpas
+COPY --from=build /mpas/init_atmosphere_model .
+COPY --from=build /mpas/atmosphere_model .
+
+# ---------------------------------------------------------------------------
+# Interactive development (mount source at runtime)
+# ---------------------------------------------------------------------------
+FROM docker.io/library/fedora:41 AS dev
+
+RUN dnf -y update && dnf -y install \
+        cmake \
+        gcc \
+        gcc-c++ \
+        gcc-gfortran \
+        git \
+        hdf5-devel \
+        lapack-devel \
+        libcurl-devel \
+        m4 \
+        make \
+        nco \
+        openmpi-devel \
+        perl \
+        python3 \
+        python3-pip \
+        python3-numpy \
+        python3-netcdf4 \
+        python3-matplotlib \
+        vim \
+        wget \
+        zlib-devel \
+    && dnf clean all
+
+# Copy installed libraries from deps stage
+COPY --from=deps /usr/local /usr/local
+
+# OpenMPI env
+ENV PATH="/usr/lib64/openmpi/bin:${PATH}" \
+    LD_LIBRARY_PATH="/usr/local/lib:/usr/lib64/openmpi/lib" \
+    PNETCDF=/usr/local \
+    NETCDF=/usr/local \
+    PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"
+
+# Refresh shared library cache
+RUN ldconfig
+
+# Verify MUSICA is findable
+RUN pkg-config --exists musica-fortran && echo "musica-fortran found" \
+    || (echo "ERROR: musica-fortran not found via pkg-config" && exit 1)
+
+WORKDIR /mpas

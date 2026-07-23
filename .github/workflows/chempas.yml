@@ -1,0 +1,103 @@
+name: CheMPAS-A Build & Test
+
+on:
+  push:
+    branches: [proto-quacs]
+  pull_request:
+    branches: [proto-quacs]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/chempas-deps
+
+jobs:
+  build-deps-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push deps image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Containerfile
+          target: dev
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-to: type=inline
+
+  build-mpas:
+    needs: build-deps-image
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.build-deps-image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build init_atmosphere core
+        run: make -j$(nproc) gnu CORE=init_atmosphere
+
+      - name: Build atmosphere core
+        run: make -j$(nproc) gnu CORE=atmosphere AUTOCLEAN=true
+
+      - name: Verify executables
+        run: |
+          test -x init_atmosphere_model
+          test -x atmosphere_model
+
+      - name: Upload executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpas-executables
+          path: |
+            init_atmosphere_model
+            atmosphere_model
+
+  test-jw:
+    needs: [build-deps-image, build-mpas]
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.build-deps-image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download executables
+        uses: actions/download-artifact@v4
+        with:
+          name: mpas-executables
+
+      - name: Make executables runnable
+        run: chmod +x init_atmosphere_model atmosphere_model
+
+      - name: Download mesh data
+        run: quacs/download_data.sh data
+
+      - name: Run JW baroclinic wave test
+        run: quacs/run_jw_test.sh 2
+
+      - name: Verify output
+        run: |
+          ncdump -h data/jw_480km/output.nc | head -20
+          echo "JW test output verified"
