@@ -777,6 +777,12 @@ int parse_reg_xml(ezxml_t registry)/*{{{*/
 		return err;
 	}
 
+	// Generate code to instantiate pools and variables
+	if (generate_pools_and_vars(registry)) {
+		fprintf(stderr, "Error in generate_pools_and_vars\n");
+		return err;
+	}
+
 	// Generate code to read and write fields
 	err = generate_immutable_streams(registry);
 	if (err) {
