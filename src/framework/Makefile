@@ -39,7 +39,8 @@ OBJS = mpas_kind_types.o \
        mpas_ptscotch_interface.o \
        ptscotch_interface.o \
        mpas_stream_inquiry.o \
-       stream_inquiry.o
+       stream_inquiry.o \
+       mpas_runtime_vars.o
 
 all: framework $(DEPS)
 
@@ -117,6 +118,8 @@ mpas_halo.o: mpas_derived_types.o mpas_pool_routines.o mpas_log.o
 mpas_ptscotch_interface.o : mpas_derived_types.o mpas_log.o
 
 mpas_stream_inquiry.o : mpas_derived_types.o mpas_log.o mpas_c_interfacing.o
+
+mpas_runtime_vars.o : mpas_kind_types.o mpas_derived_types.o mpas_pool_routines.o mpas_attlist.o
 
 clean:
 	$(RM) *.o *.mod *.f90 libframework.a
