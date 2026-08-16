@@ -1342,7 +1342,11 @@ contains
 
         ncnst = const_list % length()
         allocate(character(len=max(ncnst, 1)) :: signature)
-        signature = ''
+        ! Blank-fill only: plain assignment ("signature = ''") would trigger
+        ! realloc-on-assign, shrink the just-allocated deferred-length result
+        ! to length zero, and turn the per-constituent writes below into
+        ! out-of-bounds heap writes.
+        signature(:) = ''
 
         call const_list % begin_iteration()
         do i = 1, ncnst
