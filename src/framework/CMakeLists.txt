@@ -13,6 +13,7 @@ set(MPAS_FRAMEWORK_SOURCES
         mpas_io_units.F
         mpas_kind_types.F
         mpas_pool_routines.F
+        mpas_runtime_vars.F
         mpas_sort.F
         mpas_stream_list.F
         mpas_threading.F
