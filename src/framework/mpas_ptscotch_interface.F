@@ -116,7 +116,7 @@ contains
     !>                     giving the start index of edges for each local vertex
     !>   nLocEdgesGraph - Total number of local edges in the graph
     !>   edgelocsiz     - Size of the adjncy array
-    !>   adjncy         - Array of size nLocEdgesGraph containing the  
+    !>   adjncy         - Array of size nLocEdgesGraph containing the
     !>                     adjacency list for local vertices
     !
     !-----------------------------------------------------------------------
@@ -159,7 +159,7 @@ contains
         if (ierr /= 0) then
             call mpas_log_write('Error building distributed Scotch graph', MPAS_LOG_CRIT)
         else
-            call mpas_log_write('Successfully built distributed Scotch graph')    
+            call mpas_log_write('Successfully built distributed Scotch graph')
         end if
 
     end subroutine scotch_dgraphbuild
@@ -177,7 +177,7 @@ contains
     !>   dgraph - scotchm_dgraph structure to be checked
     !
     !-----------------------------------------------------------------------
-    subroutine scotch_dgraphcheck(dgraph)    
+    subroutine scotch_dgraphcheck(dgraph)
         use mpas_log, only : mpas_log_write
         use mpas_derived_types, only : MPAS_LOG_CRIT
         use iso_c_binding, only : c_ptr
@@ -218,7 +218,7 @@ contains
     !>   dgraph - scotchm_dgraph structure to be finalized
     !
     !-----------------------------------------------------------------------
-    subroutine scotch_dgraphexit(dgraph)        
+    subroutine scotch_dgraphexit(dgraph)
         use mpas_log, only : mpas_log_write
         use iso_c_binding, only : c_ptr
 
@@ -259,7 +259,7 @@ contains
         implicit none
 
         type(scotchm_strat), intent(inout) :: stradat
-        
+
         integer :: ierr
 
         interface
@@ -291,14 +291,14 @@ contains
     !>   stradat - scotchm_strat structure to be finalized
     !
     !-----------------------------------------------------------------------
-    subroutine scotch_stratexit(stradat)        
+    subroutine scotch_stratexit(stradat)
         use mpas_log, only : mpas_log_write
         use iso_c_binding, only : c_ptr
 
         implicit none
 
         type(scotchm_strat), intent(in) :: stradat
-        
+
         interface
             subroutine scotchm_stratexit(strat_ptr) bind(C, name='scotchm_stratexit')
                 use iso_c_binding, only : c_ptr
@@ -338,7 +338,7 @@ contains
         integer(c_int), intent(in) :: num_part
         type(scotchm_strat), intent(in) :: stradat
         integer(c_int), intent(out) :: parttab(*)
-        
+
         ! Return value
         integer :: ierr
 
@@ -357,7 +357,7 @@ contains
 
         if (ierr /= 0) then
             call mpas_log_write('Error during Scotch graph partition', MPAS_LOG_CRIT)
-        else 
+        else
             call mpas_log_write('Successfully partitioned distributed Scotch graph')
         end if
 
@@ -391,7 +391,7 @@ contains
         integer(c_int), intent(in) :: parttab(*)
         type(scotchm_dgraph) :: dgraph_out
         integer(c_int) :: num_local_vertices
-           
+
         ! Return value
         integer :: ierr
 
@@ -428,7 +428,7 @@ contains
     !>   local_cell_list - Output array to hold vertex labels for local vertices
     !
     !-----------------------------------------------------------------------
-     subroutine scotch_dgraphdata(dgraph, local_cell_list)        
+     subroutine scotch_dgraphdata(dgraph, local_cell_list)
         use mpas_log, only : mpas_log_write
         use iso_c_binding, only : c_ptr, c_int
 

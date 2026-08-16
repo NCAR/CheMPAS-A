@@ -13,7 +13,7 @@ module test_core_io
 
    implicit none
    private
-   public :: test_core_io_test 
+   public :: test_core_io_test
 
    contains
 
@@ -50,7 +50,7 @@ module test_core_io
    !
    !> \brief   verifies attempts to read strings into buffers which are too small
    !>          to hold the value fails safely.
-   !> \details 
+   !> \details
    !>  Run these tests with valgrind to ensure there are no buffer overflows when
    !>  attempting to read strings into undersized buffers.
    !-----------------------------------------------------------------------

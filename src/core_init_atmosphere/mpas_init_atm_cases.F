@@ -29,7 +29,7 @@ module init_atm_cases
    ! Added only clause to keep xlf90 from getting confused from the overloaded abs intrinsic in mpas_timekeeping
    use mpas_timekeeping !, only: MPAS_Time_type, MPAS_TimeInterval_type, MPAS_Clock_type, &
                         !        mpas_set_time, mpas_set_timeInterval, mpas_get_time, operator(+), add_t_ti
-   
+
 
 
    contains
@@ -260,7 +260,7 @@ module init_atm_cases
 
             call init_atm_case_gfs(block_ptr, mesh, nCells, nEdges, nVertLevels, fg, state, &
                                    diag, diag_physics, block_ptr % dimensions, block_ptr % configs)
-            
+
             if (config_met_interp) then
                call init_atm_thompson_aerosols(block_ptr, mesh, block_ptr % configs, diag, state)
                call physics_initialize_real(mesh, fg, domain % dminfo, block_ptr % dimensions, block_ptr % configs)
@@ -479,7 +479,7 @@ module init_atm_cases
       real (kind=RKIND), dimension(:,:), pointer :: rho, theta
       real (kind=RKIND), dimension(:,:,:), pointer :: zb, zb3
       real (kind=RKIND), dimension(:,:,:), pointer :: deriv_two
-      
+
 !.. initialization of moisture:
       integer, pointer :: index_qv
       real (kind=RKIND), parameter :: rh_max = 0.40 ! Maximum relative humidity
@@ -521,7 +521,7 @@ module init_atm_cases
       real (kind=RKIND), dimension(nVertLevels + 1, nlat) :: zgrid_2d
       real (kind=RKIND), dimension(nVertLevels, nlat) :: u_2d, pp_2d, rho_2d, qv_2d, etavs_2d, zz_2d
       real (kind=RKIND), dimension(nVertLevels, nlat) :: p_2d, pb_2d, ppb_2d, rr_2d, rb_2d, tb_2d, rtb_2d
-      real (kind=RKIND), dimension(nVertLevels, nlat-1) :: zx_2d 
+      real (kind=RKIND), dimension(nVertLevels, nlat-1) :: zx_2d
       real (kind=RKIND), dimension(nlat) :: lat_2d
       real (kind=RKIND) :: dlat, hx_1d
       real (kind=RKIND) :: z_edge, z_edge3, d2fdx2_cell1, d2fdx2_cell2
@@ -664,7 +664,7 @@ module init_atm_cases
       call atm_initialize_advection_rk(mesh, nCells, nEdges, maxEdges, on_a_sphere, sphere_radius )
       call atm_initialize_deformation_weights(mesh, nCells, on_a_sphere, sphere_radius)
 
-      call mpas_pool_get_dimension(state, 'index_qv', index_qv) 
+      call mpas_pool_get_dimension(state, 'index_qv', index_qv)
 
       xnutr = 0.0
       zd = 12000.0
@@ -704,7 +704,7 @@ module init_atm_cases
 
 !           sh(k) is the stretching specified for height surfaces
 
-            sh(k) = (real(k-1)*dz/zt)**str 
+            sh(k) = (real(k-1)*dz/zt)**str
 
 !           to specify specific heights zc(k) for coordinate surfaces,
 !           input zc(k) and define sh(k) = zc(k)/zt
@@ -712,16 +712,16 @@ module init_atm_cases
 !                zw(k) = (k-1)*dz yields constant dzeta
 !                        and nonconstant dzeta/dz
 !                zw(k) = sh(k)*zt yields nonconstant dzeta
-!                        and nearly constant dzeta/dz 
+!                        and nearly constant dzeta/dz
 
             zw(k) = float(k-1)*dz
 !            zw(k) = sh(k)*zt
 !
-!           ah(k) governs the transition between terrain-following 
+!           ah(k) governs the transition between terrain-following
 !           and pureheight coordinates
 !                ah(k) = 0 is a terrain-following coordinate
 !                ah(k) = 1 is a height coordinate
- 
+
             ah(k) = 1.-cos(.5*pii*(k-1)*dz/zt)**6
 !            ah(k) = 0.
             call mpas_log_write(' k, sh, zw, ah = $i $r $r $r', intArgs=(/k/), realArgs=(/sh(k),zw(k),ah(k)/))
@@ -755,11 +755,11 @@ module init_atm_cases
 
 !**********  how are we storing cf1, cf2 and cf3?
 
-      COF1 = (2.*DZU(2)+DZU(3))/(DZU(2)+DZU(3))*DZW(1)/DZU(2) 
-      COF2 =     DZU(2)        /(DZU(2)+DZU(3))*DZW(1)/DZU(3) 
+      COF1 = (2.*DZU(2)+DZU(3))/(DZU(2)+DZU(3))*DZW(1)/DZU(2)
+      COF2 =     DZU(2)        /(DZU(2)+DZU(3))*DZW(1)/DZU(3)
       CF1  = FZP(2) + COF1
       CF2  = FZM(2) - COF1 - COF2
-      CF3  = COF2       
+      CF3  = COF2
 
 !      d1  = .5*dzw(1)
 !      d2  = dzw(1)+.5*dzw(2)
@@ -832,7 +832,7 @@ module init_atm_cases
 
         do k=1,nz1
           ztemp    = .5*(zgrid_2d(k+1,i)+zgrid_2d(k,i))
-          ppb_2d(k,i) = p0*exp(-gravity*ztemp/(rgas*t0b)) 
+          ppb_2d(k,i) = p0*exp(-gravity*ztemp/(rgas*t0b))
           pb_2d(k,i) = (ppb_2d(k,i)/p0)**(rgas/cp)
           rb_2d(k,i) = ppb_2d(k,i)/(rgas*t0b*zz_2d(k,i))
           tb_2d(k,i) = t0b/pb_2d(k,i)
@@ -869,7 +869,7 @@ module init_atm_cases
             ztemp   = .5*(zgrid_2d(k,i)+zgrid_2d(k+1,i))
             ptemp   = ppb_2d(k,i) + pp_2d(k,i)
 
-            !get moisture 
+            !get moisture
             if (moisture) then
               qv_2d(k,i) = env_qv( temperature_1d(k), ptemp, rh_max )
             end if
@@ -924,7 +924,7 @@ module init_atm_cases
 
       end if
 
-!******************************************************************      
+!******************************************************************
 
 !
 !---- baroclinc wave initialization ---------------------------------
@@ -934,7 +934,7 @@ module init_atm_cases
       do i=1, nCells
         do k=1,nz1
           ztemp    = .5*(zgrid(k+1,i)+zgrid(k,i))
-          ppb(k,i) = p0*exp(-gravity*ztemp/(rgas*t0b)) 
+          ppb(k,i) = p0*exp(-gravity*ztemp/(rgas*t0b))
           pb (k,i) = (ppb(k,i)/p0)**(rgas/cp)
           rb (k,i) = ppb(k,i)/(rgas*t0b*zz(k,i))
           tb (k,i) = t0b/pb(k,i)
@@ -976,9 +976,9 @@ module init_atm_cases
             ztemp   = .5*(zgrid(k,i)+zgrid(k+1,i))
             ptemp   = ppb(k,i) + pp(k,i)
 
-            !get moisture 
+            !get moisture
             if (moisture) then
- 
+
                 !scalars(index_qv,k,i) = env_qv( temperature_1d(k), ptemp, rh_max )
 
                if(ptemp < 50000.) then
@@ -1095,7 +1095,7 @@ module init_atm_cases
              u(k,iEdge) = fluxk + u_pert
            end do
 
-         else 
+         else
 
            do k=1,nVertLevels
              etavs = (0.5*(ppb(k,iCell1)+ppb(k,iCell2)+pp(k,iCell1)+pp(k,iCell2))/p0 - 0.252)*pii/2.
@@ -1139,7 +1139,7 @@ module init_atm_cases
          cell1 = cellsOnEdge(1,iEdge)
          cell2 = cellsOnEdge(2,iEdge)
 
-         
+
          ! Avoid a potential divide by zero below if areaCell(nCells+1) is used in the denominator
          if (cell1 <= nCellsSolve .or. cell2 <= nCellsSolve ) then
             do k = 1, nVertLevels
@@ -1148,7 +1148,7 @@ module init_atm_cases
 
                   z_edge = (zgrid(k,cell1)+zgrid(k,cell2))/2.
 
-               else if (config_theta_adv_order == 3 .or. config_theta_adv_order ==4) then !theta_adv_order == 3 or 4 
+               else if (config_theta_adv_order == 3 .or. config_theta_adv_order ==4) then !theta_adv_order == 3 or 4
 
                   d2fdx2_cell1 = deriv_two(1,1,iEdge) * zgrid(k,cell1)
                   d2fdx2_cell2 = deriv_two(1,2,iEdge) * zgrid(k,cell2)
@@ -1162,7 +1162,7 @@ module init_atm_cases
                   do i=1, nEdgesOnCell(cell2)
                      if ( cellsOnCell(i,cell2) > 0)       &
                      d2fdx2_cell2 = d2fdx2_cell2 + deriv_two(i+1,2,iEdge) * zgrid(k,cellsOnCell(i,cell2))
-                  end do             
+                  end do
 
                   z_edge =  0.5*(zgrid(k,cell1) + zgrid(k,cell2))         &
                                 - (dcEdge(iEdge) **2) * (d2fdx2_cell1 + d2fdx2_cell2) / 12.
@@ -1198,7 +1198,7 @@ module init_atm_cases
             rw(k,cell2) = rw(k,cell2) + (fzm(k)*zz(k,cell2)+fzp(k)*zz(k-1,cell2))*zb(k,2,iEdge)*flux
             rw(k,cell1) = rw(k,cell1) - (fzm(k)*zz(k,cell1)+fzp(k)*zz(k-1,cell1))*zb(k,1,iEdge)*flux
 
-            if (config_theta_adv_order ==3) then 
+            if (config_theta_adv_order ==3) then
                rw(k,cell2) = rw(k,cell2)    &
                                             - sign(1.0_RKIND,ru(k,iEdge))*config_coef_3rd_order* &
                                               (fzm(k)*zz(k,cell2)+fzp(k)*zz(k-1,cell2))*zb3(k,2,iEdge)*flux
@@ -1256,51 +1256,51 @@ module init_atm_cases
    subroutine init_atm_calc_flux_zonal(u_2d,lat_2d,flux_zonal,lat1_in,lat2_in,dvEdge,a,u0,nz1,nlat)
 
       implicit none
-   
+
       integer, intent(in) :: nz1,nlat
       real (kind=RKIND), dimension(nz1,nlat), intent(in) :: u_2d
       real (kind=RKIND), dimension(nlat), intent(in) :: lat_2d
       real (kind=RKIND), dimension(nz1), intent(out) :: flux_zonal
       real (kind=RKIND), intent(in) :: lat1_in, lat2_in, dvEdge, a, u0
-   
+
       integer :: k,i
       real (kind=RKIND) :: lat1, lat2, w1, w2
       real (kind=RKIND) :: dlat,da,db
-   
+
       lat1 = abs(lat1_in)
       lat2 = abs(lat2_in)
       if(lat2 <= lat1) then
         lat1 = abs(lat2_in)
         lat2 = abs(lat1_in)
       end if
-   
+
       do k=1,nz1
         flux_zonal(k) = 0.
       end do
-   
+
       do i=1,nlat-1
         if( (lat1 <= lat_2d(i+1)) .and. (lat2 >= lat_2d(i)) ) then
-   
+
         dlat = lat_2d(i+1)-lat_2d(i)
         da = (max(lat1,lat_2d(i))-lat_2d(i))/dlat
         db = (min(lat2,lat_2d(i+1))-lat_2d(i))/dlat
         w1 = (db-da) -0.5*(db-da)**2
         w2 = 0.5*(db-da)**2
-   
+
         do k=1,nz1
           flux_zonal(k) = flux_zonal(k) + w1*u_2d(k,i) + w2*u_2d(k,i+1)
         end do
-   
+
         end if
-   
+
       end do
-   
+
    !  renormalize for setting cell-face fluxes
-   
+
       do k=1,nz1
         flux_zonal(k) = sign(1.0_RKIND,lat2_in-lat1_in)*flux_zonal(k)*dlat*a/dvEdge/u0
       end do
-        
+
    end subroutine init_atm_calc_flux_zonal
 
 
@@ -1309,7 +1309,7 @@ module init_atm_cases
                                          cf1,cf2,cf3,fzm,fzp,rdzw,nz1,nlat,dlat,rad)
 
       implicit none
-   
+
       integer, intent(in) :: nz1,nlat
       real (kind=RKIND), dimension(nz1,nlat), intent(inout) :: u_2d
       real (kind=RKIND), dimension(nz1,nlat), intent(in) :: rho_2d, pp_2d, qv_2d, zz_2d
@@ -1317,29 +1317,29 @@ module init_atm_cases
       real (kind=RKIND), dimension(nlat), intent(in) :: lat_2d
       real (kind=RKIND), dimension(nz1), intent(in) :: fzm, fzp, rdzw
       real (kind=RKIND), intent(in) :: cf1, cf2, cf3, dlat, rad
-   
+
       !local variable
       real (kind=RKIND), dimension(nz1,nlat-1) :: pgrad, ru, u
       real (kind=RKIND), dimension(nlat-1) :: f
       real (kind=RKIND), dimension(nz1+1)  :: dpzx
-   
+
    !   real (kind=RKIND), parameter :: omega_e = 7.29212e-05
       real (kind=RKIND) :: omega_e
-   
+
       real (kind=RKIND) :: rdx, qtot, r_earth, phi
       integer :: k,i, itr
-   
+
       r_earth  = rad
       omega_e = omega
       rdx = 1./(dlat*r_earth)
-   
+
       do i=1,nlat-1
         do k=1,nz1
           pgrad(k,i) = rdx*(pp_2d(k,i+1)/zz_2d(k,i+1)-pp_2d(k,i)/zz_2d(k,i))
         end do
-   
+
         dpzx(:) = 0.
-   
+
         k=1
         dpzx(k) = .5*zx_2d(k,i)*(cf1*(pp_2d(k  ,i+1)+pp_2d(k  ,i))        &
                                 +cf2*(pp_2d(k+1,i+1)+pp_2d(k+1,i))        &
@@ -1348,24 +1348,24 @@ module init_atm_cases
            dpzx(k) = .5*zx_2d(k,i)*(fzm(k)*(pp_2d(k  ,i+1)+pp_2d(k  ,i))   &
                                    +fzp(k)*(pp_2d(k-1,i+1)+pp_2d(k-1,i)))
         end do
-   
+
         do k=1,nz1
            pgrad(k,i) = pgrad(k,i) - rdzw(k)*(dpzx(k+1)-dpzx(k))
         end do
       end do
-   
-   
-      !initial value of v and rv -> that is from analytic sln. 
+
+
+      !initial value of v and rv -> that is from analytic sln.
       do i=1,nlat-1
          do k=1,nz1
             u(k,i) = .5*(u_2d(k,i)+u_2d(k,i+1))
             ru(k,i) = u(k,i)*(rho_2d(k,i)+rho_2d(k,i+1))*.5
          end do
       end do
-   
+
       call mpas_log_write('MAX U wind before REBALANCING ----> $r', realArgs=(/maxval(abs(u))/))
-   
-      !re-calculate geostrophic wind using iteration 
+
+      !re-calculate geostrophic wind using iteration
       do itr=1,50
       do i=1,nlat-1
          phi = (lat_2d(i)+lat_2d(i+1))/2.
@@ -1381,16 +1381,16 @@ module init_atm_cases
          end do
       end do
       end do
-   
+
       call mpas_log_write('MAX U wind after REBALANCING ----> $r', realArgs=(/maxval(abs(u))/))
-   
+
       !update 2d ru
       do i=2,nlat-1
         do k=1,nz1
           u_2d(k,i) = (ru(k,i-1)+ru(k,i))*.5
         end do
       end do
-   
+
       i=1
       do k=1,nz1
          u_2d(k,i) = (3.*u_2d(k,i+1)-u_2d(k,i+2))*.5
@@ -1427,7 +1427,7 @@ module init_atm_cases
 
       !This is temporary variable here. It just need when calculate tangential velocity v.
       integer :: eoe
-      integer, dimension(:), pointer :: nEdgesOnEdge 
+      integer, dimension(:), pointer :: nEdgesOnEdge
       integer, dimension(:,:), pointer :: edgesOnEdge, cellsOnEdge
       real (kind=RKIND), dimension(:,:), pointer :: weightsOnEdge
 
@@ -1465,6 +1465,8 @@ module init_atm_cases
       real (kind=RKIND), dimension(:), pointer :: u_init, qv_init, angleEdge, fEdge, fVertex
 
       character (len=StrKIND), pointer :: config_interface_projection
+      character (len=StrKIND), pointer :: config_specified_zeta_levels
+      real (kind=RKIND), dimension(:), pointer :: specified_zw
 
       call mpas_pool_get_array(mesh, 'xCell', xCell)
       call mpas_pool_get_array(mesh, 'yCell', yCell)
@@ -1572,7 +1574,7 @@ module init_atm_cases
 
       call atm_initialize_advection_rk(mesh, nCells, nEdges, maxEdges, on_a_sphere, sphere_radius )
       call atm_initialize_deformation_weights(mesh, nCells, on_a_sphere, sphere_radius)
-      
+
       xnutr = 0.
       zd = 12000.
 
@@ -1593,39 +1595,55 @@ module init_atm_cases
 
       !     metrics for hybrid coordinate and vertical stretching
 
-      str = 1.0
-      zt = 20000.
-      dz = zt/float(nz1)
+      call mpas_pool_get_config(configs, 'config_specified_zeta_levels', config_specified_zeta_levels)
 
-!      write(0,*) ' dz = ',dz
       call mpas_log_write(' hx computation complete ')
 
-      do k=1,nz
+      if (len_trim(config_specified_zeta_levels) > 0) then
 
-!           sh(k) is the stretching specified for height surfaces
+         ! Read user-supplied edge heights (metres). Used by the supercell
+         ! test case to extend beyond the default 20-km top with stretching.
+         call mpas_log_write('Setting up vertical grid using levels from '''//trim(config_specified_zeta_levels)//'''')
 
-            zc(k) = zt*(real(k-1)*dz/zt)**str 
+         if (read_text_array(dminfo, trim(config_specified_zeta_levels), specified_zw) /= 0) then
+            call mpas_log_write('Failed to read vertical levels from '''//trim(config_specified_zeta_levels)//'''', &
+                                 messageType=MPAS_LOG_CRIT)
+         end if
 
-!           to specify specific heights zc(k) for coordinate surfaces,
-!           input zc(k) 
-!           zw(k) is the hieght of zeta surfaces
-!                zw(k) = (k-1)*dz yields constant dzeta
-!                        and nonconstant dzeta/dz
-!                zw(k) = sh(k)*zt yields nonconstant dzeta
-!                        and nearly constant dzeta/dz 
+         if (size(specified_zw) /= nz) then
+            call mpas_log_write('config_nvertlevels = $i, but', intArgs=(/nz1/), messageType=MPAS_LOG_ERR)
+            call mpas_log_write(''''//trim(config_specified_zeta_levels)//''' has $i values.', &
+                                 intArgs=(/size(specified_zw)/), messageType=MPAS_LOG_ERR)
+            call mpas_log_write(''''//trim(config_specified_zeta_levels)//''' must contain nVertLevels+1 ($i) values.', &
+                                 intArgs=(/nz/), messageType=MPAS_LOG_CRIT)
+         end if
 
-!            zw(k) = float(k-1)*dz
-            zw(k) = zc(k)
-!
-!           ah(k) governs the transition between terrain-following 
-!           and pureheight coordinates
-!                ah(k) = 0 is a terrain-following coordinate
-!                ah(k) = 1 is a height coordinate
- 
-!            ah(k) = 1.-cos(.5*pii*(k-1)*dz/zt)**6
+         do k=1,nz
+            zw(k) = specified_zw(k)
+            zc(k) = zw(k)   ! flat-terrain idealized case: zc = zw
             ah(k) = 1.
-!            call mpas_log_write(' k, zc, zw, ah = $i $r $r $r', intArgs=(/k/), realArgs=(/zc(k),zw(k),ah(k)/))
-      end do
+         end do
+
+         zt = zw(nz)
+         dz = zt/float(nz1)
+
+         deallocate(specified_zw)
+
+      else
+
+         ! Legacy path: uniform 20-km column (original squall-line / supercell setup).
+         ! Preserved for case 4 (squall line) and any legacy supercell runs.
+         str = 1.0
+         zt = 20000.
+         dz = zt/float(nz1)
+
+         do k=1,nz
+            zc(k) = zt*(real(k-1)*dz/zt)**str
+            zw(k) = zc(k)
+            ah(k) = 1.
+         end do
+
+      end if
       do k=1,nz1
          dzw (k) = zw(k+1)-zw(k)
          rdzw(k) = 1./dzw(k)
@@ -1655,11 +1673,11 @@ module init_atm_cases
 
 !**********  how are we storing cf1, cf2 and cf3?
 
-      COF1 = (2.*DZU(2)+DZU(3))/(DZU(2)+DZU(3))*DZW(1)/DZU(2) 
-      COF2 =     DZU(2)        /(DZU(2)+DZU(3))*DZW(1)/DZU(3) 
+      COF1 = (2.*DZU(2)+DZU(3))/(DZU(2)+DZU(3))*DZW(1)/DZU(2)
+      COF2 =     DZU(2)        /(DZU(2)+DZU(3))*DZW(1)/DZU(3)
       CF1  = FZP(2) + COF1
       CF2  = FZM(2) - COF1 - COF2
-      CF3  = COF2       
+      CF3  = COF2
 
 !      d1  = .5*dzw(1)
 !      d2  = dzw(1)+.5*dzw(2)
@@ -1760,7 +1778,7 @@ module init_atm_cases
          call mpas_dmpar_bcast_reals(dminfo, nz1, u_init)
 
 !
-!    for reference sounding 
+!    for reference sounding
 !
      qvb(:) = 0.0_RKIND
 
@@ -1818,7 +1836,7 @@ module init_atm_cases
 !*********************************************************************
 !           QVB = QV INCLUDES MOISTURE IN REFERENCE STATE
 !            qvb(k) = scalars(index_qv,k,1)
-                                        
+
 !           QVB = 0 PRODUCES DRY REFERENCE STATE
             qvb(k) = 0.
 !*********************************************************************
@@ -1866,7 +1884,7 @@ module init_atm_cases
 
       do i=1, nCells
         xloc = xCell(i) - xmid
-        if (test_case == 4) then 
+        if (test_case == 4) then
            yloc = 0.                            !squall line setting
         else if (test_case == 5) then
            yloc = yCell(i) - ymid !supercell setting
@@ -1916,7 +1934,7 @@ module init_atm_cases
           end if
           do k=1,nz1
              rt(k,i) = (pp(k,i)/(rgas*zz(k,i))                   &
-                     -rtb(k,i)*(p(k,i)-pb(k,i)))/p(k,i)       
+                     -rtb(k,i)*(p(k,i)-pb(k,i)))/p(k,i)
              p (k,i) = (zz(k,i)*(rgas/p0)*(rtb(k,i)+rt(k,i)))**rcv
              rr(k,i) = (rt(k,i)-rb(k,i)*(t(k,i)-tb(k,i)))/t(k,i)
           end do
@@ -1946,7 +1964,7 @@ module init_atm_cases
         cell2 = cellsOnEdge(2,i)
         if(cell1 <= nCellsSolve .or. cell2 <= nCellsSolve) then
           do k=1,nz1
-            ru (k,i)  = 0.5*(rho_zz(k,cell1)+rho_zz(k,cell2))*u(k,i)    
+            ru (k,i)  = 0.5*(rho_zz(k,cell1)+rho_zz(k,cell2))*u(k,i)
           end do
         end if
       end do
@@ -2027,7 +2045,7 @@ module init_atm_cases
 
       real (kind=RKIND), dimension(:), pointer :: rdzw, dzu, rdzu, fzm, fzp
       real (kind=RKIND), dimension(:,:), pointer :: zgrid, zxu, zz, hx, cqw
-      real (kind=RKIND), dimension(:,:), pointer :: ppb, pb, rho_zz, rb, rr, tb, rtb, p, pp, dss, t, rt, u, ru 
+      real (kind=RKIND), dimension(:,:), pointer :: ppb, pb, rho_zz, rb, rr, tb, rtb, p, pp, dss, t, rt, u, ru
       real (kind=RKIND), dimension(:,:,:), pointer :: scalars, deriv_two, zb, zb3
 
       !This is temporary variable here. It just need when calculate tangential velocity v.
@@ -2135,7 +2153,7 @@ module init_atm_cases
       kiteAreasOnVertex(:,:) = kiteAreasOnVertex(:,:) * a_scale**2.0
       nominalMinDc = nominalMinDc * a_scale
 
-      
+
       call mpas_pool_get_dimension(mesh, 'nEdges', nEdges)
       call mpas_pool_get_dimension(mesh, 'nVertices', nVertices)
       call mpas_pool_get_dimension(mesh, 'nCellsSolve', nCellsSolve)
@@ -2197,7 +2215,7 @@ module init_atm_cases
       rcv = rgas/(cp-rgas)
 
       ! for hx computation
-      xa = 5000. !SHP - should be changed based on grid distance 
+      xa = 5000. !SHP - should be changed based on grid distance
       xla = 4000.
       call mpas_dmpar_max_real(dminfo, maxval(xCell(:)), xc)
       xc = xc * 0.5
@@ -2212,24 +2230,24 @@ module init_atm_cases
 
 !           sh(k) is the stretching specified for height surfaces
 
-            zc(k) = zt*(real(k-1)*dz/zt)**str 
+            zc(k) = zt*(real(k-1)*dz/zt)**str
 
 !           to specify specific heights zc(k) for coordinate surfaces,
-!           input zc(k) 
+!           input zc(k)
 !           zw(k) is the hieght of zeta surfaces
 !                zw(k) = (k-1)*dz yields constant dzeta
 !                        and nonconstant dzeta/dz
 !                zw(k) = sh(k)*zt yields nonconstant dzeta
-!                        and nearly constant dzeta/dz 
+!                        and nearly constant dzeta/dz
 
 !            zw(k) = float(k-1)*dz
             zw(k) = zc(k)
 !
-!           ah(k) governs the transition between terrain-following 
+!           ah(k) governs the transition between terrain-following
 !           and pureheight coordinates
 !                ah(k) = 0 is a terrain-following coordinate
 !                ah(k) = 1 is a height coordinate
- 
+
 !            ah(k) = 1.-cos(.5*pii*(k-1)*dz/zt)**6
             ah(k) = 1.
 !            call mpas_log_write(' k, zc, zw, ah = $i $r $r $r', intArgs=(/k/), realArgs=(/zc(k),zw(k),ah(k)/))
@@ -2293,16 +2311,16 @@ module init_atm_cases
          !    hx(1,iCell) = 0.
          ! end if
 
-         !====3. for shock mountain 
+         !====3. for shock mountain
          hx(1,iCell) = hm*exp(-((xi-xc)/xa)**2)*cos(pii*(xi-xc)/xla)**2.
 
          hx(nz,iCell) = zt
 
-!***** SHP -> get the temporary point information for the neighbor cell ->> should be changed!!!!! 
-         do i=1,nCells 
+!***** SHP -> get the temporary point information for the neighbor cell ->> should be changed!!!!!
+         do i=1,nCells
             !option 1
-            !IF(yCell(i).eq.yCell(iCell).and.xCell(i).eq.xCell(iCell)-sqrt(3.)*dcEdge(1)) next_cell(iCell,1) = i 
-            !IF(yCell(i).eq.yCell(iCell).and.xCell(i).eq.xCell(iCell)+sqrt(3.)*dcEdge(1)) next_cell(iCell,2) = i 
+            !IF(yCell(i).eq.yCell(iCell).and.xCell(i).eq.xCell(iCell)-sqrt(3.)*dcEdge(1)) next_cell(iCell,1) = i
+            !IF(yCell(i).eq.yCell(iCell).and.xCell(i).eq.xCell(iCell)+sqrt(3.)*dcEdge(1)) next_cell(iCell,2) = i
             !option 2
             next_cell(iCell,1) = iCell - 8 ! note ny=4
             next_cell(iCell,2) = iCell + 8 ! note ny=4
@@ -2315,7 +2333,7 @@ module init_atm_cases
 
          end do
       end do
-      
+
       call mpas_log_write(' hx computation complete ')
 
       if (terrain_smooth) then
@@ -2384,11 +2402,11 @@ module init_atm_cases
          do i=1,nCells
             do k=1,nz1
                ztemp   = .5*(zgrid(k,i)+zgrid(k+1,i))
-               tb(k,i) =  t0*(1. + xn2m/gravity*ztemp) 
+               tb(k,i) =  t0*(1. + xn2m/gravity*ztemp)
                if(ztemp .le. zinv) then
                   t (k,i) = t0*(1.+xn2l/gravity*ztemp)
                else
-                  t (k,i) = t0*(1.+xn2l/gravity*zinv+xn2/gravity*(ztemp-zinv)) 
+                  t (k,i) = t0*(1.+xn2l/gravity*zinv+xn2/gravity*(ztemp-zinv))
                end if
                   relhum(k,i) = 0.
             end do
@@ -2418,7 +2436,7 @@ module init_atm_cases
       end do
       pitop = pitop-.5*dzw(nz1)*gravity/(cp*tb(nz1,1)*zz(nz1,1))
       ptopb = p0*pitop**(1./rcp)
-                
+
       do i=1, nCells
          pb(nz1,i) = pitop+.5*dzw(nz1)*gravity/(cp*tb(nz1,i)*zz(nz1,i))
          p (nz1,i) = pitop+.5*dzw(nz1)*gravity/(cp*t (nz1,i)*zz(nz1,i))
@@ -2441,7 +2459,7 @@ module init_atm_cases
        do k=1,nVertLevels
           call mpas_log_write('$i $r $r $r $r $r $r $r', intArgs=(/k/), realArgs=(/pb(k,1),p(k,1),rb(k,1),rtb(k,1),rr(k,1),tb(k,1),t(k,1)/))
        end do
- 
+
        scalars(index_qv,:,:) = 0.
 
 !-------------------------------------------------------------------
@@ -2480,7 +2498,7 @@ module init_atm_cases
               qvs    = 380.*exp(17.27*(temp-273.)/(temp-36.))/pres
               scalars(index_qv,k,i) = min(0.014_RKIND,relhum(k,i)*qvs)
            end do
-                         
+
            do k=1,nz1
               t (k,i) = t(k,i)*(1.+1.61*scalars(index_qv,k,i))
            end do
@@ -2520,7 +2538,7 @@ module init_atm_cases
         cell2 = cellsOnEdge(2,i)
         if(cell1 <= nCellsSolve .or. cell2 <= nCellsSolve) then
           do k=1,nz1
-            ru (k,i)  = 0.5*(rho_zz(k,cell1)+rho_zz(k,cell2))*u(k,i)    
+            ru (k,i)  = 0.5*(rho_zz(k,cell1)+rho_zz(k,cell2))*u(k,i)
           end do
         end if
       end do
@@ -2539,7 +2557,7 @@ module init_atm_cases
 
                   z_edge = (zgrid(k,cell1)+zgrid(k,cell2))/2.
 
-               else !theta_adv_order == 3 or 4 
+               else !theta_adv_order == 3 or 4
 
                   d2fdx2_cell1 = deriv_two(1,1,iEdge) * zgrid(k,cell1)
                   d2fdx2_cell2 = deriv_two(1,2,iEdge) * zgrid(k,cell2)
@@ -2550,24 +2568,24 @@ module init_atm_cases
                   do i=1, nEdgesOnCell(cell2)
                      if ( cellsOnCell(i,cell2) > 0)       &
                      d2fdx2_cell2 = d2fdx2_cell2 + deriv_two(i+1,2,iEdge) * zgrid(k,cellsOnCell(i,cell2))
-                  end do             
-             
+                  end do
+
                   z_edge =  0.5*(zgrid(k,cell1) + zgrid(k,cell2))         &
-                                - (dcEdge(iEdge) **2) * (d2fdx2_cell1 + d2fdx2_cell2) / 12. 
+                                - (dcEdge(iEdge) **2) * (d2fdx2_cell1 + d2fdx2_cell2) / 12.
 
                   if (config_theta_adv_order == 3) then
-                     z_edge3 =  - (dcEdge(iEdge) **2) * (d2fdx2_cell1 - d2fdx2_cell2) / 12.   
-                  else 
+                     z_edge3 =  - (dcEdge(iEdge) **2) * (d2fdx2_cell1 - d2fdx2_cell2) / 12.
+                  else
                      z_edge3 = 0.
                   end if
 
                end if
 
-                  zb(k,1,iEdge) = (z_edge-zgrid(k,cell1))*dvEdge(iEdge)/areaCell(cell1) 
-                  zb(k,2,iEdge) = (z_edge-zgrid(k,cell2))*dvEdge(iEdge)/areaCell(cell2) 
-                  zb3(k,1,iEdge)=  z_edge3*dvEdge(iEdge)/areaCell(cell1) 
-                  zb3(k,2,iEdge)=  z_edge3*dvEdge(iEdge)/areaCell(cell2) 
-  
+                  zb(k,1,iEdge) = (z_edge-zgrid(k,cell1))*dvEdge(iEdge)/areaCell(cell1)
+                  zb(k,2,iEdge) = (z_edge-zgrid(k,cell2))*dvEdge(iEdge)/areaCell(cell2)
+                  zb3(k,1,iEdge)=  z_edge3*dvEdge(iEdge)/areaCell(cell1)
+                  zb3(k,2,iEdge)=  z_edge3*dvEdge(iEdge)/areaCell(cell2)
+
             end do
 
          end if
@@ -2588,9 +2606,9 @@ module init_atm_cases
 
          if (cell1 <= nCellsSolve .or. cell2 <= nCellsSolve ) then
          do k = 2, nVertLevels
-            flux =  (fzm(k)*ru(k,iEdge)+fzp(k)*ru(k-1,iEdge))  
-            rw(k,cell2) = rw(k,cell2) + (fzm(k)*zz(k,cell2)+fzp(k)*zz(k-1,cell2))*zb(k,2,iEdge)*flux 
-            rw(k,cell1) = rw(k,cell1) - (fzm(k)*zz(k,cell1)+fzp(k)*zz(k-1,cell1))*zb(k,1,iEdge)*flux 
+            flux =  (fzm(k)*ru(k,iEdge)+fzp(k)*ru(k-1,iEdge))
+            rw(k,cell2) = rw(k,cell2) + (fzm(k)*zz(k,cell2)+fzp(k)*zz(k-1,cell2))*zb(k,2,iEdge)*flux
+            rw(k,cell1) = rw(k,cell1) - (fzm(k)*zz(k,cell1)+fzp(k)*zz(k-1,cell1))*zb(k,1,iEdge)*flux
 
             if (config_theta_adv_order ==3) then
                rw(k,cell2) = rw(k,cell2)    &
@@ -2726,7 +2744,7 @@ module init_atm_cases
       integer :: j
       integer, dimension(:), pointer :: nEdgesOnCell
       integer, dimension(:,:), pointer :: edgesOnEdge, cellsOnEdge, edgesOnCell, cellsOnCell
-      real (kind=RKIND), dimension(:), pointer :: dvEdge, dcEdge, areaCell 
+      real (kind=RKIND), dimension(:), pointer :: dvEdge, dcEdge, areaCell
       real (kind=RKIND), dimension(:,:), pointer :: sorted_arr
       integer, dimension(:), pointer :: bdyMaskCell
 
@@ -2797,7 +2815,7 @@ module init_atm_cases
 
       character (len=StrKIND), pointer :: config_extrap_airtemp
       integer :: extrap_airtemp
-      
+
       real (kind=RKIND), dimension(:), pointer :: latCell, lonCell
       real (kind=RKIND), dimension(:), pointer :: latEdge, lonEdge
       real (kind=RKIND), dimension(:), pointer :: angleEdge
@@ -2873,7 +2891,7 @@ module init_atm_cases
       call mpas_pool_get_config(configs, 'config_coef_3rd_order', config_coef_3rd_order)
       call mpas_pool_get_config(configs, 'config_blend_bdy_terrain', config_blend_bdy_terrain)
       call mpas_pool_get_config(configs, 'config_interface_projection', config_interface_projection)
-      
+
       call mpas_pool_get_config(configs, 'config_extrap_airtemp', config_extrap_airtemp)
       if (trim(config_extrap_airtemp) == 'constant') then
          extrap_airtemp = 0
@@ -3175,15 +3193,15 @@ module init_atm_cases
          end do
       end if
 
-!     ah(k) governs the transition between terrain-following 
+!     ah(k) governs the transition between terrain-following
 !        and pure height coordinates
 !           ah(k) = 1           is a smoothed terrain-following coordinate
 !           ah(k) = 1.-zw(k)/zt is the basic terrain-following coordinate
 !           ah(k) = 0           is a height coordinate
- 
+
       kz = nz
       if (config_hybrid_coordinate) then
-      
+
          zh = config_hybrid_top_z
          do k=1,nz
             if (zw(k) < zh) then
@@ -3241,11 +3259,11 @@ module init_atm_cases
 
 !**********  how are we storing cf1, cf2 and cf3?
 
-      COF1 = (2.*DZU(2)+DZU(3))/(DZU(2)+DZU(3))*DZW(1)/DZU(2) 
-      COF2 =     DZU(2)        /(DZU(2)+DZU(3))*DZW(1)/DZU(3) 
+      COF1 = (2.*DZU(2)+DZU(3))/(DZU(2)+DZU(3))*DZW(1)/DZU(2)
+      COF2 =     DZU(2)        /(DZU(2)+DZU(3))*DZW(1)/DZU(3)
       CF1  = FZP(2) + COF1
       CF2  = FZM(2) - COF1 - COF2
-      CF3  = COF2       
+      CF3  = COF2
 
 !      d1  = .5*dzw(1)
 !      d2  = dzw(1)+.5*dzw(2)
@@ -3255,7 +3273,7 @@ module init_atm_cases
 !      cf3 = d1*d2*(d2-d1)/(d2*d3*(d3-d2)+d1*d3*(d1-d3)+d1*d2*(d2-d1))
 
 
-!     Smoothing algorithm for coordinate surfaces 
+!     Smoothing algorithm for coordinate surfaces
 
       smooth = config_smooth_surfaces
 
@@ -3325,7 +3343,7 @@ module init_atm_cases
                   if (dzmina > dzmin*(zw(k)-zw(k-1))) then
                      hx(k,iCell) = hs(iCell)
                      if (dzmina < dzminf) dzminf = dzmina
-                  end if 
+                  end if
                end do
 
             end do
@@ -3333,7 +3351,7 @@ module init_atm_cases
             call mpas_log_write('$i $i $r $r', intArgs=(/k,i/), realArgs=(/sm,dzminf_global/(zw(k)-zw(k-1))/))
          end do
          call mpas_log_write(' ')
-         
+
          deallocate(sm0)
 
          do k=kz,nz
@@ -3408,7 +3426,7 @@ module init_atm_cases
 
                   z_edge = (zgrid(k,cell1)+zgrid(k,cell2))/2.
 
-               else !theta_adv_order == 3 or 4 
+               else !theta_adv_order == 3 or 4
 
                   d2fdx2_cell1 = deriv_two(1,1,iEdge) * zgrid(k,cell1)
                   d2fdx2_cell2 = deriv_two(1,2,iEdge) * zgrid(k,cell2)
@@ -3419,24 +3437,24 @@ module init_atm_cases
                   do i=1, nEdgesOnCell(cell2)
                      if ( cellsOnCell(i,cell2) > 0)       &
                         d2fdx2_cell2 = d2fdx2_cell2 + deriv_two(i+1,2,iEdge) * zgrid(k,cellsOnCell(i,cell2))
-                  end do             
-             
+                  end do
+
                   z_edge =  0.5*(zgrid(k,cell1) + zgrid(k,cell2))         &
-                                - (dcEdge(iEdge) **2) * (d2fdx2_cell1 + d2fdx2_cell2) / 12. 
+                                - (dcEdge(iEdge) **2) * (d2fdx2_cell1 + d2fdx2_cell2) / 12.
 
                   if (config_theta_adv_order == 3) then
-                     z_edge3 =  - (dcEdge(iEdge) **2) * (d2fdx2_cell1 - d2fdx2_cell2) / 12.   
-                  else 
+                     z_edge3 =  - (dcEdge(iEdge) **2) * (d2fdx2_cell1 - d2fdx2_cell2) / 12.
+                  else
                      z_edge3 = 0.
                   end if
 
                end if
 
-                  zb(k,1,iEdge) = (z_edge-zgrid(k,cell1))*dvEdge(iEdge)/areaCell(cell1) 
-                  zb(k,2,iEdge) = (z_edge-zgrid(k,cell2))*dvEdge(iEdge)/areaCell(cell2) 
-                  zb3(k,1,iEdge)=  z_edge3*dvEdge(iEdge)/areaCell(cell1) 
-                  zb3(k,2,iEdge)=  z_edge3*dvEdge(iEdge)/areaCell(cell2) 
-  
+                  zb(k,1,iEdge) = (z_edge-zgrid(k,cell1))*dvEdge(iEdge)/areaCell(cell1)
+                  zb(k,2,iEdge) = (z_edge-zgrid(k,cell2))*dvEdge(iEdge)/areaCell(cell2)
+                  zb3(k,1,iEdge)=  z_edge3*dvEdge(iEdge)/areaCell(cell1)
+                  zb3(k,2,iEdge)=  z_edge3*dvEdge(iEdge)/areaCell(cell2)
+
             end do
 
          end if
@@ -3484,7 +3502,7 @@ module init_atm_cases
             call mpas_log_write('minval, maxval of LANDSEA = $r $r', realArgs=(/minval(maskslab), maxval(maskslab)/))
 
          end if
-   
+
          deallocate(field % slab)
          call read_next_met_field(field, istatus)
       end do
@@ -3631,7 +3649,7 @@ module init_atm_cases
                      trim(field % field) /= 'PSFC' .and. &
                      trim(field % field) /= 'SOILHGT') then
 
-               ! Since the hash table can only store integers, transfer the bit pattern from 
+               ! Since the hash table can only store integers, transfer the bit pattern from
                ! the real-valued xlvl into an integer; that the result is not an integer version
                ! of the level is not important, since we only want to test uniqueness of levels
                level_value = transfer(field % xlvl, level_value)
@@ -3665,7 +3683,7 @@ module init_atm_cases
             ! Set up projection
             !
             call map_init(proj)
-          
+
             if (field % iproj == PROJ_LATLON) then
                call map_set(PROJ_LATLON, proj, &
                             latinc = real(field % deltalat,RKIND), &
@@ -4215,7 +4233,7 @@ module init_atm_cases
                call mpas_pool_get_array(fg, 'st_fg', destField2d)
                k = 2
                ndims = 2
-               dzs_fg(k,:) = 40.-10.               
+               dzs_fg(k,:) = 40.-10.
                zs_fg(k,:) = 40.
             else if (trim(field % field) == 'ST040100') then
                call mpas_log_write('Interpolating ST040100')
@@ -4236,7 +4254,7 @@ module init_atm_cases
                call mpas_pool_get_array(fg, 'st_fg', destField2d)
                k = 3
                ndims = 2
-               dzs_fg(k,:) = 100.-40.             
+               dzs_fg(k,:) = 100.-40.
                zs_fg(k,:) = 100.
             else if (trim(field % field) == 'ST100200') then
                call mpas_log_write('Interpolating ST100200')
@@ -4670,9 +4688,9 @@ module init_atm_cases
             end if
 
             deallocate(rslab)
-     
+
          end if
-   
+
          deallocate(field % slab)
          call read_next_met_field(field, istatus)
       end do
@@ -4696,14 +4714,14 @@ module init_atm_cases
       ! Check how many distinct levels we actually found in the meteorological data
       !
       do k=1,config_nfglevels
-         if (vert_level(k) == -1.0) exit 
+         if (vert_level(k) == -1.0) exit
       end do
       nfglevels_actual = k-1
       call mpas_log_write('*************************************************')
       call mpas_log_write('Found $i levels in the first-guess data', intArgs=(/nfglevels_actual/))
       call mpas_log_write('*************************************************')
 
-   
+
       !
       ! Extract surface fields from first-guess
       !
@@ -4739,10 +4757,10 @@ module init_atm_cases
 
 
 
-      ! 
+      !
       ! For isobaric data, fill in the 3-d pressure field; otherwise, ensure
       ! that the surface pressure and height fields are filled in
-      ! 
+      !
       if (minval(p_fg(1:nfglevels_actual,1:nCellsSolve)) == 0.0 .and. &
           maxval(p_fg(1:nfglevels_actual,1:nCellsSolve)) == 0.0) then
          call mpas_log_write('Setting pressure field for isobaric data')
@@ -4819,7 +4837,7 @@ call mpas_log_write('Done with soil consistency check')
                ! Set up projection
                !
                call map_init(proj)
-          
+
                if (field % iproj == PROJ_PS) then
                   call map_set(PROJ_PS, proj, &
                                dx = real(field % dx,RKIND), &
@@ -4838,11 +4856,11 @@ call mpas_log_write('Done with soil consistency check')
                   call mpas_pool_get_array(fg, 'xice', destField1d)
                   ndims = 1
                end if
-   
+
                interp_list(1) = FOUR_POINT
                interp_list(2) = W_AVERAGE4
                interp_list(3) = 0
-   
+
                masked = 1
                fillval = 0.0
                msgval = 1.01
@@ -4886,7 +4904,7 @@ call mpas_log_write('Done with soil consistency check')
                deallocate(rslab)
 
             end if
-      
+
             deallocate(field % slab)
             call read_next_met_field(field, istatus)
          end do
@@ -4915,7 +4933,7 @@ call mpas_log_write('Done with soil consistency check')
                ! Set up projection
                !
                call map_init(proj)
-          
+
                if (field % iproj == PROJ_LATLON) then
                   call map_set(PROJ_LATLON, proj, &
                                latinc = real(field % deltalat,RKIND), &
@@ -4935,12 +4953,12 @@ call mpas_log_write('Done with soil consistency check')
                   call mpas_pool_get_array(state, 'h_oml_initial', destField1d)
                   ndims = 1
                end if
-   
+
                interp_list(1) = FOUR_POINT
                interp_list(2) = W_AVERAGE4
                interp_list(3) = SEARCH
                interp_list(4) = 0
-   
+
                masked = 1
                fillval = 0.0
                msgval = 0.0
@@ -4984,7 +5002,7 @@ call mpas_log_write('Done with soil consistency check')
                deallocate(rslab)
 
             end if
-      
+
             deallocate(field % slab)
             call read_next_met_field(field, istatus)
          end do
@@ -5006,9 +5024,9 @@ call mpas_log_write('Done with soil consistency check')
       where (xice >= 0.5) seaice = 1.0
 
 
-      !  
+      !
       ! Compute normal wind component and store in fg % u
-      !  
+      !
       do iEdge=1,nEdges
          do k=1,nfglevels_actual
             u_fg(k,iEdge) = cos(angleEdge(iEdge)) * u_fg(k,iEdge) &
@@ -5016,9 +5034,9 @@ call mpas_log_write('Done with soil consistency check')
          end do
       end do
 
-      !  
+      !
       ! Vertically interpolate meteorological data
-      !  
+      !
       allocate(sorted_arr(2,nfglevels_actual))
 
       do iCell=1,nCells
@@ -5097,7 +5115,7 @@ call mpas_log_write('Done with soil consistency check')
          sorted_arr(:,:) = -999.0
          do k = 1, nfglevels_actual
             sorted_arr(1,k) = z_fg(k,iCell)
-            if (vert_level(k) == 200100.0) then 
+            if (vert_level(k) == 200100.0) then
                sorted_arr(1,k) = 99999.0
                sfc_k = k
             end if
@@ -5145,21 +5163,21 @@ call mpas_log_write('Done with soil consistency check')
                             uReconstructZonal,       &
                             uReconstructMeridional   &
                            )
-   
+
 
       !
       ! Adjust surface pressure for difference in topography
       !
       do sfc_k=1,nfglevels_actual
          if (vert_level(sfc_k) == 200100.) exit
-      end do 
+      end do
       do iCell=1,nCells
 
          ! We need to extrapolate
             sorted_arr(:,:) = -999.0
             do k=1,nfglevels_actual
                sorted_arr(1,k) = z_fg(k,iCell)
-               if (vert_level(k) == 200100.0) then 
+               if (vert_level(k) == 200100.0) then
 !NOSFC                  sorted_arr(1,k) = fg % soilz % array(iCell)
                   sorted_arr(1,k) = 99999.0
                end if
@@ -5240,7 +5258,7 @@ call mpas_log_write('Done with soil consistency check')
          es = 6.112 * exp((17.27*(t2m(iCell) - 273.16))/(t2m(iCell) - 35.86))
          rs = 0.622 * es * 100. / (psfc(iCell) - es * 100.)
          q2(iCell) = 0.01 * rs * rh2(iCell)
-    
+
 
          do k=1,nVertLevels
             ! PI
@@ -5260,7 +5278,7 @@ call mpas_log_write('Done with soil consistency check')
 
       !
       ! Calculation of the initial precipitable water:
-      ! 
+      !
       do iCell = 1,nCells
          precipw(iCell) = 0.0
          do k = 1,nVertLevels
@@ -5294,7 +5312,7 @@ call mpas_log_write('Done with soil consistency check')
             rb(k,iCell) = rb(k,iCell) / zz(k,iCell)
             rho_zz(k,iCell) = rho_zz(k,iCell) / zz(k,iCell)
 
-            pp(k,iCell) = pressure(k,iCell) - ppb(k,iCell) 
+            pp(k,iCell) = pressure(k,iCell) - ppb(k,iCell)
             rr(k,iCell) = rho_zz(k,iCell) - rb(k,iCell)
 
          end do
@@ -5325,7 +5343,7 @@ call mpas_log_write('Done with soil consistency check')
                rr(k,iCell) = rho_zz(k,iCell) - rb(k,iCell)
 
                p_check = abs(p_check - pp(k,iCell))
-                
+
                it = it + 1
             end do
          end do
@@ -5365,7 +5383,7 @@ call mpas_log_write('Done with soil consistency check')
                   rw(k,iCell) = rw(k,iCell) + (fzm(k)*zz(k,iCell)+fzp(k)*zz(k-1,iCell))*zb(k,2,iEdge)*flux
                end if
 
-               if (config_theta_adv_order ==3) then 
+               if (config_theta_adv_order ==3) then
                   if (iCell == cellsOnEdge(1,iEdge)) then
                      rw(k,iCell) = rw(k,iCell)    &
                                   + sign(1.0_RKIND,ru(k,iEdge))*config_coef_3rd_order* &
@@ -5390,10 +5408,10 @@ call mpas_log_write('Done with soil consistency check')
             w(k,iCell) = rw(k,iCell) / (fzp(k) * rho_zz(k-1,iCell) + fzm(k) * rho_zz(k,iCell))
          end do
       end do
-   
+
       deallocate(vert_level)
 
-     
+
       ! Calculate surface pressure (This is an ad-hoc calculation. The actual surface pressure is actually re-calculated at
       !the top of the subroutine MPAS_to_physics in ../core_atmos_physics/mpas_atmphys_interface_nhyd.F
       do iCell=1,nCells
@@ -6248,7 +6266,7 @@ call mpas_log_write('Done with soil consistency check')
 
       !This is temporary variable here. It just need when calculate tangential velocity v.
       integer :: eoe
-      integer, dimension(:), pointer :: nEdgesOnEdge 
+      integer, dimension(:), pointer :: nEdgesOnEdge
       integer, dimension(:,:), pointer :: edgesOnEdge, cellsOnEdge
       real (kind=RKIND), dimension(:,:), pointer :: weightsOnEdge
       real (kind=RKIND), pointer :: x_period, y_period
@@ -6396,12 +6414,12 @@ call mpas_log_write('Done with soil consistency check')
       call mpas_pool_get_array(fg, 'xland', xland)
       call mpas_pool_get_array(mesh, 'landmask', landmask)
       call mpas_pool_get_array(mesh, 'lu_index', lu_index)
- 
+
       scalars(:,:,:) = 0.
 
       call atm_initialize_advection_rk(mesh, nCells, nEdges, maxEdges, on_a_sphere, sphere_radius )
       call atm_initialize_deformation_weights(mesh, nCells, on_a_sphere, sphere_radius)
-      
+
       xnutr = 0.
       zd = 12000.
 
@@ -6433,15 +6451,15 @@ call mpas_log_write('Done with soil consistency check')
 
       do k=1,nz
 
-            ! zw(k) = zt*(real(k-1)*dz/zt)**str 
+            ! zw(k) = zt*(real(k-1)*dz/zt)**str
             zw(k) = float(k-1)*dz
             zc(k) = zw(k)
 !
-!           ah(k) governs the transition between terrain-following 
+!           ah(k) governs the transition between terrain-following
 !           and pureheight coordinates
 !                ah(k) = 0 is a terrain-following coordinate
 !                ah(k) = 1 is a height coordinate
- 
+
 !            ah(k) = 1.-cos(.5*pii*(k-1)*dz/zt)**6
             ah(k) = 1.
 !            call mpas_log_write(' k, zc, zw, ah = $i $r $r $r', intArgs=(/k/), realArgs=(/zc(k),zw(k),ah(k)/))
@@ -6462,11 +6480,11 @@ call mpas_log_write('Done with soil consistency check')
 
 !**********  how are we storing cf1, cf2 and cf3?
 
-      COF1 = (2.*DZU(2)+DZU(3))/(DZU(2)+DZU(3))*DZW(1)/DZU(2) 
-      COF2 =     DZU(2)        /(DZU(2)+DZU(3))*DZW(1)/DZU(3) 
+      COF1 = (2.*DZU(2)+DZU(3))/(DZU(2)+DZU(3))*DZW(1)/DZU(2)
+      COF2 =     DZU(2)        /(DZU(2)+DZU(3))*DZW(1)/DZU(3)
       CF1  = FZP(2) + COF1
       CF2  = FZM(2) - COF1 - COF2
-      CF3  = COF2       
+      CF3  = COF2
 
       do iCell=1,nCells
         do k=1,nz
@@ -6547,7 +6565,7 @@ call mpas_log_write('Done with soil consistency check')
          call mpas_dmpar_bcast_reals(dminfo, nz1, u_init)
 
 !
-!    for reference sounding 
+!    for reference sounding
 !
      do itr=1,30
 
@@ -6655,7 +6673,7 @@ call mpas_log_write('Done with soil consistency check')
 !
       scalars(index_tke,:,:) = 0.
 
-      do k = 1,nz1  
+      do k = 1,nz1
         if( zg(k) .le. 255.) then
           do i=1,nCells
             !! scalars(index_tke,k,i) = 0.1
@@ -6698,7 +6716,7 @@ call mpas_log_write('Done with soil consistency check')
 !         end if
           do k=1,nz1
              rt(k,i) = (pp(k,i)/(rgas*zz(k,i))                   &
-                     -rtb(k,i)*(p(k,i)-pb(k,i)))/p(k,i)       
+                     -rtb(k,i)*(p(k,i)-pb(k,i)))/p(k,i)
              p (k,i) = (zz(k,i)*(rgas/p0)*(rtb(k,i)+rt(k,i)))**rcv
              rr(k,i) = (rt(k,i)-rb(k,i)*(t(k,i)-tb(k,i)))/t(k,i)
           end do
@@ -6728,7 +6746,7 @@ call mpas_log_write('Done with soil consistency check')
         cell2 = cellsOnEdge(2,i)
         if(cell1 <= nCellsSolve .or. cell2 <= nCellsSolve) then
           do k=1,nz1
-            ru (k,i)  = 0.5*(rho_zz(k,cell1)+rho_zz(k,cell2))*u(k,i)    
+            ru (k,i)  = 0.5*(rho_zz(k,cell1)+rho_zz(k,cell2))*u(k,i)
           end do
         end if
       end do
@@ -6805,7 +6823,7 @@ call mpas_log_write('Done with soil consistency check')
      atm_get_sounding = -999.
 ! SAS case sounding
 
-     if(variable == 'u') then 
+     if(variable == 'u') then
         atm_get_sounding = 2.0  ! SAS value
 
      else if (variable == 'v') then
@@ -6831,7 +6849,7 @@ call mpas_log_write('Done with soil consistency check')
           atm_get_sounding = max(7.8/1000. - (height-442.5)*0.004/1000.,0.0)
         end if
 
-      end if 
+      end if
 
    end function atm_get_sounding
 
@@ -6844,7 +6862,7 @@ call mpas_log_write('Done with soil consistency check')
 
      atm_get_sounding_1 = -999.
 
-     if(variable == 'u') then 
+     if(variable == 'u') then
         atm_get_sounding_1 = 15.0
      else if (variable == 'v') then
         atm_get_sounding_1 = 0.
@@ -6865,7 +6883,7 @@ call mpas_log_write('Done with soil consistency check')
         end if
         ! atm_get_sounding_1 = atm_get_sounding_1 - 10.0  ! for water case
 
-      end if 
+      end if
 
    end function atm_get_sounding_1
 
@@ -6877,7 +6895,7 @@ call mpas_log_write('Done with soil consistency check')
 
      atm_get_sounding_2 = -999.
 
-     if(variable == 'u') then 
+     if(variable == 'u') then
         atm_get_sounding_2 = 10.0
      else if (variable == 'v') then
         atm_get_sounding_2 = 0.
@@ -6898,7 +6916,7 @@ call mpas_log_write('Done with soil consistency check')
         end if
         atm_get_sounding_2 = atm_get_sounding_2 - 10.0  ! for water case
 
-      end if 
+      end if
 
    end function atm_get_sounding_2
 
@@ -7116,6 +7134,13 @@ call mpas_log_write('Done with soil consistency check')
 
 
       !
+      ! Compute edgeNormalVectors, cellTangentPlane, and localVerticalUnitVectors
+      ! (NB: these are the same fields computed by the mpas_rbf_interp_initialize routine)
+      !
+      call mpas_initialize_vectors(mesh)
+
+
+      !
       ! Read PHIS field from cam_topo stream
       !
       if (MPAS_stream_mgr_stream_exists(stream_manager, 'cam_topo')) then
@@ -7265,7 +7290,7 @@ call mpas_log_write('Done with soil consistency check')
 !           ah(k) = 1           is a smoothed terrain-following coordinate
 !           ah(k) = 1.-zw(k)/zt is the basic terrain-following coordinate
 !           ah(k) = 0           is a height coordinate
- 
+
       hybrid = .true.
 
       kz = nVertLevels+1
@@ -7626,12 +7651,12 @@ call mpas_log_write('Done with soil consistency check')
 
 
    subroutine physics_idealized_init(mesh, fg)
-   
+
       implicit none
-      
+
       type (mpas_pool_type), intent(inout) :: mesh
       type (mpas_pool_type), intent(inout) :: fg
-      
+
       !local variables:
       integer :: iCell, iMonth, iSoil
       integer, pointer :: nCells, nSoilLevels, nMonths
@@ -7639,7 +7664,7 @@ call mpas_log_write('Done with soil consistency check')
       real (kind=RKIND), dimension(:), pointer :: ter, xice, shdmin, shdmax, vegfra, sfc_albbck, xland, seaice
       real (kind=RKIND), dimension(:), pointer :: snow, snowc, snoalb, snowh, skintemp, sst, tmn
       real (kind=RKIND), dimension(:,:), pointer :: tslb, smcrel, sh2o, smois, dzs, albedo12m, greenfrac
-      
+
       !---------------------------------------------------------------------------------------------
 
       call mpas_pool_get_dimension(mesh, 'nCells', nCells)
@@ -7672,13 +7697,13 @@ call mpas_log_write('Done with soil consistency check')
       call mpas_pool_get_array(fg, 'sh2o', sh2o)
       call mpas_pool_get_array(fg, 'smois', smois)
       call mpas_pool_get_array(fg, 'dzs', dzs)
-      
+
       !initialization of surface input variables that are not needed if we run the current set of
       !idealized test cases:
-      
-      
+
+
       do iCell = 1, nCells
-      
+
          !terrain,soil type, and vegetation:
          ter(iCell) = 0.0
          xice(iCell) = 0.0
@@ -7691,17 +7716,17 @@ call mpas_log_write('Done with soil consistency check')
          sfc_albbck(iCell) = 0.0
          xland(iCell) = 0.0
          seaice(iCell) = 0.0
-      
+
          !snow coverage:
          snow(iCell) = 0.0
          snowc(iCell) = 0.0
          snoalb(iCell) = 0.08
          snowh(iCell) = 0.0
-      
+
          !surface and sea-surface temperatures:
          skintemp(iCell) = 288.0
          sst(iCell) = 288.0
-      
+
          !soil layers:
          tmn(iCell) = 288.0
          do iSoil = 1, nSoilLevels
@@ -7711,18 +7736,18 @@ call mpas_log_write('Done with soil consistency check')
             smois(iSoil,iCell) =   0.0
             dzs(iSoil,iCell) =   0.0
          end do
-      
+
          !monthly climatological surface albedo and greenness fraction:
          do iMonth = 1, nMonths
             albedo12m(iMonth,iCell) = 0.08
             greenfrac(iMonth,iCell) = 0.0
          end do
-      
+
       end do
-   
+
    end subroutine physics_idealized_init
-   
-   
+
+
    subroutine decouple_variables(mesh, nCells, nVertLevels, state, diag)
 
       implicit none
@@ -7756,7 +7781,7 @@ call mpas_log_write('Done with soil consistency check')
       call mpas_pool_get_array(state, 'scalars', scalars)
 
       call mpas_pool_get_dimension(state, 'index_qv', index_qv)
-     
+
       ! Compute surface pressure
       do iCell=1,nCells
          surface_pressure(iCell) = 0.5*gravity/rdzw(1)                                        &
@@ -7815,7 +7840,7 @@ call mpas_log_write('Done with soil consistency check')
       real (kind=RKIND), dimension(:), intent(in) :: latCell  ! These four variables (latCell, lonCell, bdyMaskCell, and ter)
       real (kind=RKIND), dimension(:), intent(in) :: lonCell  ! may actually have more than nCells elements, for example,
       integer, dimension(:), intent(in) :: bdyMaskCell        ! if the arrays include a "garbage cell".
-      real (kind=RKIND), dimension(:), intent(inout) :: ter   ! 
+      real (kind=RKIND), dimension(:), intent(inout) :: ter   !
       logical, intent(in) :: dryrun
       integer, intent(out) :: ierr
 
@@ -7867,7 +7892,7 @@ call mpas_log_write('Done with soil consistency check')
                ! Set up map projection - currently, only the regular lat-lon projection is handled
                !
                call map_init(proj)
-          
+
                if (field % iproj == PROJ_LATLON) then
                   call map_set(PROJ_LATLON, proj, &
                                latinc = real(field % deltalat,RKIND), &
@@ -7948,7 +7973,7 @@ call mpas_log_write('Done with soil consistency check')
             return
 
          end if
-   
+
          deallocate(field % slab)
          call read_next_met_field(field, istatus)
       end do
@@ -8011,7 +8036,7 @@ call mpas_log_write('Done with soil consistency check')
          do k = 1, nVertLevels
             if ( t(k,iCell) <= 273.15_RKIND ) then
 
-               ! use formula in ungrib to reconstruct RH 
+               ! use formula in ungrib to reconstruct RH
                eis = 0.01_RKIND * exp (9.550426_RKIND - (5723.265_RKIND / t(k,iCell)) + (3.53068_RKIND * log(t(k,iCell))) &
                    - (0.00728332_RKIND * t(k,iCell)))
                ews = 6.112_RKIND * exp(17.67_RKIND * (t(k,iCell)-273.15_RKIND) / ((t(k,iCell)-273.15_RKIND)+243.5_RKIND))

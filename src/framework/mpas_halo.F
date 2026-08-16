@@ -541,11 +541,17 @@ module mpas_halo
                             MPI_STATUS_IGNORE, MPI_STATUSES_IGNORE
         use mpi_f08, only : MPI_Irecv, MPI_Isend, MPI_Waitany, MPI_Waitall
 #else
+#ifndef NOMPIMOD
         use mpi
+#endif
 #endif
         use mpas_derived_types, only : domain_type, mpas_halo_group, MPAS_HALO_REAL, MPAS_LOG_CRIT
         use mpas_pool_routines, only : mpas_pool_get_array
         use mpas_log, only : mpas_log_write
+
+#ifdef NOMPIMOD
+        include 'mpif.h'
+#endif
 
         ! Parameters
 #ifdef MPAS_USE_MPI_F08

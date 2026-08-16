@@ -12,7 +12,7 @@
 !> \brief   MPAS Vector reconstruction module
 !> \author  Xylar Asay-Davis, Todd Ringler
 !> \date    03/28/13
-!> \details 
+!> \details
 !> This module provides routines for performing vector reconstruction from edges to cell centers.
 !
 !-----------------------------------------------------------------------
@@ -52,11 +52,11 @@ module mpas_vector_reconstruction
 !> \brief   MPAS Vector reconstruction initialization routine
 !> \author  Xylar Asay-Davis, Todd Ringler
 !> \date    03/28/13
-!> \details 
+!> \details
 !>  Purpose: pre-compute coefficients used by the reconstruct() routine
 !>  Input: grid meta data
-!>  Output: grid % coeffs_reconstruct - coefficients used to reconstruct 
-!>                                      velocity vectors at cell centers 
+!>  Output: grid % coeffs_reconstruct - coefficients used to reconstruct
+!>                                      velocity vectors at cell centers
 !-----------------------------------------------------------------------
   subroutine mpas_init_reconstruct(meshPool, includeHalos)!{{{
 
@@ -177,7 +177,7 @@ module mpas_vector_reconstruction
       deallocate(edgeOnCellNormalsWork)
       deallocate(coeffsWork)
 
-      
+
       do i=1,pointCount
         coeffs_reconstruct(:,i,iCell) = coeffs(i,:)
       end do
@@ -197,7 +197,7 @@ module mpas_vector_reconstruction
 !> \brief   2d MPAS Vector reconstruction routine
 !> \author  Xylar Asay-Davis, Todd Ringler
 !> \date    03/28/13
-!> \details 
+!> \details
 !>  Purpose: reconstruct vector field at cell centers based on radial basis functions
 !>  Input: grid meta data and vector component data residing at cell edges
 !>  Output: reconstructed vector field (measured in X,Y,Z) located at cell centers
@@ -346,7 +346,7 @@ module mpas_vector_reconstruction
 !> \brief   Host to device data transfer routine for MPAS 2D Vector reconstruction
 !> \author  Abishek Gopal
 !> \date    03/09/2026
-!> \details 
+!> \details
 !>  Purpose: Transfer data needed for 2D vector reconstruction from host to device
 !-----------------------------------------------------------------------
   subroutine mpas_reconstruct_2d_h2d(meshPool, u, uReconstructX, uReconstructY, uReconstructZ, uReconstructZonal, uReconstructMeridional, includeHalos)!{{{
@@ -414,7 +414,7 @@ module mpas_vector_reconstruction
 !> \brief   Device to host data transfer routine for MPAS 2D Vector reconstruction
 !> \author  Abishek Gopal
 !> \date    03/09/2026
-!> \details 
+!> \details
 !>  Purpose: Transfer data back to host after call to 2D vector reconstruction
 !-----------------------------------------------------------------------
   subroutine mpas_reconstruct_2d_d2h(meshPool, u, uReconstructX, uReconstructY, uReconstructZ, uReconstructZonal, uReconstructMeridional, includeHalos)!{{{
@@ -481,7 +481,7 @@ module mpas_vector_reconstruction
 !> \brief   1d MPAS Vector reconstruction routine
 !> \author  Xylar Asay-Davis, Todd Ringler, Matt Hoffman
 !> \date    03/28/13
-!> \details 
+!> \details
 !>  Purpose: reconstruct vector field at cell centers based on radial basis functions
 !>  Input: grid meta data and vector component data residing at cell edges
 !>  Output: reconstructed vector field (measured in X,Y,Z) located at cell centers
@@ -545,7 +545,7 @@ module mpas_vector_reconstruction
       uReconstructY(iCell) = 0.0
       uReconstructZ(iCell) = 0.0
 
-      ! a more efficient reconstruction where rbf_values*matrix_reconstruct 
+      ! a more efficient reconstruction where rbf_values*matrix_reconstruct
       ! has been precomputed in coeffs_reconstruct
       do i=1,nEdgesOnCell(iCell)
         iEdge = edgesOnCell(i,iCell)

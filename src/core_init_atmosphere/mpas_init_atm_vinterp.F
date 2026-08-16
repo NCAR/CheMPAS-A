@@ -37,7 +37,7 @@ module init_atm_vinterp
       real (kind=RKIND), intent(in), optional :: surface_val
       real (kind=RKIND), intent(in), optional :: sealev_val
       integer, intent(out), optional :: ierr
-      
+
       integer :: k, lm, lp
       real (kind=RKIND) :: wm, wp
       real (kind=RKIND) :: slope
@@ -46,7 +46,7 @@ module init_atm_vinterp
       real (kind=RKIND) :: surface, sealevel
 
       if (present(ierr)) ierr = 0
-      
+
       if (present(order)) then
          interp_order = order
       else

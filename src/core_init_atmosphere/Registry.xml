@@ -1173,6 +1173,15 @@
                              description="Rain water mixing ratio"
                              packages="qr"/>
 
+                        <var name="qAB" array_group="passive" units="kg kg^{-1}"
+                             description="Molecular AB mixing ratio"/>
+
+                        <var name="qA" array_group="passive" units="kg kg^{-1}"
+                             description="Atomic A mixing ratio"/>
+
+                        <var name="qB" array_group="passive" units="kg kg^{-1}"
+                             description="Atomic B mixing ratio"/>
+
                         <var name="nifa" array_group="number" units="nb kg^{-1}"
                              description="Gocart ice-friendly aerosol number concentration"
                              packages="microphysics_aerosols"/>

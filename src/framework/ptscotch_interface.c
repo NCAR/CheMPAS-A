@@ -74,7 +74,7 @@ int scotchm_dgraphinit(SCOTCH_Dgraph **dgraph_ptr, int localcomm)
  *   integer error code returned by `SCOTCH_dgraphBuild` (0 on success).
  *
  ********************************************************************************/
-int scotchm_dgraphbuild(SCOTCH_Dgraph *dgraph_ptr, SCOTCH_Num nVertices, 
+int scotchm_dgraphbuild(SCOTCH_Dgraph *dgraph_ptr, SCOTCH_Num nVertices,
                         SCOTCH_Num *vertloctab_1, SCOTCH_Num nLocEdgesGraph,
                         SCOTCH_Num edgelocsiz_1, SCOTCH_Num *adjncy)
 {

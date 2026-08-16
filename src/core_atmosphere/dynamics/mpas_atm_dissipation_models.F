@@ -347,7 +347,7 @@ contains
          rdz = 1./(zgrid(k+1,iCell)-zgrid(k,iCell))
          dudz(k+1) = (uCell(k+1,iCell)-uCell(k,iCell))*rdz
          dvdz(k+1) = (vCell(k+1,iCell)-vCell(k,iCell))*rdz
- 
+
          !$acc loop vector
          do k=1, nVertLevels
             d_11(k) = 2.*dudx(k)
@@ -1123,7 +1123,7 @@ contains
          !$acc loop gang worker private(turb_vflux)
          do iCell = cellSolveStart,cellSolveEnd ! vertical mixing for each column
             ! compute turbulent fluxes
-     
+
             !$acc loop vector
             do k=1,nVertLevels
                turb_vflux(k) = - rho_zz(k,iCell)*eddy_visc_vert(k,iCell)*zz(k,iCell)*(      &

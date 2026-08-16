@@ -48,9 +48,9 @@
 !
 ! add-ons and modifications to sourcecode:
 ! ----------------------------------------
-! * in subroutine MPAS_to_physics, moved the calculation of the local arrays qv_p,qc_p, and qr_p above the 
+! * in subroutine MPAS_to_physics, moved the calculation of the local arrays qv_p,qc_p, and qr_p above the
 !   calculation of th_p so that we do not need to use the pointer qv.
-! * in subroutine microphysics_from_MPAS, moved the calculation of the local arrays qv_p,qc_p, and qr_p above 
+! * in subroutine microphysics_from_MPAS, moved the calculation of the local arrays qv_p,qc_p, and qr_p above
 !   the calculation of th_p so that we do not need to use the pointer qv.
 ! * in subroutine microphysics_to_MPAS, since microphysics schemes update the temperature and water vapor
 !   mixing ratio, we first update the total pressure and exner functions. Then, we update the modified
@@ -62,22 +62,22 @@
 !   Laura D. Fowler (laura@ucar.edu) / 2014-04-22.
 ! * modified sourcecode to use pools.
 !   Laura D. Fowler (laura@ucar.edu) / 2014-05-15.
-! * added calculation of the surface pressure tendency. Moved the calculation of znu_p below the calculation 
+! * added calculation of the surface pressure tendency. Moved the calculation of znu_p below the calculation
 !   of the surface pressure to avoid dividing by zero if the surface pressure is not output in the init file.
-!   Laura D. Fowler (birch.mmm.ucar.ecu) / 2014-06-23. 
+!   Laura D. Fowler (birch.mmm.ucar.ecu) / 2014-06-23.
 ! * renamed module mpas_atmphys_interface_nhyd to mpas_atmphys_interface.
 !   Laura D. Fowler (laura@ucar.edu) / 2014-09-19.
-! * in subroutine microphysics_to_MPAS, reverted the calculation of cloud microphysics tendency rt_diabatic_tend, 
+! * in subroutine microphysics_to_MPAS, reverted the calculation of cloud microphysics tendency rt_diabatic_tend,
 !   and update of the state variables to git hash identifier 7a66f273e182f4. This change reflects the fact that
 !   we want to compute rt_diabatic_tend at constant volume.
-!   Laura D. Fowler (laura@ucar.edu) / 2014-01-015. 
+!   Laura D. Fowler (laura@ucar.edu) / 2014-01-015.
 ! * added the initialization of local variables needed in the parameterization of the MYNN surface layer scheme
 !   and planetary boundary layer scheme from WRF 3.6.1.
 !   Laura D. Fowler (laura@ucar.edu) / 2016-04-11.
 ! * corrected the calculation of the surface pressure, mainly extrapolation of the air density to the surface.
 !   Laura D. Fowler (laura@ucar.edu) / 2016-04-25.
 ! * changed microphysics update such that the microphsyics tendency is ignored above level mp_top_level
-!   Bill Skamarock / 2025/10/17 
+!   Bill Skamarock / 2025/10/17
 
  contains
 
@@ -120,7 +120,7 @@
  if(.not.allocated(w_p)    ) allocate(w_p(ims:ime,kms:kme,jms:jme)    )
  if(.not.allocated(pres2_p)) allocate(pres2_p(ims:ime,kms:kme,jms:jme))
  if(.not.allocated(t2_p)   ) allocate(t2_p(ims:ime,kms:kme,jms:jme)   )
- 
+
  if(.not.allocated(qv_p)   ) allocate(qv_p(ims:ime,kms:kme,jms:jme)   )
  if(.not.allocated(qc_p)   ) allocate(qc_p(ims:ime,kms:kme,jms:jme)   )
  if(.not.allocated(qr_p)   ) allocate(qr_p(ims:ime,kms:kme,jms:jme)   )
@@ -154,7 +154,7 @@
  if(.not.allocated(pres2_hyd_p) ) allocate(pres2_hyd_p(ims:ime,kms:kme,jms:jme) )
  if(.not.allocated(pres2_hydd_p)) allocate(pres2_hydd_p(ims:ime,kms:kme,jms:jme))
  if(.not.allocated(znu_hyd_p)   ) allocate(znu_hyd_p(ims:ime,kms:kme,jms:jme)   )
- 
+
  end subroutine allocate_forall_physics
 
 !=================================================================================================================
@@ -188,8 +188,8 @@
  if(allocated(t_p)     ) deallocate(t_p     )
  if(allocated(th_p)    ) deallocate(th_p    )
  if(allocated(al_p)    ) deallocate(al_p    )
- if(allocated(rho_p)   ) deallocate(rho_p   ) 
- if(allocated(rh_p)    ) deallocate(rh_p    ) 
+ if(allocated(rho_p)   ) deallocate(rho_p   )
+ if(allocated(rh_p)    ) deallocate(rh_p    )
  if(allocated(znu_p)   ) deallocate(znu_p   )
 
  if(allocated(w_p)     ) deallocate(w_p     )
@@ -228,7 +228,7 @@
  if(allocated(pres2_hyd_p) ) deallocate(pres2_hyd_p )
  if(allocated(pres2_hydd_p)) deallocate(pres2_hydd_p)
  if(allocated(znu_hyd_p)   ) deallocate(znu_hyd_p   )
- 
+
  end subroutine deallocate_forall_physics
 
 !=================================================================================================================
@@ -437,7 +437,7 @@
                     * (rho1 - 0.5*(rho2-rho1)*tem1/(tem1+tem2))
     surface_pressure(i) = surface_pressure(i) + pressure_p(1,i) + pressure_b(1,i)
  enddo
- 
+
  do k = kts,kte
  do i = its,ite
     znu_p(i,k,j)  = pres_p(i,k,j) / surface_pressure(i)
@@ -495,7 +495,7 @@
  do j = jts,jte
  do i = its,ite
     z0 = zgrid(k,i)
-    z1 = 0.5*(zgrid(k,i)+zgrid(k-1,i)) 
+    z1 = 0.5*(zgrid(k,i)+zgrid(k-1,i))
     z2 = 0.5*(zgrid(k-1,i)+zgrid(k-2,i))
     w1 = (z0-z2)/(z1-z2)
     w2 = 1.-w1
@@ -511,7 +511,7 @@
  do j = jts,jte
  do i = its,ite
     z0 = zgrid(k,i)
-    z1 = 0.5*(zgrid(k,i)+zgrid(k+1,i)) 
+    z1 = 0.5*(zgrid(k,i)+zgrid(k+1,i))
     z2 = 0.5*(zgrid(k+1,i)+zgrid(k+2,i))
     w1 = (z0-z2)/(z1-z2)
     w2 = 1.-w1
@@ -544,7 +544,7 @@
     psfc_hydd_p(i,j) = pres2_hydd_p(i,1,j)
     !znu:
     do k = kte,1,-1
-       znu_hyd_p(i,k,j) = pres_hyd_p(i,k,j) / psfc_hyd_p(i,j) 
+       znu_hyd_p(i,k,j) = pres_hyd_p(i,k,j) / psfc_hyd_p(i,j)
     enddo
  enddo
  enddo
@@ -552,7 +552,7 @@
 !save the model-top pressure:
  do j = jts,jte
  do i = its,ite
-    plrad(i) = pres2_p(i,kte+1,j) 
+    plrad(i) = pres2_p(i,kte+1,j)
  enddo
  enddo
 
@@ -944,7 +944,7 @@ end subroutine pre_microphysics
     enddo
     enddo
  endif
- 
+
 !update surface pressure and calculates the surface pressure tendency:
  do j = jts,jte
  do i = its,ite

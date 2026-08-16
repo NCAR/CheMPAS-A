@@ -74,7 +74,7 @@
 ! * added call to subroutine init_lsm_noahmp to initialize the Noah-MP land surface scheme.
 !   Laura D. Fowler (laura@ucar.edu) / 2024-03-11.
 ! * added initialization of the integer variable mp_top_level to the physics_init code.
-!   Bill Skamarock / 2025-10-17 
+!   Bill Skamarock / 2025-10-17
 
  contains
 
@@ -158,7 +158,7 @@ use mpas_stream_manager
  type(MPAS_Time_Type):: currTime
 
  logical:: init_done
- integer:: ierr,julday 
+ integer:: ierr,julday
  integer:: iCell,iLag,k
  real(kind=RKIND):: layer_height
 
@@ -437,7 +437,7 @@ use mpas_stream_manager
 !initialization of longwave radiation processes: if we run the CAM radiation codes, the initia
 !lization of the longwave and shortwave parameterizations is the same, and needs to be called
 !only once:
- if(config_radt_lw_scheme.ne.'off') then    
+ if(config_radt_lw_scheme.ne.'off') then
     if(trim(config_radt_lw_scheme) .eq. 'cam_lw') then
        if(.not. init_done) then
           call init_radiation_lw(dminfo,configs,mesh,atm_input,diag,diag_physics,state,time_lev)

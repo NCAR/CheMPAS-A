@@ -12,7 +12,7 @@
 !> \brief   This module contains routines related to the block decomposition.
 !> \author  Doug Jacobsen
 !> \date    03/26/13
-!> \details 
+!> \details
 !>   This module is repsonsible for reading the decomposition files, and determining which elements should live within which blocks.
 !>   It also provides interfaces to find out how blocks map to processors.
 !
@@ -47,7 +47,7 @@ module mpas_block_decomp
 !> \brief   Determines list of cells for a specific processor
 !> \author  Doug Jacobsen
 !> \date    03/26/13
-!> \details 
+!> \details
 !>  This routine determines a list of cells for each processor, and what blocks the live in.
 !
 !-----------------------------------------------------------------------
@@ -103,7 +103,7 @@ module mpas_block_decomp
         allocate(local_nvertices(dminfo % nprocs))
         allocate(global_start(dminfo % nprocs))
         allocate(global_list(partial_global_graph_info % nVerticesTotal))
- 
+
          if (dminfo % my_proc_id == IO_NODE) then
 
             if (dminfo % total_blocks < 10) then
@@ -126,7 +126,7 @@ module mpas_block_decomp
 
             call mpas_new_unit(iunit)
             open(unit=iunit, file=trim(filename), form='formatted', status='old', iostat=istatus)
-            
+
             if (istatus /= 0) then
 #ifdef MPAS_SCOTCH
                useScotch = .true.
@@ -144,7 +144,7 @@ module mpas_block_decomp
 
          if (useScotch) then ! Using PT-Scotch across all MPI ranks
 
-            ! Pre-emptively blocking this untested code path. 
+            ! Pre-emptively blocking this untested code path.
             if (numBlocks /= 0) then
                call mpas_log_write('Scotch partitioning not available when config_number_of_blocks != 0 ', MPAS_LOG_CRIT)
             end if
@@ -180,7 +180,7 @@ module mpas_block_decomp
 
                if ( err == 0 ) then
                   call mpas_log_write('Decomposition file: ' // trim(filename) // ' contains more than $i cells', &
-                                       MPAS_LOG_CRIT, intArgs=(/partial_global_graph_info % nVerticesTotal/) )    
+                                       MPAS_LOG_CRIT, intArgs=(/partial_global_graph_info % nVerticesTotal/) )
                end if
 
            global_start(1) = 1
@@ -272,24 +272,24 @@ module mpas_block_decomp
              block_start = 0
              block_count = 0
            end do
-   
+
            do i = 1,local_nvertices(dminfo % my_proc_id +1)
              call mpas_get_local_block_id(dminfo, local_block_list(i), local_block_id)
-     
+
              block_id(local_block_id+1) = local_block_list(i)
-     
+
              sorted_local_cell_list(1, i) = local_block_list(i)
              sorted_local_cell_list(2, i) = local_cell_list(i)
-     
+
              block_count(local_block_id+1) = block_count(local_block_id+1) + 1
            end do
-   
+
            call mpas_quicksort(local_nvertices(dminfo % my_proc_id + 1), sorted_local_cell_list)
-   
+
            do i = 1, local_nvertices(dminfo % my_proc_id+1)
              local_cell_list(i) = sorted_local_cell_list(2, i)
            end do
-   
+
            do i = 2,blocks_per_proc
              block_start(i) = block_start(i-1) + block_count(i-1)
            end do
@@ -454,7 +454,7 @@ module mpas_block_decomp
                         edgelocsiz, & ! Defined previously
                         edgeloctab) ! Holds the adjacency array for every local vertex
 
-      ! Only needed during development/debugging. 
+      ! Only needed during development/debugging.
       call scotch_dgraphcheck (scotchdgraph)
 
       ! Initialize the strategy data structure
@@ -557,7 +557,7 @@ module mpas_block_decomp
 !> \brief   Partitions list of edges for a processor
 !> \author  Doug Jacobsen
 !> \date    03/26/13
-!> \details 
+!> \details
 !>  This routine partitions a list of edges for each processor, based on a list of owned cells.
 !>  Output edge list has 0-Halo edges first, followed by halo edges.
 !
@@ -626,7 +626,7 @@ module mpas_block_decomp
 !> \brief   Determines all edges in a block.
 !> \author  Doug Jacobsen
 !> \date    03/26/13
-!> \details 
+!> \details
 !>  This routine creates a list of all edges that are in a block, based on a list of owned cells.
 !
 !-----------------------------------------------------------------------
@@ -648,7 +648,7 @@ module mpas_block_decomp
 
       do i=1,nCells
          do j=1,nEdgesOnCell(i)
-            if (.not. mpas_hash_search(h, edgesOnCell(j,i))) call mpas_hash_insert(h, edgesOnCell(j,i)) 
+            if (.not. mpas_hash_search(h, edgesOnCell(j,i))) call mpas_hash_insert(h, edgesOnCell(j,i))
          end do
       end do
 
@@ -670,7 +670,7 @@ module mpas_block_decomp
                  return
                end if
                edgeList(k) = edgesOnCell(j,i)
-               call mpas_hash_insert(h, edgesOnCell(j,i)) 
+               call mpas_hash_insert(h, edgesOnCell(j,i))
             end if
          end do
       end do
@@ -691,7 +691,7 @@ module mpas_block_decomp
 !> \brief   Add halo to block
 !> \author  Doug Jacobsen
 !> \date    03/26/13
-!> \details 
+!> \details
 !>  This routine adds a halo layer to the block.
 !
 !-----------------------------------------------------------------------
@@ -721,7 +721,7 @@ module mpas_block_decomp
                end if
             end if
          end do
-      end do 
+      end do
 
 
       local_graph_with_halo % nVertices = local_graph_info % nVertices
@@ -740,10 +740,10 @@ module mpas_block_decomp
          if (mpas_hash_search(h, local_graph_info % vertexID(i))) &
            call mpas_log_write('block_decomp_add_halo: ' // &
              'There appear to be duplicates in vertexID list.', MPAS_LOG_CRIT)
-         call mpas_hash_insert(h, local_graph_info % vertexID(i)) 
-         local_graph_with_halo % vertexID(i) = local_graph_info % vertexID(i) 
-         local_graph_with_halo % nAdjacent(i) = local_graph_info % nAdjacent(i) 
-         local_graph_with_halo % adjacencyList(:,i) = local_graph_info % adjacencyList(:,i) 
+         call mpas_hash_insert(h, local_graph_info % vertexID(i))
+         local_graph_with_halo % vertexID(i) = local_graph_info % vertexID(i)
+         local_graph_with_halo % nAdjacent(i) = local_graph_info % nAdjacent(i)
+         local_graph_with_halo % adjacencyList(:,i) = local_graph_info % adjacencyList(:,i)
       end do
 
       k = local_graph_with_halo % ghostStart
@@ -760,7 +760,7 @@ module mpas_block_decomp
                end if
             end if
          end do
-      end do 
+      end do
       if (local_graph_with_halo % nVerticesTotal /= k-1) &
          call mpas_log_write('block_decomp_add_halo: ' // &
            'Somehow we don''t have the right number of total cells.', MPAS_LOG_CRIT)
@@ -776,7 +776,7 @@ module mpas_block_decomp
 !> \brief   Determine number of blocks per processor
 !> \author  Doug Jacobsen
 !> \date    03/26/13
-!> \details 
+!> \details
 !>  This routine returns the number of blocks a specific processor owns.
 !
 !-----------------------------------------------------------------------
@@ -793,9 +793,9 @@ module mpas_block_decomp
          blocks_per_proc_min = dminfo % total_blocks / dminfo % nProcs
          remaining_blocks = dminfo % total_blocks - (blocks_per_proc_min * dminfo % nProcs)
          even_blocks = dminfo % total_blocks - remaining_blocks
-  
+
          blocks_per_proc = blocks_per_proc_min
-  
+
          if(proc_number < remaining_blocks) then
            blocks_per_proc = blocks_per_proc + 1
          end if
@@ -826,7 +826,7 @@ module mpas_block_decomp
 !> \brief   Determine the local ID of a block
 !> \author  Doug Jacobsen
 !> \date    03/26/13
-!> \details 
+!> \details
 !>  This routine returns the local block ID on the owning processor.
 !
 !-----------------------------------------------------------------------
@@ -842,7 +842,7 @@ module mpas_block_decomp
          blocks_per_proc_min = dminfo % total_blocks / dminfo % nProcs
          remaining_blocks = dminfo % total_blocks - (blocks_per_proc_min * dminfo % nProcs)
          even_blocks = dminfo % total_blocks - remaining_blocks
-  
+
          if(global_block_number > even_blocks) then
              local_block_number = blocks_per_proc_min
          else
@@ -863,7 +863,7 @@ module mpas_block_decomp
 !> \brief   Determine the owning processor ID for a specific block.
 !> \author  Doug Jacobsen
 !> \date    03/26/13
-!> \details 
+!> \details
 !>  This routine returns the ID of the processor that owns a specific block.
 !
 !-----------------------------------------------------------------------
@@ -900,7 +900,7 @@ module mpas_block_decomp
 !> \brief   Build list of blocks per processor
 !> \author  Doug Jacobsen
 !> \date    03/26/13
-!> \details 
+!> \details
 !>  This routine builds the mapping of blocks to processors. Most useful when using an explicit decomposition.
 !
 !-----------------------------------------------------------------------
@@ -939,7 +939,7 @@ module mpas_block_decomp
             write(filename,'(a,i6)') trim(procFilePrefix), dminfo % nProcs
          else if (dminfo % nProcs < 10000000) then
             write(filename,'(a,i7)') trim(procFilePrefix), dminfo % nProcs
-         end if        
+         end if
 
          call mpas_new_unit(iounit)
          open(unit=iounit, file=trim(filename), form='formatted', status='old', iostat=istatus)
@@ -972,7 +972,7 @@ module mpas_block_decomp
 !> \brief   Destroy list of blocks per processor
 !> \author  Doug Jacobsen
 !> \date    03/26/13
-!> \details 
+!> \details
 !>  This routine destroys the mapping of blocks to processors.
 !
 !-----------------------------------------------------------------------

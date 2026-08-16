@@ -25,8 +25,17 @@
 ##
 function(get_mpas_version mpas_version)
     file(READ "${CMAKE_CURRENT_SOURCE_DIR}/README.md" readme_contents)
+    set(_mpas_version "")
     string(REGEX MATCH "MPAS-v([0-9]+\\.[0-9]+\\.[0-9]+)" _ ${readme_contents})
-    set(${mpas_version} ${CMAKE_MATCH_1} PARENT_SCOPE)
+    if(CMAKE_MATCH_1)
+        set(_mpas_version ${CMAKE_MATCH_1})
+    else()
+        string(REGEX MATCH "MPAS-Model v([0-9]+\\.[0-9]+\\.[0-9]+)" _ ${readme_contents})
+        if(CMAKE_MATCH_1)
+            set(_mpas_version ${CMAKE_MATCH_1})
+        endif()
+    endif()
+    set(${mpas_version} ${_mpas_version} PARENT_SCOPE)
 endfunction()
 
 ##
