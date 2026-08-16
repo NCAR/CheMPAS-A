@@ -16,6 +16,13 @@ high-level data types, communication routines, and I/O routines. By using MPAS,
 developers can leverage pre-existing code and focus more on development of
 their model.
 
+CONTRIBUTING AND ATTRIBUTION
+============================
+
+Before contributing to this repository or building on its released or
+in-development code, read the [contributor and attribution guide](CONTRIBUTING.md)
+for licensing, provenance, credit, authorship, and agentic-tool expectations.
+
 BUILDING
 ========
 
