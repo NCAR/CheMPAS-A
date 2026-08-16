@@ -1,67 +1,91 @@
-MPAS-v8.4.1
-====
+# CheMPAS-A
 
-The Model for Prediction Across Scales (MPAS) is a collaborative project for
-developing atmosphere, ocean, and other earth-system simulation components for
-use in climate, regional climate, and weather studies. The primary development
-partners are the climate modeling group at Los Alamos National Laboratory
-(COSIM) and the National Center for Atmospheric Research. Both primary
-partners are responsible for the MPAS framework, operators, and tools common to
-the applications; LANL has primary responsibility for the ocean model, and NCAR
-has primary responsibility for the atmospheric model.
+CheMPAS-A extends the MPAS-Atmosphere core with online, mechanism-configurable
+atmospheric chemistry. It couples MPAS transport and meteorology to
+[MUSICA](https://github.com/NCAR/MUSICA), using MICM for gas-phase chemistry,
+TUV-x for photolysis, and MIEM for offline emissions.
 
-The MPAS framework facilitates the rapid development and prototyping of models
-by providing infrastructure typically required by model developers, including
-high-level data types, communication routines, and I/O routines. By using MPAS,
-developers can leverage pre-existing code and focus more on development of
-their model.
+The [CheMPAS-A wiki](https://github.com/NCAR/CheMPAS-A/wiki) contains build and
+configuration references, worked cases, downloadable namelists and mechanism
+files, and the data/provenance contract for reconstructing the example runs.
 
-CONTRIBUTING AND ATTRIBUTION
-============================
+## Features
 
-Before contributing to this repository or building on its released or
-in-development code, read the [contributor and attribution guide](CONTRIBUTING.md)
-for licensing, provenance, credit, authorship, and agentic-tool expectations.
+- Runtime discovery and registration of MICM species, transported tracers,
+  photolysis diagnostics, and MIEM diagnostics.
+- Dry-air mass mixing ratio as the authoritative transport and restart state,
+  with optional output-only `fraction`, `percent`, `ppmv`, `ppbv`, and `pptv`
+  diagnostics.
+- Configurable chemistry cadence, MICM substeps and tolerance, reference solves,
+  and bounded recovery from solver failures.
+- TUV-x photolysis driven by MPAS columns and solar geometry, with static or
+  exact-grid climatological upper-column extensions. A cosine-of-solar-zenith
+  fallback is available for `jNO2` when TUV-x is disabled.
+- MIEM surface and layered emissions on the exact MPAS mesh, including multiple
+  inventories, signed exchange for selected species, and bounded sector,
+  category, and layer diagnostics.
+- Parameterized lightning NOx with altitude/vertical-velocity or isotherm
+  gating.
+- MPI-aware initialization, exact-grid validation, mass bookkeeping, and
+  restart-aware chemistry state handling.
 
-BUILDING
-========
+The implementation is an MVP for chemistry coupling and process integration.
+The supplied mechanisms and initial conditions are research examples; they are
+not a production air-quality forecast or a validated global composition
+configuration.
 
-This README is provided as a brief introduction to the MPAS framework. It does
-not provide details about each specific model, nor does it provide building
-instructions.
+## Build overview
 
-For information about building and running each core, please refer to each
-core's user's guide, which can be found at the following web sites:
+CheMPAS-A uses the normal MPAS dependencies (MPI, NetCDF-C, NetCDF-Fortran,
+PNetCDF, and PIO) plus MUSICA-Fortran 0.16.5 at source revision
+`1403e3d22717bc87f3bf9d0aa591caf039c92bbc`, built with MIEM enabled. The
+Makefile checks the MUSICA version/revision and MIEM feature metadata before
+compilation.
 
-[MPAS-Atmosphere](http://mpas-dev.github.io/atmosphere/atmosphere_download.html)
+After setting installation prefixes for the dependencies, a GNU build is:
 
-[MPAS-Albany Land Ice](http://mpas-dev.github.io/land_ice/download.html)
+```bash
+export NETCDF=/path/to/netcdf
+export NETCDFF=/path/to/netcdf-fortran
+export PNETCDF=/path/to/pnetcdf
+export PIO=/path/to/pio
+export MUSICA_PREFIX=/path/to/musica-install
+export PKG_CONFIG_PATH="${MUSICA_PREFIX}/lib/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
 
-[MPAS-Ocean](http://mpas-dev.github.io/ocean/releases.html)
+make clean CORE=atmosphere
+make -j8 gfortran CORE=atmosphere OPENMP=false \
+  PIO="$PIO" NETCDF="$NETCDF" NETCDFF="$NETCDFF" PNETCDF="$PNETCDF" \
+  PRECISION=double MUSICA=true
+```
 
-[MPAS-Seaice](http://mpas-dev.github.io/sea_ice/releases.html)
+This produces `atmosphere_model`. The wiki's
+[building guide](https://github.com/NCAR/CheMPAS-A/wiki/Building) covers the
+pinned MUSICA build, `init_atmosphere_model`, ABI checks, and the tested Ubuntu
+toolchain.
 
+## Run and configuration guides
 
-Code Layout
-----------
+- [Getting started](https://github.com/NCAR/CheMPAS-A/wiki/Getting-Started)
+- [Features and architecture](https://github.com/NCAR/CheMPAS-A/wiki/Features-and-Architecture)
+- [Namelist reference](https://github.com/NCAR/CheMPAS-A/wiki/Configuration-Reference)
+- [Reconstructable examples](https://github.com/NCAR/CheMPAS-A/wiki/Examples)
+- [Global chemistry and emissions MVP](https://github.com/NCAR/CheMPAS-A/wiki/Global-Chemistry-and-Emissions)
+- [Data and provenance](https://github.com/NCAR/CheMPAS-A/wiki/Data-and-Provenance)
 
-Within the MPAS repository, code is laid out as follows. Sub-directories are
-only described below the src directory.
+Chemistry is enabled only in a `MUSICA=true` atmosphere build. An empty
+`config_micm_file` leaves the chemistry coupling inactive. Chemistry currently
+requires one MPAS block per MPI task; multi-block chemistry is not supported.
 
-	MPAS-Model
-	├── src
-	│   ├── driver -- Main driver for MPAS in stand-alone mode (Shared)
-	│   ├── external -- External software for MPAS (Shared)
-	│   ├── framework -- MPAS Framework (Includes DDT Descriptions, and shared routines. Shared)
-	│   ├── operators -- MPAS Opeartors (Includes Operators for MPAS meshes. Shared)
-	│   ├── tools -- Empty directory for include files that Registry generates (Shared)
-	│   │   ├── registry -- Code for building Registry.xml parser (Shared)
-	│   │   └── input_gen -- Code for generating streams and namelist files (Shared)
-	│   └── core_* -- Individual model cores.
-	│       └── inc -- Empty directory for include files that Registry generates
-	├── testing_and_setup -- Tools for setting up configurations and test cases (Shared)
-	└── default_inputs -- Copies of default stream and namelists files (Shared)
+## MPAS
 
-Model cores are typically developed independently. For information about
-building and running a particular core, please refer to that core's user's
-guide.
+CheMPAS-A retains the broader MPAS repository layout and upstream model cores.
+General MPAS-Atmosphere concepts, mesh resources, and user guidance are
+available from the [MPAS project](https://www2.mmm.ucar.edu/projects/mpas/).
+
+## Contributing and attribution
+
+Before contributing or building on CheMPAS-A, read the
+[contributor and attribution guide](CONTRIBUTING.md) for licensing,
+provenance, credit, authorship, and agentic-tool expectations.
+
+See [LICENSE](LICENSE) for the repository license.
