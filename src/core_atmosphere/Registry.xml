@@ -451,12 +451,148 @@
         </nml_record>
 
 #ifdef MPAS_USE_MUSICA
-        <nml_record name="musica" in_defaults="true">
+        <nml_record name="chemistry" in_defaults="true">
                 <nml_option name="config_micm_file" type="character" default_value=""
+                      units="-"
+                      description="MICM configuration file name"
+                      possible_values="Any valid filename"/>
+                <nml_option name="config_chem_tracer_output_unit" type="character" default_value="mmr"
                      units="-"
-                     description="MICM configuration file name"
+                     description="Global output unit for MICM chemistry tracers. Mass mixing ratio remains the authoritative transported and restart state; non-MMR selections add output-only vmr_&lt;species&gt; diagnostics."
+                     possible_values="`mmr', `fraction', `percent', `ppmv', `ppbv', or `pptv'"/>
+                <nml_option name="config_chem_tracer_output_overrides" type="character" default_value=""
+                     units="-"
+                     description="Comma-separated MICM species output-unit overrides using exact species names, for example O3=ppmv,NO=ppbv. Overrides take precedence over config_chem_tracer_output_unit; species=mmr suppresses the VMR companion for that species."
+                     possible_values="Empty or a comma-separated list of SPECIES=UNIT mappings"/>
+                <nml_option name="config_chem_substeps" type="integer" default_value="1"
+                     units="-"
+                     description="Number of MICM sub-steps per MPAS dt. MICM is called N times with dt/N; needed when mechanisms with fast null cycles (e.g. Chapman [O]/[O3]) cause Backward Euler to land on unphysical implicit roots at the full outer dt."
+                     possible_values="Any positive integer"/>
+                <nml_option name="config_micm_relative_tolerance" type="real" default_value="1.0e-6"
+                     units="-"
+                     description="MICM state relative tolerance. MICM's default (1e-6) is too loose for stiff mechanisms with fast null cycles; tightening (e.g. 1e-9) forces the adaptive controller to sub-divide internal steps aggressively and prevents Newton from converging to non-physical implicit roots."
+                     possible_values="Any positive real"/>
+                <nml_option name="config_chemistry_ref_solve" type="logical" default_value="false"
+                     units="-"
+                     description="Run a duplicate MICM solve on uncoupled reference state for advection diagnostics. Doubles chemistry cost."
+                     possible_values=".true. or .false."/>
+                <nml_option name="config_chemistry_interval" type="real" default_value="0.0"
+                     units="s"
+                     description="Chemistry solve interval in simulated seconds. 0.0 means run chemistry every MPAS step. Positive values accumulate elapsed dynamics timesteps and skip chemistry until the interval is reached; LNOx injection and MICM solve then use the accumulated chemistry timestep."
+                     possible_values="Any non-negative real"/>
+                <nml_option name="config_chem_max_failures" type="integer" default_value="3"
+                     units="-"
+                     description="Maximum consecutive recoverable chemistry step failures before aborting."
+                     possible_values="Any positive integer"/>
+         </nml_record>
+
+        <nml_record name="emissions" in_defaults="true">
+                <nml_option name="config_miem_file" type="character" default_value=""
+                     units="-"
+                     description="MUSICA mechanism-configuration file containing an emissions section. An empty path disables MIEM. Inventory cells must already use the exact global MPAS mesh and indexToCellID order; enabled ranks read selected owned cells and validate returned geometry in-model."
+                     possible_values="Empty or any valid filename"/>
+                <nml_option name="config_miem_net_flux_species" type="character" default_value=""
+                     units="-"
+                     description="Comma-separated exact MIEM species whose prescribed surface exchange may be positive (upward source) or negative (downward uptake). Empty preserves the source-only nonnegative contract for every species."
+                     possible_values="Empty or comma-separated exact MIEM species names"/>
+                <nml_option name="config_miem_diagnostic_sectors" type="character" default_value=""
+                     units="-"
+                     description="Comma-separated exact MIEM sector names to publish as bounded disaggregated emissions diagnostics. Empty requests no sector diagnostics."
+                     possible_values="Empty or comma-separated sector names"/>
+                <nml_option name="config_miem_diagnostic_categories" type="character" default_value=""
+                     units="-"
+                     description="Comma-separated nonnegative MIEM category IDs to publish as bounded disaggregated emissions diagnostics. Empty requests no category diagnostics."
+                     possible_values="Empty or comma-separated nonnegative integers"/>
+                <nml_option name="config_miem_layered_diagnostics" type="logical" default_value="false"
+                     units="-"
+                     description="Publish opt-in per-layer total emissions diagnostics and per-layer forms of every requested sector/category diagnostic."
+                     possible_values=".true. or .false."/>
+                <nml_option name="config_miem_max_diagnostic_fields" type="integer" default_value="256"
+                     units="-"
+                     description="Hard cap on species times requested groups times vertical levels when layered MIEM diagnostics are enabled."
+                     possible_values="Any positive integer"/>
+         </nml_record>
+
+        <nml_record name="photolysis" in_defaults="true">
+                <nml_option name="config_tuvx_config_file" type="character" default_value=""
+                     units="-"
+                     description="TUV-x configuration file name (empty = use Phase 1 cos(SZA) fallback)"
                      possible_values="Any valid filename"/>
-        </nml_record>
+                <nml_option name="config_tuvx_top_extension" type="logical" default_value="false"
+                     units="-"
+                     description="Compatibility consistency flag for an upper-column extension. Set true with legacy_static or spatial_climatology and false with none."
+                     possible_values=".true. or .false."/>
+                <nml_option name="config_tuvx_upper_column_mode" type="character" default_value="none"
+                     units="-"
+                     description="Explicit TUV-x upper-column mode: none, legacy_static, or spatial_climatology. Incomplete or inconsistent configurations are fatal."
+                     possible_values="none, legacy_static, or spatial_climatology"/>
+                <nml_option name="config_tuvx_extension_file" type="character" default_value=""
+                     units="-"
+                     description="Path to the legacy static TUV-x upper-atmosphere CSV (z_km, T_K, n_air_cm-3, n_O3_cm-3); required only in legacy_static mode"
+                     possible_values="Any valid filename"/>
+                <nml_option name="config_tuvx_prescribed_field_file" type="character" default_value=""
+                     units="-"
+                     description="Path to an exact-grid chempas-prescribed-field-package-v1 NetCDF file; required only in spatial_climatology mode"
+                     possible_values="Any valid filename"/>
+                <nml_option name="config_tuvx_update_interval" type="real" default_value="0.0"
+                     units="s"
+                     description="TUV-x update interval in simulated seconds. 0.0 means update every chemistry step (default; preserves bit-reproducibility). Positive values gate the photolysis block: TUV-x runs only when at least this many simulated seconds have accumulated since the last update; MICM reuses the last-set photolysis rates on skipped steps."
+                     possible_values="Any non-negative real"/>
+                <nml_option name="config_j_no2_max" type="real" default_value="0.0"
+                     units="s^{-1}"
+                     description="Maximum daytime NO2 fallback photolysis rate used in j = j_max * max(0, cos(SZA))"
+                     possible_values="Any non-negative real"/>
+                <nml_option name="config_chemistry_latitude" type="real" default_value="0.0"
+                     units="degrees"
+                     description="Latitude for solar geometry in idealized cases (degrees N)"
+                     possible_values="Any real between -90 and 90"/>
+                <nml_option name="config_chemistry_longitude" type="real" default_value="0.0"
+                     units="degrees"
+                     description="Longitude for solar geometry in idealized cases (degrees E)"
+                     possible_values="Any real between -180 and 360"/>
+                <nml_option name="config_chemistry_use_grid_coords" type="logical" default_value=".false."
+                     description="If .true., compute per-cell solar geometry from latCell/lonCell. If .false., broadcast namelist config_chemistry_latitude/longitude to every cell (preserves idealized-case behavior)."
+                     possible_values=".true. or .false."/>
+         </nml_record>
+
+        <nml_record name="lnox" in_defaults="true">
+                <nml_option name="config_lnox_source_rate" type="real" default_value="0.0"
+                     units="ppbv s^{-1}"
+                     description="Lightning NOx source rate when w - w_threshold = w_ref (0 = disabled)"
+                     possible_values="Any non-negative real"/>
+                <nml_option name="config_lnox_w_threshold" type="real" default_value="5.0"
+                     units="m s^{-1}"
+                     description="Minimum vertical velocity for lightning NOx injection"
+                     possible_values="Any positive real"/>
+                <nml_option name="config_lnox_w_ref" type="real" default_value="10.0"
+                     units="m s^{-1}"
+                     description="Excess vertical velocity used in S = rate * max(0, w - w_threshold) / w_ref"
+                     possible_values="Any positive real"/>
+                <nml_option name="config_lnox_z_min" type="real" default_value="5000.0"
+                     units="m"
+                     description="Minimum altitude for lightning NOx injection in height above MSL from zgrid (not AGL)"
+                     possible_values="Any non-negative real"/>
+                <nml_option name="config_lnox_z_max" type="real" default_value="12000.0"
+                     units="m"
+                     description="Maximum altitude for lightning NOx injection in height above MSL from zgrid (not AGL)"
+                     possible_values="Any non-negative real"/>
+                <nml_option name="config_lnox_nox_tau" type="real" default_value="0.0"
+                     units="s"
+                     description="NOx sink timescale in seconds for all LOSS.* reactions (0 = no sink). Rate = 1/tau."
+                     possible_values="Any non-negative real"/>
+                <nml_option name="config_lnox_gating_mode" type="character" default_value="altitude"
+                     units="-"
+                     description="Lightning NOx gating mode: 'altitude' uses z_min/z_max + linear w-scaling (current behavior); 'isotherm' uses t_min/t_max + constant rate (LNOx.md formulation)"
+                     possible_values="altitude, isotherm"/>
+                <nml_option name="config_lnox_t_min" type="real" default_value="233.15"
+                     units="K"
+                     description="Lower (cold) temperature bound for isotherm-mode lightning NOx injection"
+                     possible_values="Any positive real less than config_lnox_t_max"/>
+                <nml_option name="config_lnox_t_max" type="real" default_value="262.15"
+                     units="K"
+                     description="Upper (warm) temperature bound for isotherm-mode lightning NOx injection"
+                     possible_values="Any positive real greater than config_lnox_t_min"/>
+         </nml_record>
 #endif
 
 <!-- **************************************************************************************** -->
@@ -496,9 +632,9 @@
 <!-- **************************************************************************************** -->
 
 	<streams>
-		<stream name="invariant" 
-                        type="input" 
-                        filename_template="invariant.nc" 
+		<stream name="invariant"
+                        type="input"
+                        filename_template="invariant.nc"
                         input_interval="none"
                         immutable="true"
                         in_defaults="false">
@@ -599,9 +735,9 @@
 
                 </stream>
 
-		<stream name="input" 
-                        type="input" 
-                        filename_template="x1.40962.init.nc" 
+		<stream name="input"
+                        type="input"
+                        filename_template="x1.40962.init.nc"
                         input_interval="initial_only"
                         immutable="true">
 
@@ -647,11 +783,11 @@
 #endif
 		</stream>
 
-		<stream name="restart" 
-                        type="input;output" 
-                        filename_template="restart.$Y-$M-$D_$h.$m.$s.nc" 
-                        input_interval="initial_only" 
-                        output_interval="1_00:00:00" 
+		<stream name="restart"
+                        type="input;output"
+                        filename_template="restart.$Y-$M-$D_$h.$m.$s.nc"
+                        input_interval="initial_only"
+                        output_interval="1_00:00:00"
                         immutable="true">
 
 			<stream name="invariant" packages="no_invariant_stream"/>
@@ -924,9 +1060,9 @@
 #endif
 		</stream>
 
-		<stream name="output" 
-                        type="output" 
-                        filename_template="history.$Y-$M-$D_$h.$m.$s.nc" 
+		<stream name="output"
+                        type="output"
+                        filename_template="history.$Y-$M-$D_$h.$m.$s.nc"
                         output_interval="6:00:00"
                         runtime_format="separate_file">
 
@@ -1028,9 +1164,9 @@
 #endif
 		</stream>
 
-		<stream name="diagnostics" 
-                        type="output" 
-                        filename_template="diag.$Y-$M-$D_$h.$m.$s.nc" 
+		<stream name="diagnostics"
+                        type="output"
+                        filename_template="diag.$Y-$M-$D_$h.$m.$s.nc"
                         output_interval="3:00:00"
                         runtime_format="separate_file">
 
@@ -1157,9 +1293,9 @@
 #endif
 		</stream>
 
-		<stream name="surface" 
-                        type="input" 
-                        filename_template="x1.40962.sfc_update.nc" 
+		<stream name="surface"
+                        type="input"
+                        filename_template="x1.40962.sfc_update.nc"
                         input_interval="none"
                         filename_interval="none"
                         runtime_format="separate_file">
@@ -1170,9 +1306,9 @@
 #endif
 		</stream>
 
-	        <stream name="iau" 
-                        type="input" 
-                        filename_template="x1.40962.AmB.$Y-$M-$D_$h.$m.$s.nc" 
+	        <stream name="iau"
+                        type="input"
+                        filename_template="x1.40962.AmB.$Y-$M-$D_$h.$m.$s.nc"
                         input_interval="initial_only"
                         filename_interval="none"
                         immutable="true"
@@ -1186,7 +1322,7 @@
                         type="input"
                         filename_template="lbc.$Y-$M-$D_$h.$m.$s.nc"
                         filename_interval="input_interval"
-                        input_interval="3:00:00" 
+                        input_interval="3:00:00"
                         runtime_format="single_file"
                         immutable="true"
                         packages="limited_area">
@@ -1694,7 +1830,7 @@
                      description="Moist potential temperature: theta*(1+q_v*R_v/R_d)"/>
 
                 <!-- When MPAS-A is used as a dycore in CAM, scalars are allocated at runtime via -->
-                <!-- a call to the atm_allocate_scalars routine from setup_block. The specific    --> 
+                <!-- a call to the atm_allocate_scalars routine from setup_block. The specific    -->
                 <!-- constituent at each position in the scalars array is later set by code in    -->
                 <!-- the CAM-MPAS interface layer.                                                -->
 #ifndef MPAS_CAM_DYCORE
@@ -2024,7 +2160,7 @@
 
         <var_struct name="tend" time_levs="1">
 
-                
+
                 <!-- tendencies for prognostic variables -->
                 <var name="tend_u" name_in_code="u" type="real" dimensions="nVertLevels nEdges Time" units="m s^{-2}"
                      description="Tendency of u from dynamics"/>
@@ -2060,7 +2196,7 @@
                      description="Tendency of surface pressure"/>
 
                 <!-- When MPAS-A is used as a dycore in CAM, scalars are allocated at runtime via -->
-                <!-- a call to the atm_allocate_scalars routine from setup_block. The specific    --> 
+                <!-- a call to the atm_allocate_scalars routine from setup_block. The specific    -->
                 <!-- constituent at each position in the scalars array is later set by code in    -->
                 <!-- the CAM-MPAS interface layer.                                                -->
 #ifndef MPAS_CAM_DYCORE
@@ -2093,7 +2229,7 @@
                              description="Tendency of cloud ice number concentration multiplied by dry air density divided by d(zeta)/dz"
                              packages="bl_mynn_in;mp_thompson_in;mp_thompson_aers_in"/>
 
-                        <var name="tend_nr" name_in_code="nr" array_group="number" units="nb m^{-3} s^{-1}" 
+                        <var name="tend_nr" name_in_code="nr" array_group="number" units="nb m^{-3} s^{-1}"
                              description="Tendency of rain number concentration multiplied by dry air density divided by d(zeta)/dz"
                              packages="mp_thompson_in;mp_thompson_aers_in"/>
 
@@ -2109,7 +2245,7 @@
                              description="Tendency of water-friendly aerosol number concentration multiplied by dry air density divided by d(zeta)/dz"
                              packages="mp_thompson_aers_in"/>
 
-                        <var name="tend_tke" name_in_code="tke" array_group="turbulence" units="kg m^{-3} m^2 s^{-2} s^{-1}" 
+                        <var name="tend_tke" name_in_code="tke" array_group="turbulence" units="kg m^{-3} m^2 s^{-2} s^{-1}"
                              description="Tendency of tke multiplied by dry air density divided by d(zeta)/dz"
                              packages="les"/>
                 </var_array>
@@ -2252,7 +2388,7 @@
                      possible_values="Positive integers"/>
 
                 <!-- NAMELIST VARIABLES ADDED FOR PHYSICS CONFIGURATION: -->
-                
+
                 <nml_option name="config_frac_seaice" type="logical" default_value="true" in_defaults="false"
                      units="-"
                      description="logical for configuration of fractional sea-ice"
@@ -2537,7 +2673,7 @@
 
                 <nml_option name="config_oml_hml0" type="real" default_value="30.0" in_defaults="false"
                      units="m"
-                     description="If greater than zero, provides the constant, initial mixed-layer depth; if zero, initial mixed-layer depth will be taken from the `oml_initial` field." 
+                     description="If greater than zero, provides the constant, initial mixed-layer depth; if zero, initial mixed-layer depth will be taken from the `oml_initial` field."
                      possible_values="Non-negative real values"/>
 
                 <nml_option name="config_oml_gamma" type="real" default_value="0.14" in_defaults="false"
@@ -3543,7 +3679,7 @@
                 <var name="tend_umerid" type="real" dimensions="nVertLevels nCells Time" units="m s^{-1} s^{-1}"
                      description="Total cell-centered meridional wind tendency from physics"
                      persistence="scratch" />
- 
+
 #ifdef DO_PHYSICS
                 <!-- ================================================================================================== -->
                 <!-- TENDENCIES FROM PARAMETERIZATION OF CLOUD MICROPHYSICS:                                            -->
@@ -3970,7 +4106,7 @@
 #endif
 
         <var_struct name="tend_iau" time_levs="1" packages="iau">
-			
+
                 <!-- analysis increments; read from iau input -->
                 <var name="u_amb"     name_in_code="u" type="real" dimensions="nVertLevels nEdges Time" units="m s^{-1}"
                      description="Horizontal normal velocity increment"/>

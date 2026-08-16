@@ -12,6 +12,28 @@ module atm_core_interface
    use mpas_pool_routines
    use mpas_dmpar
    use mpas_io_units
+   use mpas_kind_types, only : StrKIND, ShortStrKIND
+
+   implicit none
+
+#ifdef MPAS_USE_MUSICA
+   integer :: n_runtime_chem_species = 0
+   integer :: n_runtime_photo_rates = 0
+   integer :: n_runtime_emission_species = 0
+   integer :: n_runtime_emission_sectors = 0
+   integer :: n_runtime_emission_categories = 0
+   character(len=64), allocatable :: runtime_chem_species(:)
+   character(len=64), allocatable :: runtime_photo_rates(:)
+   character(len=64), allocatable :: runtime_emission_species(:)
+   character(len=64), allocatable :: runtime_emission_sectors(:)
+   character(len=64), allocatable :: runtime_emission_sector_labels(:)
+   integer, allocatable :: runtime_emission_categories(:)
+   logical, save :: runtime_emission_layered = .false.
+   integer, save :: runtime_emission_max_fields = 256
+   character(len=StrKIND), save :: runtime_emission_sector_text = ''
+   character(len=StrKIND), save :: runtime_emission_category_text = ''
+   logical, save :: runtime_vars_prepared = .false.
+#endif
 
    contains
 
@@ -47,7 +69,7 @@ module atm_core_interface
       core % setup_log => atm_setup_log
       core % get_mesh_stream => atm_get_mesh_stream
       core % setup_immutable_streams => atm_setup_immutable_streams
-      core % setup_derived_dimensions => atm_setup_derived_dimensions
+      core % setup_derived_dimensions => atm_setup_derived_dimensions_with_runtime_chemistry
       core % setup_decomposed_dimensions => atm_setup_decomposed_dimensions
       core % setup_block => atm_setup_block
       core % setup_namelist => atm_setup_namelists
@@ -447,6 +469,686 @@ module atm_core_interface
    end function atm_setup_decompositions
 
 
+#ifdef MPAS_USE_MUSICA
+   !-----------------------------------------------------------------------
+   !
+   !  function atm_prepare_runtime_chemistry_vars
+   !
+   !> \brief   Cache chemistry tracer names for runtime-var generation
+   !
+   !-----------------------------------------------------------------------
+   function atm_prepare_runtime_chemistry_vars(block) result(ierr)
+
+      use iso_fortran_env, only : real64
+      use mpas_atm_chemistry, only : chemistry_query_species, chemistry_query_photo_rates, &
+                                     chemistry_query_emission_species, &
+                                     chemistry_prepare_miem_diagnostic_selection, &
+                                     chemistry_prepare_tracer_outputs, chemistry_clear_tracer_outputs
+      use mpas_derived_types, only : block_type, MPAS_LOG_CRIT, MPAS_LOG_ERR
+      use mpas_kind_types,    only : StrKIND, RKIND
+      use mpas_log,           only : mpas_log_write
+
+      implicit none
+
+      type (block_type), pointer :: block
+      integer :: ierr
+
+      character(len=StrKIND), pointer :: config_micm_file
+      character(len=StrKIND), pointer :: config_miem_file
+      character(len=StrKIND), pointer :: config_miem_diagnostic_sectors
+      character(len=StrKIND), pointer :: config_miem_diagnostic_categories
+      character(len=StrKIND), pointer :: config_tuvx_config_file
+      character(len=StrKIND), pointer :: config_chem_tracer_output_unit
+      character(len=StrKIND), pointer :: config_chem_tracer_output_overrides
+      logical, pointer :: config_apply_lbcs
+      logical, pointer :: config_miem_layered_diagnostics
+      integer, pointer :: config_miem_max_diagnostic_fields
+      character(len=64), allocatable :: emission_names(:)
+      character(len=64), allocatable :: emission_sectors(:)
+      character(len=64), allocatable :: emission_sector_labels(:)
+      integer, allocatable :: emission_categories(:)
+      character(len=StrKIND) :: emission_sector_text, emission_category_text
+      logical :: emission_layered
+      integer :: emission_max_fields
+      character(len=64), allocatable :: micm_names(:)
+      character(len=64), allocatable :: mpas_names(:)
+      character(len=64), allocatable :: photo_names(:)
+      real(real64), allocatable :: molar_masses(:)
+      real(real64), allocatable :: fixed_vmrs(:)
+      logical, allocatable :: host_bound(:)
+      real(kind=RKIND), pointer :: config_j_no2_max
+      integer :: num_micm_species
+      integer :: num_photo_rates
+      integer :: num_emission_species
+      integer :: error_code
+      integer :: err_level
+      integer :: i, runtime_idx
+      character(len=:), allocatable :: error_message
+      character(len=StrKIND) :: output_unit, output_overrides
+
+      ierr = 0
+      if (runtime_vars_prepared) then
+         ierr = 0
+         return   ! already queried (multi-block/second call); reuse the cache
+      end if
+
+      n_runtime_chem_species = 0
+      n_runtime_photo_rates = 0
+      n_runtime_emission_species = 0
+      n_runtime_emission_sectors = 0
+      n_runtime_emission_categories = 0
+      runtime_emission_layered = .false.
+      runtime_emission_max_fields = 256
+      runtime_emission_sector_text = ''
+      runtime_emission_category_text = ''
+      if (allocated(runtime_chem_species)) deallocate(runtime_chem_species)
+      if (allocated(runtime_photo_rates)) deallocate(runtime_photo_rates)
+      if (allocated(runtime_emission_species)) deallocate(runtime_emission_species)
+      if (allocated(runtime_emission_sectors)) deallocate(runtime_emission_sectors)
+      if (allocated(runtime_emission_sector_labels)) deallocate(runtime_emission_sector_labels)
+      if (allocated(runtime_emission_categories)) deallocate(runtime_emission_categories)
+      call chemistry_clear_tracer_outputs()
+
+      nullify(config_micm_file)
+      nullify(config_miem_file)
+      nullify(config_miem_diagnostic_sectors)
+      nullify(config_miem_diagnostic_categories)
+      nullify(config_miem_layered_diagnostics)
+      nullify(config_miem_max_diagnostic_fields)
+      nullify(config_tuvx_config_file)
+      nullify(config_chem_tracer_output_unit)
+      nullify(config_chem_tracer_output_overrides)
+      nullify(config_j_no2_max)
+      err_level = mpas_pool_get_error_level()
+      call mpas_pool_set_error_level(MPAS_POOL_SILENT)
+      call mpas_pool_get_config(block % domain % configs, 'config_micm_file', config_micm_file)
+      call mpas_pool_get_config(block % domain % configs, 'config_miem_file', config_miem_file)
+      call mpas_pool_get_config(block % domain % configs, 'config_miem_diagnostic_sectors', &
+                                config_miem_diagnostic_sectors)
+      call mpas_pool_get_config(block % domain % configs, 'config_miem_diagnostic_categories', &
+                                config_miem_diagnostic_categories)
+      call mpas_pool_get_config(block % domain % configs, 'config_miem_layered_diagnostics', &
+                                config_miem_layered_diagnostics)
+      call mpas_pool_get_config(block % domain % configs, 'config_miem_max_diagnostic_fields', &
+                                config_miem_max_diagnostic_fields)
+      call mpas_pool_get_config(block % domain % configs, 'config_tuvx_config_file', config_tuvx_config_file)
+      call mpas_pool_get_config(block % domain % configs, 'config_chem_tracer_output_unit', &
+                                config_chem_tracer_output_unit)
+      call mpas_pool_get_config(block % domain % configs, 'config_chem_tracer_output_overrides', &
+                                config_chem_tracer_output_overrides)
+      call mpas_pool_get_config(block % domain % configs, 'config_j_no2_max', config_j_no2_max)
+      call mpas_pool_set_error_level(err_level)
+
+      output_unit = 'mmr'
+      output_overrides = ''
+      if (associated(config_chem_tracer_output_unit)) output_unit = config_chem_tracer_output_unit
+      if (associated(config_chem_tracer_output_overrides)) output_overrides = config_chem_tracer_output_overrides
+
+      if (.not. associated(config_micm_file)) then
+         call mpas_log_write('[Chemistry] No config_micm_file found; skipping runtime chemistry tracers')
+      else if (len_trim(config_micm_file) == 0) then
+         call mpas_log_write('[Chemistry] config_micm_file is empty; skipping runtime chemistry tracers')
+      else
+         call chemistry_query_species(config_micm_file, num_micm_species, micm_names, mpas_names, &
+                                      molar_masses, host_bound, fixed_vmrs, error_code, error_message)
+         if (error_code /= 0) then
+            call mpas_log_write('[Chemistry] Error querying MICM species: ' // trim(error_message), &
+                                messageType=MPAS_LOG_ERR)
+            ierr = error_code
+            return
+         end if
+
+         call chemistry_prepare_tracer_outputs(output_unit, output_overrides, num_micm_species, &
+                                               micm_names, mpas_names, molar_masses, fixed_vmrs, &
+                                               error_code, error_message)
+         if (error_code /= 0) then
+            call mpas_log_write('[Chemistry] Error configuring MICM tracer output units: ' // &
+                                trim(error_message), messageType=MPAS_LOG_ERR)
+            ierr = error_code
+            return
+         end if
+
+         n_runtime_chem_species = count(.not. host_bound)
+         if (n_runtime_chem_species == 0) then
+            call mpas_log_write('[Chemistry] MICM config has no runtime chemistry tracers to add')
+         else
+            config_apply_lbcs => null()
+            call mpas_pool_get_config(block % domain % configs, 'config_apply_lbcs', config_apply_lbcs)
+            if (associated(config_apply_lbcs)) then
+               if (config_apply_lbcs) then
+                  call mpas_log_write('Runtime chemistry tracers are incompatible with config_apply_lbcs=true. ' // &
+                                      'lbc_scalars is statically sized and cannot accommodate dynamic tracers.', &
+                                      messageType=MPAS_LOG_CRIT)
+                  ierr = 1
+                  return
+               end if
+            end if
+
+            allocate(runtime_chem_species(n_runtime_chem_species))
+            runtime_idx = 0
+            do i = 1, num_micm_species
+               if (host_bound(i)) cycle
+               runtime_idx = runtime_idx + 1
+               runtime_chem_species(runtime_idx) = mpas_names(i)
+            end do
+
+            call mpas_log_write('[Chemistry] Prepared $i runtime chemistry tracers', &
+                                intArgs=[n_runtime_chem_species])
+         end if
+
+         if (allocated(micm_names)) deallocate(micm_names)
+         if (allocated(mpas_names)) deallocate(mpas_names)
+         if (allocated(molar_masses)) deallocate(molar_masses)
+         if (allocated(fixed_vmrs)) deallocate(fixed_vmrs)
+         if (allocated(host_bound)) deallocate(host_bound)
+      end if
+
+      ! config_miem_file is only the enable switch. Diagnostic names are a
+      ! MICM contract and must be discovered from config_micm_file, even when
+      ! the MIEM file has an intentionally empty mechanism section.
+      num_emission_species = 0
+      if (associated(config_miem_file) .and. len_trim(config_miem_file) > 0) then
+         if (.not. associated(config_micm_file) .or. len_trim(config_micm_file) == 0) then
+            call mpas_log_write('[Chemistry] MIEM diagnostics require a nonempty config_micm_file', &
+                                messageType=MPAS_LOG_CRIT)
+            ierr = 1
+            return
+         end if
+
+         call chemistry_query_emission_species(config_micm_file, num_emission_species, &
+                                               emission_names, error_code, error_message)
+         if (error_code /= 0) then
+            call mpas_log_write('[Chemistry] Error querying MICM emission diagnostics: ' // &
+                                trim(error_message), messageType=MPAS_LOG_ERR)
+            ierr = error_code
+            return
+         end if
+         if (num_emission_species < 1) then
+            call mpas_log_write('[Chemistry] MIEM is enabled but config_micm_file contains no EMIS.* parameters', &
+                                messageType=MPAS_LOG_CRIT)
+            ierr = 1
+            if (allocated(emission_names)) deallocate(emission_names)
+            return
+         end if
+
+         n_runtime_emission_species = num_emission_species
+         allocate(runtime_emission_species(n_runtime_emission_species))
+         runtime_emission_species(:) = emission_names(:)
+         if (allocated(emission_names)) deallocate(emission_names)
+
+         emission_sector_text = ''
+         emission_category_text = ''
+         emission_layered = .false.
+         emission_max_fields = 256
+         if (associated(config_miem_diagnostic_sectors)) then
+            emission_sector_text = config_miem_diagnostic_sectors
+         end if
+         if (associated(config_miem_diagnostic_categories)) then
+            emission_category_text = config_miem_diagnostic_categories
+         end if
+         if (associated(config_miem_layered_diagnostics)) then
+            emission_layered = config_miem_layered_diagnostics
+         end if
+         if (associated(config_miem_max_diagnostic_fields)) then
+            emission_max_fields = config_miem_max_diagnostic_fields
+         end if
+         ! nVertLevels is read from the mesh after block descriptors are built.
+         ! Validate names and a one-level lower bound here; the derived-dimension
+         ! callback performs the definitive cap check before field allocation.
+         call chemistry_prepare_miem_diagnostic_selection(emission_sector_text, &
+                                                          emission_category_text, 1, &
+                                                          n_runtime_emission_species, &
+                                                          emission_layered, emission_max_fields, &
+                                                          emission_sectors, &
+                                                          emission_sector_labels, &
+                                                          emission_categories, &
+                                                          error_code, error_message)
+         if (error_code /= 0) then
+            call mpas_log_write('[Chemistry] Invalid MIEM diagnostic selection: ' // &
+                                trim(error_message), messageType=MPAS_LOG_CRIT)
+            ierr = error_code
+            return
+         end if
+         n_runtime_emission_sectors = size(emission_sectors)
+         n_runtime_emission_categories = size(emission_categories)
+         runtime_emission_layered = emission_layered
+         runtime_emission_max_fields = emission_max_fields
+         runtime_emission_sector_text = emission_sector_text
+         runtime_emission_category_text = emission_category_text
+         call move_alloc(emission_sectors, runtime_emission_sectors)
+         call move_alloc(emission_sector_labels, runtime_emission_sector_labels)
+         call move_alloc(emission_categories, runtime_emission_categories)
+         call atm_validate_runtime_emission_diag_names(error_code, error_message)
+         if (error_code /= 0) then
+            call mpas_log_write('[Chemistry] Invalid MIEM diagnostic field names: ' // &
+                                trim(error_message), messageType=MPAS_LOG_CRIT)
+            ierr = error_code
+            return
+         end if
+         call mpas_log_write('[Chemistry] Prepared $i runtime emissions diagnostics', &
+                             intArgs=[n_runtime_emission_species])
+         call mpas_log_write('[Chemistry] Prepared $i sector and $i category emissions groups', &
+                             intArgs=[n_runtime_emission_sectors, n_runtime_emission_categories])
+      else
+         call mpas_log_write('[Chemistry] MIEM disabled; no runtime emissions diagnostics to add')
+      end if
+
+      if (associated(config_tuvx_config_file) .and. len_trim(config_tuvx_config_file) > 0) then
+         call chemistry_query_photo_rates(config_tuvx_config_file, num_photo_rates, photo_names, &
+                                          error_code, error_message)
+         if (error_code /= 0) then
+            call mpas_log_write('[Chemistry] Error querying TUV-x photolysis rates: ' // &
+                                trim(error_message), messageType=MPAS_LOG_ERR)
+            ierr = error_code
+            return
+         end if
+      else if (associated(config_j_no2_max) .and. config_j_no2_max > 0.0_RKIND) then
+         num_photo_rates = 1
+         allocate(photo_names(1))
+         photo_names(1) = 'jNO2'
+      else
+         num_photo_rates = 0
+      end if
+
+      if (num_photo_rates > 0) then
+         n_runtime_photo_rates = num_photo_rates
+         allocate(runtime_photo_rates(n_runtime_photo_rates))
+         runtime_photo_rates(:) = photo_names(:)
+         if (allocated(photo_names)) deallocate(photo_names)
+         call mpas_log_write('[Chemistry] Prepared $i runtime photolysis diagnostics', &
+                             intArgs=[n_runtime_photo_rates])
+      else
+         call mpas_log_write('[Chemistry] No runtime photolysis diagnostics to add')
+         if (allocated(photo_names)) deallocate(photo_names)
+      end if
+
+      runtime_vars_prepared = .true.
+
+   end function atm_prepare_runtime_chemistry_vars
+
+
+   !-----------------------------------------------------------------------
+   !
+   !  subroutine atm_validate_runtime_emission_diag_names
+   !
+   !> \brief Reject overlength or colliding generated MPAS field names
+   !
+   !-----------------------------------------------------------------------
+   subroutine atm_validate_runtime_emission_diag_names(error_code, error_message)
+
+      implicit none
+
+      integer, intent(out) :: error_code
+      character(len=:), allocatable, intent(out) :: error_message
+
+      character(len=ShortStrKIND), allocatable :: field_names(:)
+      character(len=StrKIND) :: candidate
+      character(len=32) :: category_text
+      integer :: fields_per_species, i, j, name_count
+
+      error_code = 0
+      error_message = ''
+      fields_per_species = 1 + n_runtime_emission_sectors + n_runtime_emission_categories
+      if (runtime_emission_layered) fields_per_species = 2 * fields_per_species
+      allocate(field_names(n_runtime_emission_species * fields_per_species))
+      field_names = ''
+      name_count = 0
+
+      do i = 1, n_runtime_emission_species
+         candidate = 'emis_' // trim(runtime_emission_species(i))
+         call append_name(candidate)
+         if (error_code /= 0) return
+         if (runtime_emission_layered) then
+            candidate = 'emis_' // trim(runtime_emission_species(i)) // '_layer'
+            call append_name(candidate)
+            if (error_code /= 0) return
+         end if
+         do j = 1, n_runtime_emission_sectors
+            candidate = 'emis_' // trim(runtime_emission_species(i)) // &
+                        '__sector_' // trim(runtime_emission_sector_labels(j))
+            call append_name(candidate)
+            if (error_code /= 0) return
+            if (runtime_emission_layered) then
+               candidate = 'emis_' // trim(runtime_emission_species(i)) // &
+                           '__sector_' // trim(runtime_emission_sector_labels(j)) // '_layer'
+               call append_name(candidate)
+               if (error_code /= 0) return
+            end if
+         end do
+         do j = 1, n_runtime_emission_categories
+            write(category_text, '(i0)') runtime_emission_categories(j)
+            candidate = 'emis_' // trim(runtime_emission_species(i)) // &
+                        '__category_' // trim(category_text)
+            call append_name(candidate)
+            if (error_code /= 0) return
+            if (runtime_emission_layered) then
+               candidate = 'emis_' // trim(runtime_emission_species(i)) // &
+                           '__category_' // trim(category_text) // '_layer'
+               call append_name(candidate)
+               if (error_code /= 0) return
+            end if
+         end do
+      end do
+
+   contains
+
+      subroutine append_name(name)
+
+         character(len=*), intent(in) :: name
+         integer :: previous
+
+         if (len_trim(name) > ShortStrKIND) then
+            error_code = 1
+            error_message = '[MIEM] generated field name exceeds the MPAS 64-character limit: ' // &
+                            trim(name)
+            return
+         end if
+         do previous = 1, name_count
+            if (trim(field_names(previous)) == trim(name)) then
+               error_code = 1
+               error_message = '[MIEM] generated emissions diagnostic field name collides: ' // &
+                               trim(name)
+               return
+            end if
+         end do
+         name_count = name_count + 1
+         field_names(name_count) = trim(name)
+
+      end subroutine append_name
+
+   end subroutine atm_validate_runtime_emission_diag_names
+
+
+   !-----------------------------------------------------------------------
+   !
+   !  subroutine atm_add_runtime_chemistry_vars
+   !
+   !> \brief   Runtime-var callback that adds chemistry tracers
+   !
+   !-----------------------------------------------------------------------
+   subroutine atm_add_runtime_chemistry_vars(block, structPool, packagePool, newVarArray, poolName, varArrayName)
+
+      use mpas_atm_chemistry, only : chemistry_add_tracer_output_vars
+      use mpas_derived_types, only : block_type, mpas_pool_type, MPAS_LOG_CRIT
+      use mpas_runtime_vars,  only : MPAS_var_array, MPAS_var, MPAS_VAR_REAL, MPAS_VAR_OK
+      use mpas_log,           only : mpas_log_write
+
+      implicit none
+
+      type (block_type), target, intent(inout) :: block
+      type (mpas_pool_type), intent(inout) :: structPool
+      type (mpas_pool_type), intent(in) :: packagePool
+      type (MPAS_var_array) :: newVarArray
+      character(len=*), intent(in) :: poolName
+      character(len=*), intent(in) :: varArrayName
+
+      type (MPAS_var) :: newVar
+      character(len=64) :: tracer_name
+      character(len=128) :: diag_name
+      character(len=32) :: category_text
+      integer :: i, j, addErr
+
+      if (trim(poolName) == 'state' .and. trim(varArrayName) == 'scalars') then
+         if (n_runtime_chem_species <= 0) return
+         do i = 1, n_runtime_chem_species
+            tracer_name = atm_runtime_chem_tracer_name(runtime_chem_species(i))
+
+            newVar % name = trim(tracer_name)
+            newVar % hasTimeDimension = .true.
+            newVar % vartype = MPAS_VAR_REAL
+            newVar % dimensions = 'nVertLevels nCells'
+            newVar % units = 'kg kg^{-1}'
+            newVar % description = 'Chemistry tracer ' // trim(tracer_name) // ' mixing ratio'
+            newVar % isPersistent = .true.
+            call newVarArray % add_constituent(newVar, 'chemistry', ierr=addErr)
+            if (addErr /= MPAS_VAR_OK) then
+               call mpas_log_write('Failed to add runtime tracer ' // trim(tracer_name) // &
+                                   ' to state/scalars', messageType=MPAS_LOG_CRIT)
+               return
+            end if
+
+            call mpas_log_write('[Chemistry] Added runtime tracer ' // trim(tracer_name) // &
+                                ' to state/scalars')
+            call newVar % reset()
+         end do
+      else if (trim(poolName) == 'tend' .and. trim(varArrayName) == 'scalars_tend') then
+         if (n_runtime_chem_species <= 0) return
+         do i = 1, n_runtime_chem_species
+            tracer_name = atm_runtime_chem_tracer_name(runtime_chem_species(i))
+
+            newVar % name = 'tend_' // trim(tracer_name)
+            newVar % name_in_code = trim(tracer_name)
+            newVar % hasTimeDimension = .true.
+            newVar % vartype = MPAS_VAR_REAL
+            newVar % dimensions = 'nVertLevels nCells'
+            newVar % units = 'kg m^{-3} s^{-1}'
+            newVar % description = 'Tendency of chemistry tracer ' // trim(tracer_name)
+            newVar % isPersistent = .true.
+            call newVarArray % add_constituent(newVar, 'chemistry', ierr=addErr)
+            if (addErr /= MPAS_VAR_OK) then
+               call mpas_log_write('Failed to add runtime tracer tendency tend_' // &
+                                   trim(tracer_name) // ' to tend/scalars_tend', &
+                                   messageType=MPAS_LOG_CRIT)
+               return
+            end if
+
+            call mpas_log_write('[Chemistry] Added runtime tracer tendency tend_' // &
+                                trim(tracer_name) // ' to tend/scalars_tend')
+            call newVar % reset()
+         end do
+      else if (trim(poolName) == 'diag' .and. len_trim(varArrayName) == 0) then
+         call chemistry_add_tracer_output_vars(block, structPool, packagePool)
+         if (n_runtime_photo_rates <= 0 .and. n_runtime_emission_species <= 0) return
+         do i = 1, n_runtime_photo_rates
+            diag_name = 'j_' // trim(runtime_photo_rates(i))
+
+            newVar % name = trim(diag_name)
+            newVar % hasTimeDimension = .true.
+            newVar % vartype = MPAS_VAR_REAL
+            newVar % dimensions = 'nVertLevels nCells'
+            newVar % units = 's^{-1}'
+            newVar % description = 'Photolysis rate ' // trim(runtime_photo_rates(i)) // &
+                                   ' used by chemistry'
+            newVar % isPersistent = .true.
+            newVar % nTimeLevels = 1
+            call newVar % add_to_pool(block, structPool, packagePool, useNameInCode=.true., ierr=addErr)
+            if (addErr /= MPAS_VAR_OK) then
+               call mpas_log_write('Failed to add runtime photolysis diagnostic ' // &
+                                   trim(diag_name) // ' to diag', messageType=MPAS_LOG_CRIT)
+               return
+            end if
+            call newVar % add_to_pool(block, block % allFields, packagePool, ierr=addErr)
+            if (addErr /= MPAS_VAR_OK) then
+               call mpas_log_write('Failed to add runtime photolysis diagnostic ' // &
+                                   trim(diag_name) // ' to allFields', messageType=MPAS_LOG_CRIT)
+               return
+            end if
+
+            call mpas_log_write('[Chemistry] Added runtime photolysis diagnostic ' // &
+                                trim(diag_name) // ' to diag')
+            call newVar % reset()
+         end do
+
+         do i = 1, n_runtime_emission_species
+            diag_name = 'emis_' // trim(runtime_emission_species(i))
+            call add_runtime_emission_diag(trim(diag_name), 'nCells', &
+                 'MIEM column flux applied to chemistry for ' // &
+                 trim(runtime_emission_species(i)), addErr)
+            if (addErr /= MPAS_VAR_OK) return
+
+            if (runtime_emission_layered) then
+               diag_name = 'emis_' // trim(runtime_emission_species(i)) // '_layer'
+               call add_runtime_emission_diag(trim(diag_name), 'nVertLevels nCells', &
+                    'MIEM per-layer flux applied to chemistry for ' // &
+                    trim(runtime_emission_species(i)), addErr)
+               if (addErr /= MPAS_VAR_OK) return
+            end if
+
+            do j = 1, n_runtime_emission_sectors
+               diag_name = 'emis_' // trim(runtime_emission_species(i)) // &
+                           '__sector_' // trim(runtime_emission_sector_labels(j))
+               call add_runtime_emission_diag(trim(diag_name), 'nCells', &
+                    'MIEM column flux for sector ' // trim(runtime_emission_sectors(j)) // &
+                    ', species ' // trim(runtime_emission_species(i)), addErr)
+               if (addErr /= MPAS_VAR_OK) return
+               if (runtime_emission_layered) then
+                  diag_name = 'emis_' // trim(runtime_emission_species(i)) // &
+                              '__sector_' // trim(runtime_emission_sector_labels(j)) // '_layer'
+                  call add_runtime_emission_diag(trim(diag_name), 'nVertLevels nCells', &
+                       'MIEM per-layer flux for sector ' // trim(runtime_emission_sectors(j)) // &
+                       ', species ' // trim(runtime_emission_species(i)), addErr)
+                  if (addErr /= MPAS_VAR_OK) return
+               end if
+            end do
+
+            do j = 1, n_runtime_emission_categories
+               write(category_text, '(i0)') runtime_emission_categories(j)
+               diag_name = 'emis_' // trim(runtime_emission_species(i)) // &
+                           '__category_' // trim(category_text)
+               call add_runtime_emission_diag(trim(diag_name), 'nCells', &
+                    'MIEM column flux for category ' // trim(category_text) // &
+                    ', species ' // trim(runtime_emission_species(i)), addErr)
+               if (addErr /= MPAS_VAR_OK) return
+               if (runtime_emission_layered) then
+                  diag_name = 'emis_' // trim(runtime_emission_species(i)) // &
+                              '__category_' // trim(category_text) // '_layer'
+                  call add_runtime_emission_diag(trim(diag_name), 'nVertLevels nCells', &
+                       'MIEM per-layer flux for category ' // trim(category_text) // &
+                       ', species ' // trim(runtime_emission_species(i)), addErr)
+                  if (addErr /= MPAS_VAR_OK) return
+               end if
+            end do
+         end do
+      end if
+
+   contains
+
+      subroutine add_runtime_emission_diag(field_name, field_dimensions, field_description, status)
+
+         character(len=*), intent(in) :: field_name, field_dimensions, field_description
+         integer, intent(out) :: status
+
+         newVar % name = trim(field_name)
+         newVar % hasTimeDimension = .true.
+         newVar % vartype = MPAS_VAR_REAL
+         newVar % dimensions = trim(field_dimensions)
+         newVar % units = 'kg m^{-2} s^{-1}'
+         newVar % description = trim(field_description)
+         newVar % isPersistent = .true.
+         newVar % nTimeLevels = 1
+         call newVar % add_to_pool(block, structPool, packagePool, useNameInCode=.true., ierr=status)
+         if (status /= MPAS_VAR_OK) then
+            call mpas_log_write('Failed to add runtime emissions diagnostic ' // &
+                                trim(field_name) // ' to diag', messageType=MPAS_LOG_CRIT)
+            call newVar % reset()
+            return
+         end if
+         call newVar % add_to_pool(block, block % allFields, packagePool, ierr=status)
+         if (status /= MPAS_VAR_OK) then
+            call mpas_log_write('Failed to add runtime emissions diagnostic ' // &
+                                trim(field_name) // ' to allFields', messageType=MPAS_LOG_CRIT)
+            call newVar % reset()
+            return
+         end if
+         call mpas_log_write('[Chemistry] Added runtime emissions diagnostic ' // &
+                             trim(field_name) // ' to diag')
+         call newVar % reset()
+
+      end subroutine add_runtime_emission_diag
+
+   end subroutine atm_add_runtime_chemistry_vars
+
+
+   function atm_runtime_chem_tracer_name(species_name) result(tracer_name)
+
+      implicit none
+
+      character(len=*), intent(in) :: species_name
+      character(len=64) :: tracer_name
+
+      tracer_name = trim(species_name)
+
+   end function atm_runtime_chem_tracer_name
+#endif
+
+
+   !***********************************************************************
+   !
+   !  function atm_setup_derived_dimensions_with_runtime_chemistry
+   !
+   !> \brief Assign derived dimensions and validate dimension-dependent
+   !>        runtime chemistry diagnostics before field allocation.
+   !
+   !-----------------------------------------------------------------------
+   function atm_setup_derived_dimensions_with_runtime_chemistry(readDimensions, dimensionPool, &
+                                                                 configPool) result(ierr)
+
+      use mpas_derived_types, only : mpas_pool_type, MPAS_LOG_ERR
+      use mpas_pool_routines, only : mpas_pool_get_dimension
+      use mpas_log, only : mpas_log_write
+#ifdef MPAS_USE_MUSICA
+      use mpas_atm_chemistry, only : chemistry_prepare_miem_diagnostic_selection
+#endif
+
+      implicit none
+
+      type (mpas_pool_type), intent(inout) :: readDimensions
+      type (mpas_pool_type), intent(inout) :: dimensionPool
+      type (mpas_pool_type), intent(inout) :: configPool
+      integer :: ierr
+
+#ifdef MPAS_USE_MUSICA
+      integer, pointer :: nVertLevels
+      character(len=64), allocatable :: sectors(:), sector_labels(:)
+      integer, allocatable :: categories(:)
+      integer :: error_code
+      character(len=:), allocatable :: error_message
+#endif
+
+      ierr = atm_setup_derived_dimensions(readDimensions, dimensionPool, configPool)
+      if (ierr /= 0) return
+
+#ifdef MPAS_USE_MUSICA
+      if (runtime_vars_prepared .and. n_runtime_emission_species > 0) then
+         nullify(nVertLevels)
+         call mpas_pool_get_dimension(dimensionPool, 'nVertLevels', nVertLevels)
+         if (.not. associated(nVertLevels)) then
+            call mpas_log_write('[Chemistry] MIEM diagnostic cap validation requires nVertLevels', &
+                                messageType=MPAS_LOG_ERR)
+            ierr = 1
+            return
+         end if
+
+         call chemistry_prepare_miem_diagnostic_selection(runtime_emission_sector_text, &
+                                                          runtime_emission_category_text, &
+                                                          nVertLevels, &
+                                                          n_runtime_emission_species, &
+                                                          runtime_emission_layered, &
+                                                          runtime_emission_max_fields, sectors, &
+                                                          sector_labels, categories, error_code, &
+                                                          error_message)
+         if (error_code /= 0) then
+            call mpas_log_write('[Chemistry] Invalid MIEM diagnostic selection for mesh dimensions: ' // &
+                                trim(error_message), messageType=MPAS_LOG_ERR)
+            ierr = error_code
+            return
+         end if
+         if (size(sectors) /= n_runtime_emission_sectors .or. &
+             size(categories) /= n_runtime_emission_categories) then
+            call mpas_log_write('[Chemistry] MIEM diagnostic selection changed during block setup', &
+                                messageType=MPAS_LOG_ERR)
+            ierr = 1
+            return
+         end if
+         if (allocated(sectors)) deallocate(sectors)
+         if (allocated(sector_labels)) deallocate(sector_labels)
+         if (allocated(categories)) deallocate(categories)
+      end if
+#endif
+
+   end function atm_setup_derived_dimensions_with_runtime_chemistry
+
+
    !***********************************************************************
    !
    !  function atm_setup_block
@@ -464,6 +1166,9 @@ module atm_core_interface
       use mpas_derived_types, only : block_type
       use mpas_pool_routines, only : mpas_pool_get_config
       use mpas_log, only : mpas_log_write
+#ifdef MPAS_USE_MUSICA
+      use mpas_runtime_vars, only : MPAS_var_add_callback, MPAS_var_clear_callback
+#endif
 
       implicit none
 
@@ -475,7 +1180,20 @@ module atm_core_interface
 
       ierr = 0
 
-      call atm_generate_structs(block, block % structs, block % dimensions, block % packages)
+#ifdef MPAS_USE_MUSICA
+      call MPAS_var_clear_callback()
+      ierr = atm_prepare_runtime_chemistry_vars(block)
+      if (ierr /= 0) then
+         return
+      end if
+      call MPAS_var_add_callback(atm_add_runtime_chemistry_vars)
+#endif
+
+      call atm_generate_pools(block, block % structs, block % packages)
+
+#ifdef MPAS_USE_MUSICA
+      call MPAS_var_clear_callback()
+#endif
 
       !
       ! When MPAS-A is operating as a dycore in CAM, the scalars/scalars_tend var_arrays are
@@ -632,6 +1350,8 @@ module atm_core_interface
 
    end function atm_allocate_scalars
 
+
+
 #include "setup_immutable_streams.inc"
 
 #include "block_dimension_routines.inc"
@@ -640,10 +1360,10 @@ module atm_core_interface
 
 #include "setup_packages.inc"
 
-#include "structs_and_variables.inc"
-
 #include "namelist_call.inc"
 
 #include "namelist_defines.inc"
+
+#include "pools_and_vars.inc"
 
 end module atm_core_interface

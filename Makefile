@@ -1,5 +1,10 @@
 MODEL_FORMULATION =
 
+# Export MPI wrapper compiler variables to shell commands
+export OMPI_FC
+export OMPI_CC
+export OMPI_CXX
+
 ifneq "${MPAS_SHELL}" ""
         SHELL = ${MPAS_SHELL}
 endif
@@ -577,23 +582,26 @@ bluegene:   # BUILDTARGET (deprecated) IBM XL compilers on BlueGene/Q systems
 	"CPPFLAGS = $(MODEL_FORMULATION) -D_MPI" )
 
 llvm:   # BUILDTARGET LLVM flang, clang, and clang++ compilers
-	( $(MAKE) all \
+	( export OMPI_FC=flang OMPI_CC=clang OMPI_CXX=clang++ && $(MAKE) all \
+	OMPI_FC=flang \
+	OMPI_CC=clang \
+	OMPI_CXX=clang++ \
 	"FC_PARALLEL = mpifort" \
 	"CC_PARALLEL = mpicc" \
 	"CXX_PARALLEL = mpic++" \
 	"FC_SERIAL = flang" \
 	"CC_SERIAL = clang" \
 	"CXX_SERIAL = clang++" \
-	"FFLAGS_PROMOTION = -r8" \
-	"FFLAGS_OPT = -O3 -g -Mbyteswapio -Mfreeform" \
+	"FFLAGS_PROMOTION = -fdefault-real-8 -fdefault-double-8" \
+	"FFLAGS_OPT = -O3 -g -fconvert=big-endian -ffree-form" \
 	"CFLAGS_OPT = -O3 -g" \
 	"CXXFLAGS_OPT = -O3 -g" \
 	"LDFLAGS_OPT = -O3 -g" \
-	"FFLAGS_DEBUG = -O0 -g -Mbounds -Mchkptr -Mbyteswapio -Mfreeform -Mstandard" \
+	"FFLAGS_DEBUG = -O0 -g -fcheck=all -fconvert=big-endian -ffree-form" \
 	"CFLAGS_DEBUG = -O0 -g -Weverything" \
 	"CXXFLAGS_DEBUG = -O0 -g -Weverything" \
 	"LDFLAGS_DEBUG = -O0 -g" \
-	"FFLAGS_OMP = -mp" \
+	"FFLAGS_OMP = -fopenmp" \
 	"CFLAGS_OMP = -fopenmp" \
 	"PICFLAG = -fpic" \
 	"BUILD_TARGET = $(@)" \
@@ -601,7 +609,8 @@ llvm:   # BUILDTARGET LLVM flang, clang, and clang++ compilers
 	"DEBUG = $(DEBUG)" \
 	"USE_PAPI = $(USE_PAPI)" \
 	"OPENMP = $(OPENMP)" \
-	"CPPFLAGS = $(MODEL_FORMULATION) -D_MPI" )
+	"MUSICA = $(MUSICA)" \
+	"CPPFLAGS = $(MODEL_FORMULATION) -D_MPI -DNOMPIMOD" )
 
 nag:   # BUILDTARGET NAG Fortran compiler and GNU C/C++ compilers
 	( $(MAKE) all \
@@ -762,17 +771,23 @@ ifneq ($(wildcard $(NETCDF)/lib64/libnetcdf.*), )
 	NETCDFLIBLOC = lib64
 endif
 	CPPINCLUDES += -I$(NETCDF)/include
-	FCINCLUDES += -I$(NETCDF)/include
-	LIBS += -L$(NETCDF)/$(NETCDFLIBLOC)
 	NCLIB = -lnetcdf
 	NCLIBF = -lnetcdff
-	ifneq ($(wildcard $(NETCDF)/$(NETCDFLIBLOC)/libnetcdff.*), ) # CHECK FOR NETCDF4
-		LIBS += $(NCLIBF)
-	endif # CHECK FOR NETCDF4
+	# If NETCDFF is set, it takes precedence for the Fortran include and lib:
+	# put its -L FIRST (so -lnetcdff resolves to the NETCDFF copy) and do
+	# NOT add -lnetcdff from NETCDF. Needed on macOS with MUSICA+TUV-x where
+	# Homebrew's gfortran-built libnetcdff is ABI-incompatible with flang.
 	ifneq "$(NETCDFF)" ""
 		FCINCLUDES += -I$(NETCDFF)/include
-		LIBS += -L$(NETCDFF)/$(NETCDFLIBLOC)
-		LIBS += $(NCLIBF)
+		LIBS += -L$(NETCDFF)/$(NETCDFLIBLOC) $(NCLIBF)
+		FCINCLUDES += -I$(NETCDF)/include
+		LIBS += -L$(NETCDF)/$(NETCDFLIBLOC)
+	else
+		FCINCLUDES += -I$(NETCDF)/include
+		LIBS += -L$(NETCDF)/$(NETCDFLIBLOC)
+		ifneq ($(wildcard $(NETCDF)/$(NETCDFLIBLOC)/libnetcdff.*), ) # CHECK FOR NETCDF4
+			LIBS += $(NCLIBF)
+		endif # CHECK FOR NETCDF4
 	endif
 	LIBS += $(NCLIB)
 endif
@@ -904,12 +919,35 @@ ifeq "$(shell echo $(MUSICA) | tr '[:upper:]' '[:lower:]')" "true"
 ifeq ($(shell pkg-config --exists musica-fortran && echo yes || echo no), no)
 $(error "musica-fortran package is not installed. Please install it to proceed.")
 endif
+	MUSICA_REQUIRED_VERSION = 0.16.5
+	MUSICA_REQUIRED_REVISION = 1403e3d22717bc87f3bf9d0aa591caf039c92bbc
+	MIEM_REQUIRED_REVISION = 9fdf14a189262eecb677862d877ab72b06c95e21
+	MUSICA_PKG_VERSION := $(shell pkg-config --modversion musica-fortran)
+	MUSICA_PKG_REVISION := $(shell pkg-config --variable=source_revision musica-fortran)
+	MIEM_PKG_REVISION := $(shell pkg-config --variable=miem_revision musica-fortran)
+	MIEM_PKG_ENABLED := $(shell pkg-config --variable=miem_enabled musica-fortran)
+ifneq ($(MUSICA_PKG_VERSION),$(MUSICA_REQUIRED_VERSION))
+$(error "musica-fortran $(MUSICA_PKG_VERSION) found; version $(MUSICA_REQUIRED_VERSION) is required.")
+endif
+ifneq ($(MUSICA_PKG_REVISION),$(MUSICA_REQUIRED_REVISION))
+$(error "MUSICA revision $(MUSICA_PKG_REVISION) found; $(MUSICA_REQUIRED_REVISION) is required.")
+endif
+ifneq ($(MIEM_PKG_REVISION),$(MIEM_REQUIRED_REVISION))
+$(error "MIEM revision $(MIEM_PKG_REVISION) found; $(MIEM_REQUIRED_REVISION) is required.")
+endif
+ifneq ($(MIEM_PKG_ENABLED),ON)
+$(error "The pinned MUSICA package must be built with MUSICA_ENABLE_MIEM=ON.")
+endif
 	MUSICA_FCINCLUDES += $(shell pkg-config --cflags musica-fortran)
 	MUSICA_LIBS += $(shell pkg-config --libs musica-fortran)
+	MUSICA_LIBDIR := $(shell pkg-config --variable=libdir musica-fortran)
 	MUSICA_FFLAGS = -DMPAS_USE_MUSICA
 
 	FCINCLUDES += $(MUSICA_FCINCLUDES)
-	LIBS += $(MUSICA_LIBS)
+	# Put the pinned package directory before broad PIO/NetCDF prefixes. Those
+	# prefixes may contain older same-named MUSICA archives that must not shadow
+	# the revision whose module files and pkg-config metadata passed preflight.
+	LIBS := -L$(MUSICA_LIBDIR) $(LIBS) $(MUSICA_LIBS)
 	override CPPFLAGS += $(MUSICA_FFLAGS)
 endif
 
@@ -1422,10 +1460,21 @@ musica_fortran_test:
 	$(info Checking for a working MUSICA-Fortran library...)
 	$(eval MUSICA_FORTRAN_TEST := $(shell $\
 		printf "program test_musica_fortran\n$\
-		&   use musica_util, only : string_t\n$\
+		&   use musica_util, only : error_t, string_t\n$\
 		&   use musica_micm, only : get_micm_version\n$\
+		&   use musica_emissions, only : mechanism_t, emissions_t\n$\
+		&   implicit none\n$\
 		&   type(string_t) :: version_string\n$\
+		&   type(error_t) :: error\n$\
+		&   type(mechanism_t), pointer :: mechanism\n$\
+		&   type(emissions_t), pointer :: emissions\n$\
 		&   version_string = get_micm_version()\n$\
+		&   mechanism => mechanism_t('link-probe-does-not-run.yaml', error)\n$\
+		&   if (associated(mechanism)) then\n$\
+		&      emissions => emissions_t(mechanism, 1, 1, error)\n$\
+		&      if (associated(emissions)) deallocate(emissions)\n$\
+		&      deallocate(mechanism)\n$\
+		&   end if\n$\
 		&   print *, \"MUSICA support is available. MICM version: \", version_string%%value_\n$\
 		end program test_musica_fortran\n" | sed 's/&/ /' > test_musica_fortran.f90; $\
 		$\
@@ -1648,4 +1697,3 @@ errmsg:
 ifdef CORE
 	exit 1
 endif
-

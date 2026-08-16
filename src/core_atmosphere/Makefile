@@ -48,14 +48,14 @@ post_build:
 
 physcore: mpas_atm_dimensions.o
 	( cd physics; $(MAKE) all )
-	( mkdir libphys; cd libphys; ar -x ../physics/libphys.a )
+	( mkdir -p libphys; cd libphys; ar -x ../physics/libphys.a )
 	( cd ../..; ln -sf ./src/core_atmosphere/physics/physics_wrf/files/*TBL .)
 	( cd ../..; ln -sf ./src/core_atmosphere/physics/physics_wrf/files/*DATA* .)
 	( cd ../..; ln -sf ./src/core_atmosphere/physics/physics_noahmp/parameters/*TBL .)
 
 chemcore:
 	( cd chemistry; $(MAKE) all CHEMISTRY="$(CHEMISTRY)" )
-	( mkdir libchem; cd libchem; ar -x ../chemistry/libchem.a )
+	( mkdir -p libchem; cd libchem; ar -x ../chemistry/libchem.a )
 
 dycore: mpas_atm_dimensions.o $(PHYSCORE) $(CHEMCORE)
 	( cd dynamics; $(MAKE) all PHYSICS="$(PHYSICS)" )
@@ -84,6 +84,7 @@ clean:
 	( cd ../..; rm -f *TBL )
 	( cd ../..; rm -f *DATA* )
 	$(RM) -r libphys
+	$(RM) -r libchem
 	$(RM) *.o *.mod *.f90 libdycore.a
 	$(RM) Registry_processed.xml
 	@# Certain systems with intel compilers generate *.i files

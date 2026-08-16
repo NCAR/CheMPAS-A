@@ -343,8 +343,8 @@ set(ATMOSPHERE_CORE_INCLUDES
     domain_variables.inc
     namelist_call.inc
     namelist_defines.inc
-    setup_immutable_streams.inc
-    structs_and_variables.inc)
+    pools_and_vars.inc
+    setup_immutable_streams.inc)
 
 
 add_library(core_atmosphere ${ATMOSPHERE_CORE_SOURCES}
