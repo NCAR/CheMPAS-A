@@ -8,9 +8,13 @@ dummy:
 	echo "****** compiling mpas_musica ******"
 
 OBJS = \
-  mpas_musica.o
+  mpas_musica.o \
+  mpas_miem.o
 
 mpas_musica: $(OBJS)
+
+mpas_musica.o: ../mpas_chem_constants.o
+mpas_miem.o: ../../../framework/mpas_derived_types.o ../../../framework/mpas_log.o
 
 mpas_musica_lib:
 	ar -ru ./../libchem.a $(OBJS)
@@ -28,4 +32,3 @@ ifeq "$(GEN_F90)" "true"
 else
 	$(FC) $(CPPFLAGS) $(COREDEF) $(FFLAGS) -c $*.F $(CPPINCLUDES) $(FCINCLUDES) -I.. -I../../../framework $(MPAS_ESMF_INC)
 endif
-

@@ -13,10 +13,15 @@ dummy:
 	echo "****** compiling chemistry ******"
 
 OBJS = \
+	mpas_chem_constants.o \
+	mpas_solar_geometry.o \
+	mpas_lightning_nox.o \
+	mpas_prescribed_fields.o \
+	mpas_tuvx.o \
 	mpas_atm_chemistry.o
 
 ifeq ($(MUSICA),true)
-core_mpas_musica:
+core_mpas_musica: mpas_chem_constants.o
 	echo "****** building CORE MPAS MUSICA ******"
 	(cd musica; $(MAKE) all)
 endif
@@ -27,6 +32,12 @@ core_chemistry: $(if $(filter true,$(MUSICA)),core_mpas_musica)
 ifeq ($(MUSICA),true)
 	($(MAKE) -C ./musica mpas_musica_lib)
 endif
+
+mpas_lightning_nox.o: mpas_chem_constants.o
+mpas_tuvx.o: mpas_chem_constants.o mpas_prescribed_fields.o
+mpas_atm_chemistry.o: mpas_chem_constants.o mpas_lightning_nox.o mpas_solar_geometry.o \
+	mpas_prescribed_fields.o mpas_tuvx.o \
+	$(if $(filter true,$(MUSICA)),musica/mpas_musica.o musica/mpas_miem.o)
 
 chem_interface: $(OBJS)
 
