@@ -1,0 +1,281 @@
+# =============================================================================
+# CheMPAS-A container
+#
+# Stages:
+#   deps  - build PnetCDF, NetCDF, and MUSICA
+#   build - compile init_atmosphere_model and atmosphere_model
+#   run   - runnable image for the chemistry examples
+# =============================================================================
+
+ARG FEDORA_VERSION=41
+
+# ---------------------------------------------------------------------------
+# Stage 1: deps - PnetCDF + NetCDF + MUSICA
+# ---------------------------------------------------------------------------
+FROM docker.io/library/fedora:${FEDORA_VERSION} AS deps
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+RUN dnf -y update && dnf -y install \
+        autoconf \
+        automake \
+        cmake \
+        curl \
+        gcc \
+        gcc-c++ \
+        gcc-gfortran \
+        git \
+        hdf5-devel \
+        lapack-devel \
+        libcurl-devel \
+        libtool \
+        libxml2-devel \
+        m4 \
+        make \
+        openmpi-devel \
+        perl \
+        pkgconf-pkg-config \
+        python3 \
+        python3-devel \
+        python3-pip \
+        tar \
+        wget \
+        which \
+        zlib-devel \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
+
+# Fedora installs OpenMPI under /usr/lib64/openmpi.
+ENV PATH="/usr/lib64/openmpi/bin:${PATH}" \
+    LD_LIBRARY_PATH="/usr/lib64/openmpi/lib" \
+    MPI_DIR="/usr/lib64/openmpi"
+
+ARG PNETCDF_VERSION=1.14.0
+RUN cd /tmp \
+    && wget -q "https://parallel-netcdf.github.io/Release/pnetcdf-${PNETCDF_VERSION}.tar.gz" \
+    && tar xzf "pnetcdf-${PNETCDF_VERSION}.tar.gz" \
+    && cd "pnetcdf-${PNETCDF_VERSION}" \
+    && ./configure --prefix=/usr/local \
+                   --enable-shared \
+                   CC=mpicc FC=mpif90 CXX=mpicxx \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig \
+    && rm -rf /tmp/pnetcdf-*
+
+ENV PNETCDF=/usr/local
+
+ARG NETCDF_C_VERSION=4.9.2
+RUN cd /tmp \
+    && wget -q "https://downloads.unidata.ucar.edu/netcdf-c/${NETCDF_C_VERSION}/netcdf-c-${NETCDF_C_VERSION}.tar.gz" \
+    && tar xzf "netcdf-c-${NETCDF_C_VERSION}.tar.gz" \
+    && cd "netcdf-c-${NETCDF_C_VERSION}" \
+    && ./configure --prefix=/usr/local \
+                   --enable-shared \
+                   --enable-pnetcdf \
+                   CC=mpicc \
+                   CPPFLAGS="-I/usr/local/include" \
+                   LDFLAGS="-L/usr/local/lib" \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig \
+    && rm -rf /tmp/netcdf-c-*
+
+ENV LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}"
+
+ARG NETCDF_F_VERSION=4.6.1
+RUN cd /tmp \
+    && wget -q "https://downloads.unidata.ucar.edu/netcdf-fortran/${NETCDF_F_VERSION}/netcdf-fortran-${NETCDF_F_VERSION}.tar.gz" \
+    && tar xzf "netcdf-fortran-${NETCDF_F_VERSION}.tar.gz" \
+    && cd "netcdf-fortran-${NETCDF_F_VERSION}" \
+    && ./configure --prefix=/usr/local \
+                   --enable-shared \
+                   CC=mpicc FC=mpif90 \
+                   CPPFLAGS="-I/usr/local/include" \
+                   LDFLAGS="-L/usr/local/lib" \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig \
+    && rm -rf /tmp/netcdf-fortran-*
+
+ENV NETCDF=/usr/local \
+    PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"
+
+# Pin MUSICA to the revision the CheMPAS-A preflight requires
+# (MUSICA-Fortran 0.16.5 with MICM, TUV-x, and MIEM emissions). Keep in
+# sync with scripts/check_build_env.sh and BUILD.md.
+ARG MUSICA_GIT_REPOSITORY=https://github.com/NCAR/musica.git
+ARG MUSICA_GIT_REF=1403e3d22717bc87f3bf9d0aa591caf039c92bbc
+RUN cd /tmp \
+    && git init musica \
+    && cd musica \
+    && git remote add origin "${MUSICA_GIT_REPOSITORY}" \
+    && git fetch --depth 1 origin "${MUSICA_GIT_REF}" \
+    && git checkout --detach FETCH_HEAD \
+    && cmake -S . -B build \
+             -DCMAKE_BUILD_TYPE=Release \
+             -DCMAKE_INSTALL_PREFIX=/usr/local \
+             -DMUSICA_BUILD_FORTRAN_INTERFACE=ON \
+             -DMUSICA_ENABLE_MICM=ON \
+             -DMUSICA_ENABLE_TUVX=ON \
+             -DMUSICA_ENABLE_MIEM=ON \
+             -DMUSICA_ENABLE_MIAM=OFF \
+             -DMUSICA_ENABLE_CARMA=OFF \
+             -DMUSICA_USE_FMT=OFF \
+             -DBUILD_TESTING=OFF \
+    && cmake --build build -j"$(nproc)" \
+    && cmake --install build \
+    && mkdir -p /usr/local/share/musica/tuvx_data \
+    && cp -r /tmp/musica/configs/tuvx/data/cross_sections /usr/local/share/musica/tuvx_data/ \
+    && cp -r /tmp/musica/configs/tuvx/data/quantum_yields /usr/local/share/musica/tuvx_data/ \
+    && mkdir -p /usr/local/share/musica/configs \
+    && cp -r /tmp/musica/configs/v1 /usr/local/share/musica/configs/ \
+    && rm -rf /tmp/musica
+
+RUN sed -i '/^Libs:/ s/$/ -lstdc++/' /usr/local/lib64/pkgconfig/musica-fortran.pc
+
+# MPAS exports OMPI_* wrapper variables from its top-level Makefile. Fedora's
+# OpenMPI wrappers fail if those variables are exported empty.
+ENV OMPI_FC=gfortran \
+    OMPI_CC=gcc \
+    OMPI_CXX=g++ \
+    PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig"
+
+# Keep TUV-x data in a separate stage so data-packaging fixes do not invalidate
+# the expensive MPAS compile layer.
+FROM deps AS tuvx-data
+
+ARG MUSICA_GIT_REPOSITORY=https://github.com/NCAR/musica.git
+ARG MUSICA_GIT_REF=1403e3d22717bc87f3bf9d0aa591caf039c92bbc
+RUN cd /tmp \
+    && git init musica-data \
+    && cd musica-data \
+    && git remote add origin "${MUSICA_GIT_REPOSITORY}" \
+    && git fetch --depth 1 origin "${MUSICA_GIT_REF}" \
+    && git checkout --detach FETCH_HEAD \
+    && mkdir -p /tuvx_data \
+    && cp -r configs/tuvx/data/. /tuvx_data/ \
+    && rm -rf /tmp/musica-data
+
+# ---------------------------------------------------------------------------
+# Stage 2: build - compile CheMPAS-A from source
+# ---------------------------------------------------------------------------
+FROM deps AS build
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+WORKDIR /mpas
+COPY Makefile .
+COPY src/ src/
+COPY test_cases/ test_cases/
+COPY micm_configs/ micm_configs/
+COPY scripts/ scripts/
+RUN rm -f .build_opts.* \
+    && find . -type f \( \
+        -name '*.o' -o \
+        -name '*.mod' -o \
+        -name '*.a' -o \
+        -name '*.so' -o \
+        -name '*.dylib' -o \
+        -name '*.i' \
+    \) -delete \
+    && rm -f src/tools/registry/parse \
+             src/tools/input_gen/namelist_gen \
+             src/tools/input_gen/streams_gen
+
+# Fetch physics externals directly and no-op the normal checkout scripts so the
+# MPAS Makefile does not refetch them during the build.
+RUN rm -rf src/core_atmosphere/physics/physics_mmm \
+    && git clone --depth 1 --branch 20250616-MPASv8.3 \
+        https://github.com/NCAR/MMM-physics.git \
+        src/core_atmosphere/physics/physics_mmm \
+    && rm -rf src/core_atmosphere/physics/physics_noaa/UGWP \
+    && mkdir -p src/core_atmosphere/physics/physics_noaa \
+    && git clone --depth 1 --branch MPAS_20241223 \
+        https://github.com/NOAA-GSL/UGWP.git \
+        src/core_atmosphere/physics/physics_noaa/UGWP \
+    && rm -rf src/core_atmosphere/physics/physics_wrf/files \
+    && mkdir -p src/core_atmosphere/physics/physics_wrf/files \
+    && cd src/core_atmosphere/physics/physics_wrf/files \
+    && wget -q https://github.com/MPAS-Dev/MPAS-Data/archive/refs/tags/v8.2.tar.gz \
+    && tar xzf v8.2.tar.gz --strip-components=4 "MPAS-Data-8.2/atmosphere/physics_wrf/files" \
+    && rm v8.2.tar.gz \
+    && cd /mpas \
+    && printf '#!/bin/sh\nexec true\n' \
+        > src/core_atmosphere/tools/manage_externals/checkout_externals \
+    && chmod +x src/core_atmosphere/tools/manage_externals/checkout_externals \
+    && printf '#!/bin/sh\nexec true\n' \
+        > src/core_atmosphere/physics/checkout_data_files.sh \
+    && chmod +x src/core_atmosphere/physics/checkout_data_files.sh
+
+RUN make -j"$(nproc)" gnu CORE=init_atmosphere PRECISION=double USE_PIO2=false AUTOCLEAN=true \
+    && cp init_atmosphere_model /tmp/init_atmosphere_model \
+    && make clean CORE=atmosphere \
+    && make -j"$(nproc)" gnu CORE=atmosphere PRECISION=double MUSICA=true USE_PIO2=false \
+       AUTOCLEAN=true MPAS_EXTERNAL_LIBS="-lstdc++" \
+    && cp /tmp/init_atmosphere_model init_atmosphere_model
+
+# ---------------------------------------------------------------------------
+# Stage 3: run - runnable chemistry-example image
+# ---------------------------------------------------------------------------
+FROM docker.io/library/fedora:${FEDORA_VERSION} AS run
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+RUN dnf -y update && dnf -y --setopt=install_weak_deps=False install \
+        bash \
+        bzip2 \
+        curl \
+        findutils \
+        gcc-gfortran \
+        hdf5 \
+        lapack \
+        libcurl \
+        libxml2 \
+        openmpi \
+        tar \
+        wget \
+        which \
+        zlib \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
+
+# The runtime Python environment contains only what the case initializers and
+# built-in NetCDF verification need.
+COPY docker/environment.mpas.yml /tmp/environment.mpas.yml
+RUN curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest \
+        | tar -xj -C /usr/local/bin --strip-components=1 bin/micromamba \
+    && micromamba create -y -r /opt/conda -f /tmp/environment.mpas.yml \
+    && micromamba clean -a -y \
+    && rm /tmp/environment.mpas.yml
+
+COPY --from=deps /usr/local /usr/local
+COPY --from=tuvx-data /tuvx_data/ /usr/local/share/musica/tuvx_data/
+
+ENV PATH="/opt/conda/envs/chempas-runtime/bin:/usr/lib64/openmpi/bin:${PATH}" \
+    LD_LIBRARY_PATH="/usr/local/lib:/usr/lib64/openmpi/lib" \
+    PNETCDF=/usr/local \
+    NETCDF=/usr/local \
+    PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig" \
+    CHEMPAS_ROOT=/mpas \
+    CHEMPAS_DATA_ROOT=/data/CheMPAS \
+    OMPI_ALLOW_RUN_AS_ROOT=1 \
+    OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+
+RUN ldconfig
+
+WORKDIR /mpas
+COPY --from=build /mpas/init_atmosphere_model .
+COPY --from=build /mpas/atmosphere_model .
+COPY --from=build /mpas/test_cases test_cases/
+COPY --from=build /mpas/micm_configs micm_configs/
+COPY --from=build /mpas/scripts scripts/
+COPY --from=build /mpas/src/core_atmosphere/physics/physics_wrf/files/ physics_tables/
+COPY --from=build /mpas/src/core_atmosphere/physics/physics_noahmp/parameters/ physics_tables/
+COPY docker/run_case.sh /usr/local/bin/chempas-run-case
+RUN chmod +x /usr/local/bin/chempas-run-case \
+    && mkdir -p /data/CheMPAS
+
+VOLUME ["/data/CheMPAS"]
+ENTRYPOINT ["chempas-run-case"]
+CMD ["--help"]

@@ -1,0 +1,44 @@
+.git
+.gitignore
+
+# Local MPAS build products
+atmosphere_model
+init_atmosphere_model
+build_tables
+.build_opts.*
+*.o
+*.mod
+*.a
+*.so
+*.dylib
+**/*.o
+**/*.mod
+**/*.a
+**/*.so
+**/*.dylib
+**/*.i
+src/tools/registry/parse
+src/tools/input_gen/namelist_gen
+src/tools/input_gen/streams_gen
+
+# Generated dependency checkouts/data are fetched inside the image build.
+src/core_atmosphere/physics/physics_mmm/
+src/core_atmosphere/physics/physics_noaa/UGWP/
+src/core_atmosphere/physics/physics_wrf/files/
+
+# Local run data and generated plots should live in mounted volumes.
+Data/
+output.nc
+restart.*.nc
+diag.*.nc
+log.*.out
+log.*.err
+*.png
+*.pdf
+
+# Python/editor noise
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+venv/

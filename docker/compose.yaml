@@ -1,0 +1,11 @@
+services:
+  chempas:
+    platform: linux/amd64
+    build:
+      context: ..
+      dockerfile: docker/Containerfile
+      target: run
+    image: chempas-a:docker
+    shm_size: 1gb
+    volumes:
+      - "${HOME}/Data/CheMPAS:/data/CheMPAS"
