@@ -14,8 +14,8 @@ checks. Large NCAR input data and generated outputs live in a mounted data
 directory, not in the image.
 
 The build pins MUSICA to commit `1403e3d22717bc87f3bf9d0aa591caf039c92bbc`
-(MUSICA-Fortran 0.16.5 with MICM, TUV-x, and MIEM), matching the
-CheMPAS-A preflight pin. The runtime image creates the small
+(MUSICA-Fortran 0.16.5 with MICM, TUV-x, and MIEM), the known-good revision
+qualified for these three container cases. The runtime image creates the small
 `chempas-runtime` conda environment from `docker/environment.mpas.yml` via
 micromamba.
 

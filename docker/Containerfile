@@ -101,9 +101,8 @@ RUN cd /tmp \
 ENV NETCDF=/usr/local \
     PKG_CONFIG_PATH="/usr/local/lib/pkgconfig"
 
-# Pin MUSICA to the revision the CheMPAS-A preflight requires
-# (MUSICA-Fortran 0.16.5 with MICM, TUV-x, and MIEM emissions). Keep in
-# sync with scripts/check_build_env.sh and BUILD.md.
+# Pin MUSICA to the known-good revision qualified for these three examples
+# (MUSICA-Fortran 0.16.5 with MICM, TUV-x, and MIEM emissions).
 ARG MUSICA_GIT_REPOSITORY=https://github.com/NCAR/musica.git
 ARG MUSICA_GIT_REF=1403e3d22717bc87f3bf9d0aa591caf039c92bbc
 RUN cd /tmp \
