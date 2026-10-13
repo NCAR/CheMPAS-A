@@ -76,6 +76,15 @@ Chemistry is enabled only in a `MUSICA=true` atmosphere build. An empty
 `config_micm_file` leaves the chemistry coupling inactive. Chemistry currently
 requires one MPAS block per MPI task; multi-block chemistry is not supported.
 
+## Source layout
+
+The eight chemistry host modules live in `src/core_atmosphere/chemistry/musica/`:
+the `mpas_atm_chemistry.F` lifecycle interface, the MICM, MIEM, and TUV-x
+adapters, and the constants, prescribed-field, solar-geometry, and lightning
+helpers. Both MUSICA-enabled and disabled Makefile builds compile the host
+interface and helpers there; the MICM and MIEM adapters require `MUSICA=true`.
+The resulting archive remains `src/core_atmosphere/chemistry/libchem.a`.
+
 ## MPAS
 
 CheMPAS-A retains the broader MPAS repository layout and upstream model cores.

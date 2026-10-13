@@ -1,58 +1,13 @@
-.SUFFIXES: .F .o
+.PHONY: all clean
 
+# The host interface and its helpers are required even without MUSICA.
 all:
-ifeq ($(MUSICA),true)
-	echo "****** building MUSICA ******"
-	$(MAKE) core_mpas_musica core_chemistry
-else
-	echo "****** not building MUSICA ******"
-	$(MAKE) core_chemistry
-endif
-
-dummy:
-	echo "****** compiling chemistry ******"
-
-OBJS = \
-	mpas_chem_constants.o \
-	mpas_solar_geometry.o \
-	mpas_lightning_nox.o \
-	mpas_prescribed_fields.o \
-	mpas_tuvx.o \
-	mpas_atm_chemistry.o
-
-ifeq ($(MUSICA),true)
-core_mpas_musica: mpas_chem_constants.o
-	echo "****** building CORE MPAS MUSICA ******"
-	(cd musica; $(MAKE) all)
-endif
-
-core_chemistry: $(if $(filter true,$(MUSICA)),core_mpas_musica)
-	($(MAKE) chem_interface)
-	ar -ru libchem.a $(OBJS)
-ifeq ($(MUSICA),true)
-	($(MAKE) -C ./musica mpas_musica_lib)
-endif
-
-mpas_lightning_nox.o: mpas_chem_constants.o
-mpas_tuvx.o: mpas_chem_constants.o mpas_prescribed_fields.o
-mpas_atm_chemistry.o: mpas_chem_constants.o mpas_lightning_nox.o mpas_solar_geometry.o \
-	mpas_prescribed_fields.o mpas_tuvx.o \
-	$(if $(filter true,$(MUSICA)),musica/mpas_musica.o musica/mpas_miem.o)
-
-chem_interface: $(OBJS)
+	$(MAKE) -C musica all
 
 clean:
+	@# Also remove artifacts left in the parent directory by the old layout.
 	$(RM) *.o *.mod *.f90 libchem.a
-	( cd musica; $(MAKE) clean )
+	$(MAKE) -C musica clean
 	@# Certain systems with intel compilers generate *.i files
 	@# This removes them during the clean process
 	$(RM) *.i
-
-.F.o:
-	$(RM) $@ $*.mod
-ifeq "$(GEN_F90)" "true"
-	$(CPP) $(CPPFLAGS) $(CPPINCLUDES) $< > $*.f90
-	$(FC) $(FFLAGS) -c $*.f90 $(FCINCLUDES) -I./musica -I.. -I../../framework $(MPAS_ESMF_INC)
-else
-	$(FC) $(CPPFLAGS) $(FFLAGS) -c $*.F $(CPPINCLUDES) $(FCINCLUDES) -I./musica -I.. -I../../framework $(MPAS_ESMF_INC)
-endif

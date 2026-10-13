@@ -1,23 +1,34 @@
 .SUFFIXES: .F .o
 
-.PHONY: mpas_musica mpas_musica_lib
+.PHONY: all mpas_musica mpas_musica_lib clean
 
-all: dummy mpas_musica
-
-dummy:
-	echo "****** compiling mpas_musica ******"
+all: mpas_musica_lib
 
 OBJS = \
-  mpas_musica.o \
-  mpas_miem.o
+  mpas_chem_constants.o \
+  mpas_solar_geometry.o \
+  mpas_lightning_nox.o \
+  mpas_prescribed_fields.o \
+  mpas_tuvx.o \
+  mpas_atm_chemistry.o
+
+ifeq ($(MUSICA),true)
+OBJS += mpas_musica.o mpas_miem.o
+endif
 
 mpas_musica: $(OBJS)
 
-mpas_musica.o: ../mpas_chem_constants.o
+mpas_lightning_nox.o: mpas_chem_constants.o
+mpas_tuvx.o: mpas_chem_constants.o mpas_prescribed_fields.o
+mpas_atm_chemistry.o: mpas_chem_constants.o mpas_lightning_nox.o mpas_solar_geometry.o \
+  mpas_prescribed_fields.o mpas_tuvx.o \
+  $(if $(filter true,$(MUSICA)),mpas_musica.o mpas_miem.o)
+mpas_musica.o: mpas_chem_constants.o
 mpas_miem.o: ../../../framework/mpas_derived_types.o ../../../framework/mpas_log.o
 
-mpas_musica_lib:
-	ar -ru ./../libchem.a $(OBJS)
+mpas_musica_lib: $(OBJS)
+	$(RM) ../libchem.a
+	ar -cr ../libchem.a $(OBJS)
 
 clean:
 	$(RM) *.f90 *.o *.mod
@@ -26,9 +37,10 @@ clean:
 	$(RM) *.i
 
 .F.o:
+	$(RM) $@ $*.mod
 ifeq "$(GEN_F90)" "true"
 	$(CPP) $(CPPFLAGS) $(COREDEF) $(CPPINCLUDES) $< > $*.f90
-	$(FC) $(FFLAGS) -c $*.f90 $(FCINCLUDES) -I.. -I../../../framework $(MPAS_ESMF_INC)
+	$(FC) $(FFLAGS) -c $*.f90 $(FCINCLUDES) -I../.. -I../../../framework $(MPAS_ESMF_INC)
 else
-	$(FC) $(CPPFLAGS) $(COREDEF) $(FFLAGS) -c $*.F $(CPPINCLUDES) $(FCINCLUDES) -I.. -I../../../framework $(MPAS_ESMF_INC)
+	$(FC) $(CPPFLAGS) $(COREDEF) $(FFLAGS) -c $*.F $(CPPINCLUDES) $(FCINCLUDES) -I../.. -I../../../framework $(MPAS_ESMF_INC)
 endif
