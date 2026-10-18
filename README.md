@@ -87,6 +87,8 @@ The resulting archive remains `src/core_atmosphere/chemistry/libchem.a`.
 
 ## MPAS
 
+This branch incorporates MPAS v8.4.2 and subsequent upstream development fixes.
+
 CheMPAS-A retains the broader MPAS repository layout and upstream model cores.
 General MPAS-Atmosphere concepts, mesh resources, and user guidance are
 available from the [MPAS project](https://www2.mmm.ucar.edu/projects/mpas/).
