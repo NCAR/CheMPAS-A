@@ -85,6 +85,11 @@ helpers. Both MUSICA-enabled and disabled Makefile builds compile the host
 interface and helpers there; the MICM and MIEM adapters require `MUSICA=true`.
 The resulting archive remains `src/core_atmosphere/chemistry/libchem.a`.
 
+Implementation plans for gas-phase physics are tracked on the feature branches:
+[PBL transport](https://github.com/NCAR/CheMPAS-A/blob/chempas-a-pbl/docs/plans/pbl-transport.md)
+and [convective transport](https://github.com/NCAR/CheMPAS-A/blob/chempas-a-convect/docs/plans/convective-transport.md).
+These plans describe pending work and qualification requirements.
+
 ## MPAS
 
 This branch incorporates MPAS v8.4.2 and subsequent upstream development fixes.
