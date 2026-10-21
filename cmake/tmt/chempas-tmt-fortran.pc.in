@@ -1,0 +1,12 @@
+prefix=${pcfiledir}/../..
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@/chempas-tmt
+chempas_namespace=1
+fortran_compiler=@CMAKE_Fortran_COMPILER@
+fortran_compiler_version=@CMAKE_Fortran_COMPILER_VERSION@
+
+Name: chempas-tmt-fortran
+Description: Isolated TMT Fortran interface for CheMPAS-A with MUSICA MIEM
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -Wl,-rpath,${libdir} -lchempas_tmt_fortran -lchempas_tmt
+Cflags: -I${includedir}

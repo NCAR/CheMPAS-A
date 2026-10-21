@@ -63,6 +63,15 @@ This produces `atmosphere_model`. The wiki's
 pinned MUSICA build, `init_atmosphere_model`, ABI checks, and the tested Ubuntu
 toolchain.
 
+Alternatively, build with `TMT=true` to use the sibling `../TMT` interface to
+TurboMICM/Fable and TurboTUV, while retaining MUSICA's MIEM emissions module.
+`MUSICA=true` and `TMT=true` are mutually exclusive selections. Both require
+the pinned MUSICA installation above. First build and install the isolated TMT
+interface in [`cmake/tmt`](cmake/tmt/README.md), add its `lib/pkgconfig` directory
+to `PKG_CONFIG_PATH`, then replace `MUSICA=true` with `TMT=true` in the command
+above. Clean when changing backends. These chemistry options use the MPAS
+Makefile build; the top-level MPAS CMake build does not provide chemistry support.
+
 ## Run and configuration guides
 
 - [Getting started](https://github.com/NCAR/CheMPAS-A/wiki/Getting-Started)
@@ -72,17 +81,19 @@ toolchain.
 - [Global chemistry and emissions MVP](https://github.com/NCAR/CheMPAS-A/wiki/Global-Chemistry-and-Emissions)
 - [Data and provenance](https://github.com/NCAR/CheMPAS-A/wiki/Data-and-Provenance)
 
-Chemistry is enabled only in a `MUSICA=true` atmosphere build. An empty
+Chemistry is enabled in a `MUSICA=true` or `TMT=true` atmosphere build. An empty
 `config_micm_file` leaves the chemistry coupling inactive. Chemistry currently
 requires one MPAS block per MPI task; multi-block chemistry is not supported.
 
 ## Source layout
 
-The eight chemistry host modules live in `src/core_atmosphere/chemistry/musica/`:
+The chemistry host modules live in `src/core_atmosphere/chemistry/musica/`:
 the `mpas_atm_chemistry.F` lifecycle interface, the MICM, MIEM, and TUV-x
-adapters, and the constants, prescribed-field, solar-geometry, and lightning
+adapters, and the constants, prescribed-field, solar-geometry, timing, and lightning
 helpers. Both MUSICA-enabled and disabled Makefile builds compile the host
-interface and helpers there; the MICM and MIEM adapters require `MUSICA=true`.
+interface and helpers there; the MICM and MIEM adapters require either chemistry
+backend. TMT changes only the imported chemistry/photolysis modules; the host
+coupling, solver calls, and MUSICA MIEM adapter are shared.
 The resulting archive remains `src/core_atmosphere/chemistry/libchem.a`.
 
 ## MPAS

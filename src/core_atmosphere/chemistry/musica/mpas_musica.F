@@ -18,11 +18,20 @@
 module mpas_musica
 
     use iso_fortran_env, only: real64
+#ifdef MPAS_USE_TMT
+    use tmt_micm,  only: micm_t, get_micm_version
+#elif defined(MPAS_USE_MUSICA)
     use musica_micm,  only: micm_t, get_micm_version
+#endif
     ! get_micm_version is here to avoid an ICE when within musica_init
+#ifdef MPAS_USE_TMT
+    use tmt_state, only: state_t
+#elif defined(MPAS_USE_MUSICA)
     use musica_state, only: state_t
+#endif
     use mpas_chem_constants, only: CHEM_GAS_R, CHEM_M_AIR, CHEM_NA, &
                                    CHEM_O2_VMR, CHEM_N2_VMR
+    use mpas_chem_timing, only: chem_library_timer
 
     implicit none
 
@@ -43,6 +52,7 @@ module mpas_musica
     type(micm_t),  pointer :: micm  => null ( )  ! Pointer to the MICM ODE solver instance
     type(state_t), pointer :: state => null ( )  ! Pointer to the state of the MICM solver (coupled to MPAS)
     type(state_t), pointer :: state_ref => null ( )  ! Reference state (uncoupled, chemistry only)
+    type(chem_library_timer), save :: solve_timer, ref_solve_timer
 
     integer, parameter :: MAX_SUB_CALLS = 100
     real(real64), parameter :: TIME_EPS_REL = 1.0e-9_real64
@@ -131,9 +141,15 @@ module mpas_musica
         use iso_fortran_env, only: real64
         use mpas_kind_types, only: RKIND
 
+#ifdef MPAS_USE_TMT
+        use tmt_micm, only : BackwardEulerStandardOrder, RosenbrockStandardOrder, &
+                                rosenbrock_solver_parameters_t
+        use tmt_util, only : error_t, string_t
+#elif defined(MPAS_USE_MUSICA)
         use musica_micm, only : BackwardEulerStandardOrder, RosenbrockStandardOrder, &
                                 rosenbrock_solver_parameters_t
         use musica_util, only : error_t, string_t
+#endif
 
         use mpas_log, only : mpas_log_write
 
@@ -310,8 +326,13 @@ module mpas_musica
     subroutine musica_get_solver_tolerances(relative_tolerance, absolute_tolerances, &
             species_names, error_code, error_message)
 
+#ifdef MPAS_USE_TMT
+        use tmt_micm, only: rosenbrock_solver_parameters_t
+        use tmt_util, only: error_t
+#elif defined(MPAS_USE_MUSICA)
         use musica_micm, only: rosenbrock_solver_parameters_t
         use musica_util, only: error_t
+#endif
 
         real(real64), intent(out) :: relative_tolerance
         real(real64), allocatable, intent(out) :: absolute_tolerances(:)
@@ -420,9 +441,15 @@ module mpas_musica
             molar_masses, host_bound, fixed_vmrs, error_code, error_message)
 
         use iso_fortran_env, only: real64
+#ifdef MPAS_USE_TMT
+        use tmt_micm,  only: RosenbrockStandardOrder
+        use tmt_state, only: state_t
+        use tmt_util,  only: error_t
+#elif defined(MPAS_USE_MUSICA)
         use musica_micm,  only: RosenbrockStandardOrder
         use musica_state, only: state_t
         use musica_util,  only: error_t
+#endif
         use mpas_log,     only: mpas_log_write
 
         character(len=*), intent(in)                :: config_path
@@ -509,9 +536,15 @@ module mpas_musica
     subroutine musica_query_emission_species(config_path, num_species, species_names, &
                                              error_code, error_message)
 
+#ifdef MPAS_USE_TMT
+        use tmt_micm, only: RosenbrockStandardOrder
+        use tmt_state, only: state_t
+        use tmt_util, only: error_t
+#elif defined(MPAS_USE_MUSICA)
         use musica_micm, only: RosenbrockStandardOrder
         use musica_state, only: state_t
         use musica_util, only: error_t
+#endif
         use mpas_log, only: mpas_log_write
 
         character(len=*), intent(in) :: config_path
@@ -679,8 +712,13 @@ module mpas_musica
 
     subroutine micm_substep_loop(a_state, time_step, error_code, error_message)
 
+#ifdef MPAS_USE_TMT
+        use tmt_micm, only : solver_stats_t
+        use tmt_util, only : error_t, string_t
+#elif defined(MPAS_USE_MUSICA)
         use musica_micm, only : solver_stats_t
         use musica_util, only : error_t, string_t
+#endif
         use mpas_log, only : mpas_log_write
         use mpas_kind_types, only : RKIND
 
@@ -716,7 +754,19 @@ module mpas_musica
             sub_call = sub_call + 1
             remaining = time_step - elapsed
 
+            ! Time the selected library API only; exclude host conversion,
+            ! error handling, solver-statistics queries, and logging.
+            if (is_ref_state) then
+                call ref_solve_timer%start()
+            else
+                call solve_timer%start()
+            end if
             call micm%solve(remaining, a_state, solver_state, solver_stats, error)
+            if (is_ref_state) then
+                call ref_solve_timer%stop()
+            else
+                call solve_timer%stop()
+            end if
             if (has_error_occurred(error, error_message, error_code)) return
 
             advanced = solver_stats%final_time()
@@ -788,6 +838,10 @@ module mpas_musica
         real(kind=RKIND) :: l_min_in, l_min_out, g_min_in, g_min_out
 
         call mpas_log_write('[MUSICA] Finalizing MICM chemistry package...')
+        call solve_timer%report('MICM solve', dminfo)
+        call ref_solve_timer%report('MICM reference solve', dminfo)
+        call solve_timer%reset()
+        call ref_solve_timer%reset()
         call reset_emission_cache()
 
         ! Reduce the rank-local clip accumulators once, at this global sync
@@ -820,7 +874,11 @@ module mpas_musica
             error_code, error_message)
 
         use mpas_kind_types, only : RKIND
+#ifdef MPAS_USE_TMT
+        use tmt_util, only : error_t
+#elif defined(MPAS_USE_MUSICA)
         use musica_util, only : error_t
+#endif
         use mpas_log, only : mpas_log_write
 
         real (kind=RKIND), dimension(:,:,:), intent(inout) :: scalars
@@ -1108,7 +1166,11 @@ module mpas_musica
     end function mozart35_troe_rate
 
     subroutine update_mozart35_user_rates(target_state, error_code, error_message)
+#ifdef MPAS_USE_TMT
+        use tmt_util, only: error_t
+#elif defined(MPAS_USE_MUSICA)
         use musica_util, only: error_t
+#endif
 
         type(state_t), intent(inout) :: target_state
         integer, intent(out) :: error_code
@@ -1249,7 +1311,11 @@ module mpas_musica
         use iso_fortran_env, only : real64
         use mpas_kind_types, only : RKIND
         use mpas_log, only : mpas_log_write
+#ifdef MPAS_USE_TMT
+        use tmt_util, only : error_t
+#elif defined(MPAS_USE_MUSICA)
         use musica_util, only : error_t
+#endif
 
         type(state_t), intent(inout) :: state
         integer, intent(in)          :: number_of_grid_cells
@@ -1316,7 +1382,11 @@ module mpas_musica
     subroutine musica_cache_emission_indices(names, error_code, error_message, net_flux_species)
 
         use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+#ifdef MPAS_USE_TMT
+        use tmt_util, only: error_t
+#elif defined(MPAS_USE_MUSICA)
         use musica_util, only: error_t
+#endif
         use mpas_log, only: mpas_log_write
 
         character(len=*), intent(in) :: names(:)
@@ -1923,7 +1993,11 @@ module mpas_musica
     !------------------------------------------------------------------------
     subroutine musica_cache_photo_indices(names, error_code, error_message)
         use mpas_log, only : mpas_log_write
+#ifdef MPAS_USE_TMT
+        use tmt_util, only : error_t
+#elif defined(MPAS_USE_MUSICA)
         use musica_util, only : error_t
+#endif
 
         character(len=*), intent(in)                :: names(:)
         integer, intent(out)                        :: error_code
@@ -2064,7 +2138,11 @@ module mpas_musica
     !------------------------------------------------------------------------
     subroutine host_binding(mechanism, micm_name, is_bound, host_name, do_write_back, fixed_vmr)
 
+#ifdef MPAS_USE_TMT
+        use tmt_util, only: error_t, string_t
+#elif defined(MPAS_USE_MUSICA)
         use musica_util, only: error_t, string_t
+#endif
 
         type(micm_t), pointer, intent(inout) :: mechanism
         character(len=*), intent(in)  :: micm_name
@@ -2109,7 +2187,11 @@ module mpas_musica
     subroutine set_species_profile(state, species_name, values, err)
         ! Write a 1-D profile into the contiguous concentrations array.
         use iso_fortran_env, only : real64
+#ifdef MPAS_USE_TMT
+        use tmt_util, only : error_t, string_t
+#elif defined(MPAS_USE_MUSICA)
         use musica_util, only : error_t, string_t
+#endif
 
         type(state_t), intent(inout) :: state
         character(len=*), intent(in) :: species_name
@@ -2133,7 +2215,11 @@ module mpas_musica
         use iso_fortran_env, only : real64
         use mpas_log, only        : mpas_log_write
         use mpas_kind_types, only : RKIND
+#ifdef MPAS_USE_TMT
+        use tmt_util, only : error_t, string_t
+#elif defined(MPAS_USE_MUSICA)
         use musica_util, only : error_t, string_t
+#endif
 
         type(state_t), intent(in)    :: state
         integer, intent(in)          :: number_of_grid_cells
@@ -2159,7 +2245,11 @@ module mpas_musica
     subroutine log_solver_stats(solver_stats)
         use mpas_log, only        : mpas_log_write
         use mpas_kind_types, only : RKIND
+#ifdef MPAS_USE_TMT
+        use tmt_micm, only     : solver_stats_t
+#elif defined(MPAS_USE_MUSICA)
         use musica_micm, only     : solver_stats_t
+#endif
 
         type(solver_stats_t), intent(in) :: solver_stats
 
@@ -2201,7 +2291,11 @@ module mpas_musica
     !>  @return True for an error, false for success.
     !-------------------------------------------------------------------------
     logical function has_error_occurred(error, error_message, error_code)
+#ifdef MPAS_USE_TMT
+        use tmt_util, only: error_t
+#elif defined(MPAS_USE_MUSICA)
         use musica_util, only: error_t
+#endif
 
         type(error_t),                 intent(in)  :: error
         character(len=:), allocatable, intent(out) :: error_message

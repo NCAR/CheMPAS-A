@@ -26,7 +26,10 @@ module mpas_framework
    use mpas_io
    use mpas_io_units
    use mpas_block_decomp
-#ifdef MPAS_USE_MUSICA
+#ifdef MPAS_USE_TMT
+   use tmt_micm, only : get_micm_version
+   use tmt_util, only : string_t
+#elif defined(MPAS_USE_MUSICA)
    use musica_micm, only : get_micm_version
    use musica_util, only : string_t
 #endif

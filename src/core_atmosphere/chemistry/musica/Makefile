@@ -6,24 +6,25 @@ all: mpas_musica_lib
 
 OBJS = \
   mpas_chem_constants.o \
+  mpas_chem_timing.o \
   mpas_solar_geometry.o \
   mpas_lightning_nox.o \
   mpas_prescribed_fields.o \
   mpas_tuvx.o \
   mpas_atm_chemistry.o
 
-ifeq ($(MUSICA),true)
+ifeq ($(CHEMPAS_CHEMISTRY),true)
 OBJS += mpas_musica.o mpas_miem.o
 endif
 
 mpas_musica: $(OBJS)
 
 mpas_lightning_nox.o: mpas_chem_constants.o
-mpas_tuvx.o: mpas_chem_constants.o mpas_prescribed_fields.o
+mpas_tuvx.o: mpas_chem_constants.o mpas_prescribed_fields.o mpas_chem_timing.o
 mpas_atm_chemistry.o: mpas_chem_constants.o mpas_lightning_nox.o mpas_solar_geometry.o \
   mpas_prescribed_fields.o mpas_tuvx.o \
-  $(if $(filter true,$(MUSICA)),mpas_musica.o mpas_miem.o)
-mpas_musica.o: mpas_chem_constants.o
+  $(if $(filter true,$(CHEMPAS_CHEMISTRY)),mpas_musica.o mpas_miem.o)
+mpas_musica.o: mpas_chem_constants.o mpas_chem_timing.o
 mpas_miem.o: ../../../framework/mpas_derived_types.o ../../../framework/mpas_log.o
 
 mpas_musica_lib: $(OBJS)

@@ -24,7 +24,16 @@
 !-----------------------------------------------------------------------
 module mpas_tuvx
 
-#ifdef MPAS_USE_MUSICA
+#ifdef MPAS_USE_TMT
+    use tmt_util, only: dk => musica_dk, error_t, mappings_t
+    use tmt_tuvx, only: tuvx_t
+    use tmt_tuvx_grid, only: grid_t
+    use tmt_tuvx_grid_map, only: grid_map_t
+    use tmt_tuvx_profile, only: profile_t
+    use tmt_tuvx_profile_map, only: profile_map_t
+    use tmt_tuvx_radiator, only: radiator_t
+    use tmt_tuvx_radiator_map, only: radiator_map_t
+#elif defined(MPAS_USE_MUSICA)
     use musica_util, only: dk => musica_dk, error_t, mappings_t
     use musica_tuvx, only: tuvx_t
     use musica_tuvx_grid, only: grid_t
@@ -36,6 +45,7 @@ module mpas_tuvx
 #endif
 
     use mpas_kind_types, only: RKIND
+    use mpas_chem_timing, only: chem_library_timer
     use mpas_chem_constants, only: CHEM_GAS_R, CHEM_NA, CHEM_M_O3, CHEM_O2_VMR, CHEM_RHO_H2O
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
 
@@ -50,6 +60,7 @@ module mpas_tuvx
 
 #ifdef MPAS_USE_MUSICA
     ! Module-level state (initialized once, updated per column)
+    type(chem_library_timer), save :: run_timer
     type(tuvx_t),       pointer :: tuvx_solver   => null()
     type(grid_t),       pointer :: height_grid   => null()
     type(grid_t),       pointer :: cloud_wavelength_grid => null()
@@ -661,8 +672,11 @@ contains
         sza_rad = acos(real(cos_sza, dk))
         esd = 1.0_dk
 
-        ! Run TUV-x
+        ! Time the selected library API only, excluding host profile updates
+        ! above and the rate extraction below. Nighttime early returns add no calls.
+        call run_timer%start()
         call tuvx_solver%run(sza_rad, esd, photo_rates, heating_rates, err)
+        call run_timer%stop()
         if (tuvx_has_error(err, error_code, error_message)) return
 
         ! Extract every cached photolysis rate on the MPAS slice; extension-
@@ -908,6 +922,8 @@ contains
         integer :: global_clip_count
         real(kind=RKIND) :: global_clip_min
 
+        call run_timer%report('TUV run', dminfo)
+        call run_timer%reset()
         if (present(dminfo)) then
             call mpas_dmpar_sum_int(dminfo, clip_count_input, global_clip_count)
             if (global_clip_count > 0) then

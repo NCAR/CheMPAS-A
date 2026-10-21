@@ -914,8 +914,14 @@ $(if $(PRECISION),$(info NOTE: PRECISION=single is unnecessary, single is the de
 	PRECISION_MESSAGE="MPAS was built with default single-precision reals."
 endif #PRECISION IF
 
-# Optional MUSICA support for chemistry
-ifeq "$(shell echo $(MUSICA) | tr '[:upper:]' '[:lower:]')" "true"
+# Optional chemistry backend. TMT replaces MICM/TUV-x; MIEM remains in MUSICA.
+MUSICA_ENABLED := $(shell echo $(MUSICA) | tr '[:upper:]' '[:lower:]')
+TMT_ENABLED := $(shell echo $(TMT) | tr '[:upper:]' '[:lower:]')
+ifeq ($(MUSICA_ENABLED)$(TMT_ENABLED),truetrue)
+$(error Select one chemistry backend: MUSICA=true or TMT=true)
+endif
+export CHEMPAS_CHEMISTRY := $(if $(filter true,$(MUSICA_ENABLED) $(TMT_ENABLED)),true,false)
+ifeq ($(CHEMPAS_CHEMISTRY),true)
 ifeq ($(shell pkg-config --exists musica-fortran && echo yes || echo no), no)
 $(error "musica-fortran package is not installed. Please install it to proceed.")
 endif
@@ -941,13 +947,28 @@ endif
 	MUSICA_FCINCLUDES += $(shell pkg-config --cflags musica-fortran)
 	MUSICA_LIBS += $(shell pkg-config --libs musica-fortran)
 	MUSICA_LIBDIR := $(shell pkg-config --variable=libdir musica-fortran)
+	# Existing MPAS_USE_MUSICA guards enable the common host coupling and MIEM
+	# for both backends. MPAS_USE_TMT selects isolated TMT module imports.
 	MUSICA_FFLAGS = -DMPAS_USE_MUSICA
 
-	FCINCLUDES += $(MUSICA_FCINCLUDES)
+ifeq ($(TMT_ENABLED),true)
+ifeq ($(shell pkg-config --exists chempas-tmt-fortran && echo yes || echo no),no)
+$(error TMT=true requires chempas-tmt-fortran. Build/install cmake/tmt and add its lib/pkgconfig to PKG_CONFIG_PATH)
+endif
+ifneq ($(shell pkg-config --variable=chempas_namespace chempas-tmt-fortran),1)
+$(error TMT must use the isolated CheMPAS namespace to coexist with MUSICA MIEM)
+endif
+	TMT_FCINCLUDES := $(shell pkg-config --cflags chempas-tmt-fortran)
+	TMT_LIBS := $(shell pkg-config --libs chempas-tmt-fortran)
+	TMT_LIBDIR := $(shell pkg-config --variable=libdir chempas-tmt-fortran)
+	TMT_PKG_VERSION := $(shell pkg-config --modversion chempas-tmt-fortran)
+	MUSICA_FFLAGS += -DMPAS_USE_TMT
+endif
+	FCINCLUDES += $(TMT_FCINCLUDES) $(MUSICA_FCINCLUDES)
 	# Put the pinned package directory before broad PIO/NetCDF prefixes. Those
 	# prefixes may contain older same-named MUSICA archives that must not shadow
 	# the revision whose module files and pkg-config metadata passed preflight.
-	LIBS := -L$(MUSICA_LIBDIR) $(LIBS) $(MUSICA_LIBS)
+	LIBS := $(if $(TMT_LIBDIR),-L$(TMT_LIBDIR)) -L$(MUSICA_LIBDIR) $(LIBS) $(TMT_LIBS) $(MUSICA_LIBS)
 	override CPPFLAGS += $(MUSICA_FFLAGS)
 endif
 
@@ -1454,42 +1475,10 @@ mpi_f08_test:
 	$(if $(findstring 1,$(MPAS_MPI_F08)), $(info mpi_f08 module detected.))
 
 musica_fortran_test:
-	@#
-	@# Create a Fortran test program that will link against the MUSICA library
-	@#
-	$(info Checking for a working MUSICA-Fortran library...)
-	$(eval MUSICA_FORTRAN_TEST := $(shell $\
-		printf "program test_musica_fortran\n$\
-		&   use musica_util, only : error_t, string_t\n$\
-		&   use musica_micm, only : get_micm_version\n$\
-		&   use musica_emissions, only : mechanism_t, emissions_t\n$\
-		&   implicit none\n$\
-		&   type(string_t) :: version_string\n$\
-		&   type(error_t) :: error\n$\
-		&   type(mechanism_t), pointer :: mechanism\n$\
-		&   type(emissions_t), pointer :: emissions\n$\
-		&   version_string = get_micm_version()\n$\
-		&   mechanism => mechanism_t('link-probe-does-not-run.yaml', error)\n$\
-		&   if (associated(mechanism)) then\n$\
-		&      emissions => emissions_t(mechanism, 1, 1, error)\n$\
-		&      if (associated(emissions)) deallocate(emissions)\n$\
-		&      deallocate(mechanism)\n$\
-		&   end if\n$\
-		&   print *, \"MUSICA support is available. MICM version: \", version_string%%value_\n$\
-		end program test_musica_fortran\n" | sed 's/&/ /' > test_musica_fortran.f90; $\
-		$\
-		$(FC) $(MUSICA_FCINCLUDES) $(MUSICA_FFLAGS) test_musica_fortran.f90 -o test_musica_fortran.x $(MUSICA_LIBS) > /dev/null 2>&1; $\
-		musica_fortran_status=$$?; $\
-		rm -f test_musica_fortran.f90 test_musica_fortran.x; $\
-		if [ $$musica_fortran_status -eq 0 ]; then $\
-			printf "1"; $\
-		else $\
-			printf "0"; $\
-		fi $\
-	))
-	$(if $(findstring 0,$(MUSICA_FORTRAN_TEST)), $(error Could not build a simple test program with MUSICA-Fortran))
-	$(eval MUSICA_FORTRAN_VERSION := $(shell pkg-config --modversion musica-fortran))
-	$(if $(findstring 1,$(MUSICA_FORTRAN_TEST)), $(info Built a simple test program with MUSICA-Fortran version $(MUSICA_FORTRAN_VERSION)), )
+	@echo "Checking the chemistry Fortran interface and MUSICA MIEM..."
+	$(FC) $(TMT_FCINCLUDES) $(MUSICA_FCINCLUDES) $(MUSICA_FFLAGS) \
+	  cmake/chemistry_link.F90 -o test_musica_fortran.x $(TMT_LIBS) $(MUSICA_LIBS)
+	$(RM) test_musica_fortran.x
 
 scotch_c_test:
 	@#
@@ -1573,7 +1562,11 @@ endif
 
 ifneq "$(MUSICA_FFLAGS)" ""
 MAIN_DEPS += musica_fortran_test
-MUSICA_MESSAGE = "MPAS was linked with the MUSICA-Fortran library version $(MUSICA_FORTRAN_VERSION)."
+ifeq ($(TMT_ENABLED),true)
+MUSICA_MESSAGE = "MPAS uses TMT for chemistry/photolysis (interface $(TMT_PKG_VERSION)) and MUSICA $(MUSICA_PKG_VERSION) for MIEM."
+else
+MUSICA_MESSAGE = "MPAS was linked with the MUSICA-Fortran library version $(MUSICA_PKG_VERSION)."
+endif
 else
 MUSICA_MESSAGE = "MPAS was not linked with the MUSICA-Fortran library."
 endif
