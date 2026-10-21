@@ -99,21 +99,49 @@ The coexistence test exercises both allocation/error systems and MIEM in the
 same process. The backend selection changes conditional `use` imports; shared
 library-call instrumentation was subsequently added to both configurations.
 
-## Library timing instrumentation
+## Sequential instrumented timings
 
-Shared timers now measure the `micm%solve` and `tuvx_solver%run` library calls
-in both configurations, excluding MPAS conversion and logging. They report
-rank minimum/mean/maximum accumulated wall seconds and global call counts.
-The optional reference-chemistry solve is reported separately. Both
-instrumented executables compile successfully; the numerical results above
-come from the preceding executables without this instrumentation.
+The sequential runs used both model executables rebuilt with identical
+timers around the `micm%solve` and `tuvx_solver%run` calls.
+Ten additional model runs used 18 MPI ranks and one OpenMP thread on the
+18-core Apple M5 Pro, with only one model running at a time. Each backend used
+the same newly generated partition for each case, original initial conditions,
+compiler flags, and warm TMT mechanism cache. The first backend alternates
+between cases. Every output and restart field was compared again; all cases
+passed, and all nonchemistry floating-point fields remained bitwise identical.
+A timestamp audit confirmed no model overlap; prepared-mechanism artifacts
+and installed-library hashes were unchanged (`timing18/audit.json`).
 
-Sequential measurements with 18 MPI ranks are prepared and will run after
-this initial validation commit is pushed. No instrumented timing results are
-claimed in this revision. Earlier validation runtimes shared the machine;
-the final TMT supercell was also paused while MUSICA finished. Those elapsed
-times are not controlled performance measurements. The case inputs and
-partition provenance are staged in `timing18/` in the local artifact directory.
+These are single observations per case/backend, not repeated statistical
+benchmarks. JW is bounded to one day and the ABBA supercell to ten minutes;
+the mountain-wave and Chapman cases retain their full configured durations.
+The earlier concurrent eight-rank validation timings are excluded. The final
+eight-rank TMT supercell validation was also paused while MUSICA finished;
+its elapsed time includes that pause and is not a performance measurement.
+
+All times below are seconds. Library times are the maximum accumulated
+wall time across MPI ranks, not the sum across ranks. The timers include the
+selected library's Fortran/C interface overhead but exclude MPAS conversion,
+profile preparation, result extraction, statistics queries, and logging.
+Initialization and mechanism preparation are outside the library solve timers.
+The existing `chemistry` timer excludes photolysis, so it is not a substitute
+for the new `TUV run` timer. The raw logs also report rank minima and means,
+global call counts, and the separate optional reference-chemistry timer.
+
+| Case | Duration | Model wall MUSICA / TMT | MICM library MUSICA / TMT | TUV library MUSICA / TMT |
+| --- | --- | ---: | ---: | ---: |
+| `full_mountain_wave_abba` | 05:00:00 | 79.616 / 72.578 | 12.049 / 4.167 | 0.000 / 0.000 |
+| `day_jw_abba` | 1_00:00:00 | 52.013 / 48.952 | 13.971 / 12.035 | 0.000 / 0.000 |
+| `supercell_abba` | 00:10:00 | 94.384 / 88.711 | 24.958 / 21.308 | 0.000 / 0.000 |
+| `supercell_lnox` | 00:01:00 | 13.735 / 12.943 | 2.477 / 2.113 | 0.863 / 0.446 |
+| `full_chapman_nox_global` | 1_00:00:00 | 124.371 / 103.982 | 39.569 / 33.004 | 21.204 / 10.324 |
+
+ABBA cases do not enable TUV. These cases exercise small chemistry mechanisms;
+they do not establish the coupled-model speedup for TS1's hundreds of variables.
+A larger chemistry fraction can increase the overall benefit, but actual TS1
+solver speedup also depends on stiffness, sparsity, tolerances, and cell layout.
+`timing18/summary.json` records the measured times and numerical comparison
+errors; `timing18/manifest.json` records the input and partition provenance.
 
 ## Retained evidence
 
@@ -126,4 +154,4 @@ cases. `before-angle-fix/` preserves the superseded diagnostic runs separately.
 `manifest.json`, `summary.json`, and `input-audit.json` record provenance and
 results. The original validation binary snapshots are retained separately from
 the `_timed` executables and their hashes. The numerical suite shared the
-machine; `timing18/` stages the subsequent sequential instrumented runs.
+machine; only `timing18/` contains the sequential instrumented measurements.
