@@ -63,7 +63,7 @@ target_compile_options(chempas_tmt_fortran PRIVATE "$<TARGET_PROPERTY:tmt_fortra
 target_link_libraries(chempas_tmt_fortran PUBLIC chempas_tmt)
 
 if(APPLE)
-  set_target_properties(chempas_tmt PROPERTIES INSTALL_RPATH "@loader_path")
+  set_target_properties(chempas_tmt PROPERTIES INSTALL_RPATH "@loader_path" BUILD_WITH_INSTALL_RPATH TRUE)
 else()
   set_target_properties(chempas_tmt PROPERTIES INSTALL_RPATH "$ORIGIN")
 endif()
