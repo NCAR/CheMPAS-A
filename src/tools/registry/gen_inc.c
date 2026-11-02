@@ -30,6 +30,14 @@ int package_logic_routine(FILE *fd, regex_t *preg, const char *corename,
 void gen_pkg_debug_info(FILE *fd, regex_t *preg, ezxml_t registry,
                         const char *packagename, const char *packagewhen,
 						char **nmloptions_list, int num_nmloptions);
+int generate_pool(FILE *fd, ezxml_t registry, ezxml_t superStruct, int subpool,
+                  const char *parentname, const char * corename);
+int generate_var_array(FILE *fd, ezxml_t registry, ezxml_t superStruct,
+                       ezxml_t currentVarArray);
+int generate_var(FILE *fd, ezxml_t registry, ezxml_t superStruct,
+                 ezxml_t currentVar, const char *dims, const char *type,
+                 const char *group, int isConstituent);
+int strip_time_dim(const char *dims, char *dims_notime, size_t maxlen);
 
 #define NUM_MODIFIED_ATTRS 2
 #define NUM_IGNORED_ATTRS 9
@@ -2562,6 +2570,478 @@ int parse_structs_from_registry(ezxml_t registry)/*{{{*/
 
 	return 0;
 }/*}}}*/
+
+
+/******************************************************************************
+ *
+ * generate_pools_and_vars
+ *
+ * Generates code to instantiate all var_struct / pool definitions from a
+ * Registry file.
+ *
+ * Inputs:
+ *   registry - an XML tree containing the complete Registry file
+ *
+ * Return value: An integer status code. A value of 0 indicates success, and a
+ *   non-zero value indicates that an error was encountered when generating
+ *   pools and variables.
+ *
+ ******************************************************************************/
+int generate_pools_and_vars(ezxml_t registry)/*{{{*/
+{
+	FILE *fd;
+	const char *corename;
+	const char *structname;
+	char core_string[64];
+	ezxml_t structs_xml;
+
+	fprintf(stderr, "---- GENERATING POOLS AND VARIABLES ----\n");
+
+	corename = ezxml_attr(registry, "core_abbrev");
+	sprintf(core_string, "%s", corename);
+
+	fd = fopen("pools_and_vars.inc", "w+");
+
+	/*
+	 * Generate code to instantiate each pool, including all var and var_array
+ 	 * members of each pool
+	 *
+	 */
+	for (structs_xml = ezxml_child(registry, "var_struct"); structs_xml; structs_xml = structs_xml->next){
+		// TO DO: actually check error code
+		generate_pool(fd, registry, structs_xml, 0, "\0", corename);
+	}
+
+	/*
+	 * Generate subroutine to invoke above code for instantiating each pool
+	 *
+	 */
+	fortprintf(fd, "   subroutine %s_generate_pools(block, structPool, packagePool)\n", core_string);
+	fortprintf(fd, "\n");
+	fortprintf(fd, "      use mpas_derived_types, only : block_type, mpas_pool_type\n");
+	fortprintf(fd, "\n");
+	fortprintf(fd, "      implicit none\n");
+	fortprintf(fd, "\n");
+	fortprintf(fd, "      type (block_type), pointer, intent(inout) :: block\n");
+	fortprintf(fd, "      type (mpas_pool_type), intent(inout) :: structPool\n");
+	fortprintf(fd, "      type (mpas_pool_type), intent(in) :: packagePool\n");
+	fortprintf(fd, "\n");
+
+	for (structs_xml = ezxml_child(registry, "var_struct"); structs_xml; structs_xml = structs_xml->next){
+		structname = ezxml_attr(structs_xml, "name");
+
+		fortprintf(fd, "      call %s_generate_%s_pool(block, structPool, packagePool)\n", core_string, structname);
+
+	}
+
+	fortprintf(fd, "   end subroutine %s_generate_pools\n", core_string);
+
+	fclose(fd);
+
+	return 0;
+}/*}}}*/
+
+
+/******************************************************************************
+ *
+ * generate_pools
+ *
+ * Generates code to instantiate a single pool
+ *
+ * Inputs:
+ *   ...
+ *
+ * Return value: An integer status code. A value of 0 indicates success, and a
+ *   non-zero value indicates that an error was encountered when generating
+ *   pools and variables.
+ *
+ ******************************************************************************/
+int generate_pool(FILE *fd, ezxml_t registry, ezxml_t superStruct, int subpool, const char *parentname, const char * corename)/*{{{*/
+{
+	const char *structname;
+	const char *structnameincode;
+	char core_string[64];
+	char pool_name[64];
+	ezxml_t var_arr_xml, var_xml;
+const char *varname;
+
+	sprintf(core_string, "%s", corename);
+
+	if(subpool){
+		sprintf(pool_name, "%s_subpool", parentname);
+	} else {
+		sprintf(pool_name, "pool");
+	}
+
+	structname = ezxml_attr(superStruct, "name");
+	structnameincode = ezxml_attr(superStruct, "name_in_code");
+	if(!structnameincode){
+		structnameincode = ezxml_attr(superStruct, "name");
+	}
+
+	fortprintf(fd, "   subroutine %s_generate_%s_%s(block, structPool, packagePool)\n", core_string, structname, pool_name);
+	fortprintf(fd, "      use mpas_derived_types, only : block_type, mpas_pool_type\n");
+	fortprintf(fd, "      use mpas_runtime_vars, only : MPAS_var, MPAS_var_array, MPAS_VAR_REAL, MPAS_VAR_INTEGER, MPAS_VAR_CHARACTER, MPAS_VAR_LOGICAL\n");
+	fortprintf(fd, "      use mpas_pool_routines\n");
+	fortprintf(fd, "      use mpas_io, only : MPAS_REAL_FILLVAL, MPAS_INT_FILLVAL, MPAS_CHAR_FILLVAL\n");
+	fortprintf(fd, "\n");
+	fortprintf(fd, "      implicit none\n");
+	fortprintf(fd, "\n");
+	fortprintf(fd, "      type (block_type), intent(inout), pointer :: block\n");
+	fortprintf(fd, "      type (mpas_pool_type), intent(inout) :: structPool\n");
+	fortprintf(fd, "      type (mpas_pool_type), intent(in) :: packagePool\n");
+	fortprintf(fd, "\n");
+	fortprintf(fd, "      type (mpas_pool_type), pointer :: newSubPool\n");
+	fortprintf(fd, "      type (MPAS_var) :: newVar\n");
+	fortprintf(fd, "      type (MPAS_var_array) :: newVarArray\n");
+	fortprintf(fd, "\n");
+
+
+	/*
+	 * Setup new pool to be added into structPool
+	 */
+	fortprintf(fd, "      nullify(newSubPool)\n");
+	fortprintf(fd, "      call mpas_pool_create_pool(newSubPool)\n");
+	fortprintf(fd, "      call mpas_pool_add_subpool(structPool, '%s', newSubPool)\n", structnameincode);
+	fortprintf(fd, "      call mpas_pool_add_subpool(block %% allStructs, '%s', newSubPool)\n", structname);
+	fortprintf(fd, "\n");
+
+	/*
+	 * Instantiate all var_arrays in this pool
+	 */
+	for (var_arr_xml = ezxml_child(superStruct, "var_array"); var_arr_xml; var_arr_xml = var_arr_xml->next){
+		// parse_var_array(fd, registry, superStruct, var_arr_xml, corename);
+		varname = ezxml_attr(var_arr_xml, "name");
+		fortprintf(fd, "      ! var_array %s\n", varname);
+		generate_var_array(fd, registry, superStruct, var_arr_xml);
+	}
+
+
+	/*
+	 * Instantiate all vars in this pool
+	 */
+	for (var_xml = ezxml_child(superStruct, "var"); var_xml; var_xml = var_xml->next){
+		generate_var(fd, registry, superStruct, var_xml, NULL, NULL, NULL, 0);
+		// varname = ezxml_attr(var_xml, "name");
+		// fortprintf(fd, "      ! var %s\n", varname);
+	}
+
+	fortprintf(fd, "\n");
+	fortprintf(fd, "      if (associated(newSubPool)) then\n");
+	fortprintf(fd, "         call mpas_pool_add_config(newSubPool, 'on_a_sphere', block %% domain %% on_a_sphere)\n");
+	fortprintf(fd, "         call mpas_pool_add_config(newSubPool, 'sphere_radius', block %% domain %% sphere_radius)\n");
+	fortprintf(fd, "         call mpas_pool_add_config(newSubPool, 'is_periodic', block %% domain %% is_periodic)\n");
+	fortprintf(fd, "         call mpas_pool_add_config(newSubPool, 'x_period', block %% domain %% x_period)\n");
+	fortprintf(fd, "         call mpas_pool_add_config(newSubPool, 'y_period', block %% domain %% y_period)\n");
+	fortprintf(fd, "      end if\n");
+	fortprintf(fd, "\n");
+
+	fortprintf(fd, "   end subroutine %s_generate_%s_%s\n", core_string, structname, pool_name);
+	fortprintf(fd, "\n\n");
+#if 0
+	ezxml_t struct_xml, var_arr_xml, var_xml, var_xml2;
+	ezxml_t struct_xml2;
+	ezxml_t packages_xml, package_xml;
+
+	const char *structname, *structlevs, *structpackages;
+	const char *structname2;
+	const char *substructname;
+	const char *streamname, *streamname2;
+	const char *packagename;
+	const char *structnameincode;
+
+	char *string, *tofree, *token;
+	char spacing[1024];
+	char core_string[1024];
+	char pool_name[1024];
+	char package_list[2048];
+
+	int skip_struct, no_packages;
+	int err;
+
+	sprintf(core_string, "%s", corename);
+
+	if(subpool){
+		sprintf(pool_name, "%s_subpool", parentname);
+	} else {
+		sprintf(pool_name, "pool");
+	}
+
+	structname = ezxml_attr(superStruct, "name");
+	structnameincode = ezxml_attr(superStruct, "name_in_code");
+	
+	if(!structnameincode){
+		structnameincode = ezxml_attr(superStruct, "name");
+	}
+
+	structpackages = ezxml_attr(superStruct, "packages");
+
+	// Extract all sub structs
+	for (struct_xml = ezxml_child(superStruct, "var_struct"); struct_xml; struct_xml = struct_xml->next){
+		err = parse_struct(fd, registry, struct_xml, 1, structname, corename);
+	}
+
+	fortprintf(fd, "   subroutine %s_generate_%s_%s(block, structPool, packagePool)\n", core_string, pool_name, structname);
+	fortprintf(fd, "      use mpas_derived_types\n");
+	fortprintf(fd, "      use mpas_pool_routines\n");
+	fortprintf(fd, "      use mpas_io_units\n");
+	fortprintf(fd, "      use mpas_io, only : MPAS_REAL_FILLVAL, MPAS_INT_FILLVAL, MPAS_CHAR_FILLVAL\n");
+	fortprintf(fd, "      implicit none\n");
+	fortprintf(fd, "      type (block_type), intent(inout), pointer :: block\n");
+	fortprintf(fd, "      type (mpas_pool_type), intent(inout) :: structPool\n");
+	fortprintf(fd, "      type (mpas_pool_type), intent(in) :: packagePool\n");
+	fortprintf(fd, "\n");
+
+	// All sub-structs have been parsed and generated at this point. Time to generate this struct
+	// Start by generating variable arrays
+	for (var_arr_xml = ezxml_child(superStruct, "var_array"); var_arr_xml; var_arr_xml = var_arr_xml->next){
+		parse_var_array(fd, registry, superStruct, var_arr_xml, corename);
+	}
+
+
+	// Define independent variables
+	for (var_xml = ezxml_child(superStruct, "var"); var_xml; var_xml = var_xml->next){
+		parse_var(fd, registry, superStruct, var_xml, corename);
+	}
+
+	fortprintf(fd, "\n");
+
+	// Extract all sub structs
+	for (struct_xml = ezxml_child(superStruct, "var_struct"); struct_xml; struct_xml = struct_xml->next){
+		substructname = ezxml_attr(struct_xml, "name");
+		fortprintf(fd, "      call %s_generate_%s_subpool_%s(block, newSubPool, packagePool)\n", core_string, structname, substructname);
+	}
+
+
+	fortprintf(fd, "   end subroutine %s_generate_%s_%s\n", core_string, pool_name, structname);
+	fortprintf(fd, "\n\n");
+#endif
+
+	return 0;
+}/*}}}*/
+
+
+/******************************************************************************
+ *
+ * generate_var_array
+ *
+ * Generates code to instantiate a single var_array
+ *
+ * Inputs:
+ *   ...
+ *
+ * Return value: An integer status code. A value of 0 indicates success, and a
+ *   non-zero value indicates that an error was encountered when generating
+ *   pools and variables.
+ *
+ ******************************************************************************/
+int generate_var_array(FILE *fd, ezxml_t registry, ezxml_t superStruct, ezxml_t currentVarArray)/*{{{*/
+{
+	ezxml_t var_xml;
+	const char *varname, *vardims, *vartype, *vartimelevs, *vargroup;
+	int time_levs;
+
+
+	varname = ezxml_attr(currentVarArray, "name");
+	vartimelevs = ezxml_attr(currentVarArray, "time_levs");
+	if(!vartimelevs){
+		vartimelevs = ezxml_attr(superStruct, "time_levs");
+	}
+
+	if(vartimelevs){
+		time_levs = atoi(vartimelevs);
+		if(time_levs < 1){
+			time_levs = 1;
+		}
+	} else {
+		time_levs = 1;
+	}
+
+	fortprintf(fd, "      newVarArray %% name = '%s'\n", varname);
+	fortprintf(fd, "      newVarArray %% nTimeLevels = %i\n", time_levs);
+	fortprintf(fd, "\n");
+
+	for (var_xml = ezxml_child(currentVarArray, "var"); var_xml; var_xml = var_xml->next) {
+		vardims = ezxml_attr(currentVarArray, "dimensions");
+		vartype = ezxml_attr(currentVarArray, "type");
+		varname = ezxml_attr(var_xml, "name");
+		vargroup = ezxml_attr(var_xml, "array_group");
+		fortprintf(fd, "          ! var %s\n", varname);
+		generate_var(fd, registry, superStruct, var_xml, vardims, vartype, vargroup, 1);
+	}
+
+	fortprintf(fd, "      call newVarArray %% add_to_pool(block, newSubPool, block %% packages, useNameInCode=.true.)\n");
+	fortprintf(fd, "      call newVarArray %% add_to_pool(block, block %% allFields, block %% packages, addIndices=.false.)\n");
+	fortprintf(fd, "      call newVarArray %% reset()\n");
+	fortprintf(fd, "\n");
+
+	return 0;
+}/*}}}*/
+
+
+/******************************************************************************
+ *
+ * generate_var
+ *
+ * Generates code to instantiate a single var
+ *
+ * Inputs:
+ *   ...
+ *
+ * Return value: An integer status code. A value of 0 indicates success, and a
+ *   non-zero value indicates that an error was encountered when generating
+ *   pools and variables.
+ *
+ ******************************************************************************/
+int generate_var(FILE *fd, ezxml_t registry, ezxml_t superStruct, ezxml_t currentVar, const char *dims, const char *type, const char *group, int isConstituent)/*{{{*/
+{
+	const char *varname, *varname_in_code, *vartype, *vardims, *varunits, *vardesc, *varpersistence, *varpackages;
+	char tmpstr[1024];
+	char vardims_notime[1024];
+	const char *vartimelevs;
+	int time_levs;
+	int persistence;
+
+	varname = ezxml_attr(currentVar, "name");
+	varname_in_code = ezxml_attr(currentVar, "name_in_code");
+	if (type) {
+		vartype = type;
+	} else {
+		vartype = ezxml_attr(currentVar, "type");
+	}
+	if (dims) {
+		vardims = dims;
+	} else {
+		vardims = ezxml_attr(currentVar, "dimensions");
+	}
+	varunits = ezxml_attr(currentVar, "units");
+	vardesc = ezxml_attr(currentVar, "description");
+	varpersistence = ezxml_attr(currentVar, "persistence");
+	varpackages = ezxml_attr(currentVar, "packages");
+
+	vartimelevs = ezxml_attr(currentVar, "time_levs");
+	if(!vartimelevs){
+		vartimelevs = ezxml_attr(superStruct, "time_levs");
+	}
+
+	if(vartimelevs){
+		time_levs = atoi(vartimelevs);
+		if(time_levs < 1){
+			time_levs = 1;
+		}
+	} else {
+		time_levs = 1;
+	}
+
+	persistence = check_persistence(varpersistence);
+
+	fortprintf(fd, "      newVar %% name = \'%s\'\n", varname);
+	if (varname_in_code) {
+		fortprintf(fd, "      newVar %% name_in_code = \'%s\'\n", varname_in_code);
+	}
+	if (strip_time_dim(vardims, vardims_notime, 1024)) {
+		fortprintf(fd, "      newVar %% hasTimeDimension = .true.\n");
+	} else {
+		fortprintf(fd, "      newVar %% hasTimeDimension = .false.\n");
+	}
+        if (!strcmp(vartype, "real")) {
+		fortprintf(fd, "      newVar %% vartype = MPAS_VAR_REAL\n");
+	} else if (!strcmp(vartype, "integer")) {
+		fortprintf(fd, "      newVar %% vartype = MPAS_VAR_INTEGER\n");
+	} else if (!strcmp(vartype, "text")) {
+		fortprintf(fd, "      newVar %% vartype = MPAS_VAR_CHARACTER\n");
+	} else if (!strcmp(vartype, "logical")) {
+		fortprintf(fd, "      newVar %% vartype = MPAS_VAR_LOGICAL\n");
+	} else {
+		return 1;
+	}
+	fortprintf(fd, "      newVar %% dimensions = \'%s\'\n", vardims_notime);
+	fortprintf(fd, "      newVar %% units = \'%s\'\n", varunits);
+	if (vardesc) {
+		escape_quotes(vardesc, tmpstr, sizeof(tmpstr));
+		fortprintf(fd, "      newVar %% description = \'%s\'\n", tmpstr);
+	} else {
+		fortprintf(fd, "      newVar %% description = \'NO DESCRIPTION\'\n");
+	}
+	if(persistence == SCRATCH){
+		fortprintf(fd, "      newVar %% isPersistent = .false.\n");
+	} else {
+		fortprintf(fd, "      newVar %% isPersistent = .true.\n");
+	}
+	if (varpackages) {
+		fortprintf(fd, "      newVar %% packages = \'%s\'\n", varpackages);
+	}
+
+	if (!isConstituent) {
+		fortprintf(fd, "      newVar %% nTimeLevels = %i\n", time_levs);
+		fortprintf(fd, "      call newVar %% add_to_pool(block, newSubPool, block %% packages, useNameInCode=.true.)\n");
+		fortprintf(fd, "      call newVar %% add_to_pool(block, block %% allFields, block %% packages)\n");
+	} else {
+		fortprintf(fd, "      call newVarArray %% add_constituent(newVar, '%s')\n", group);
+	}
+	fortprintf(fd, "      call newVar %% reset()\n");
+	fortprintf(fd, "\n");
+
+	return 0;
+}/*}}}*/
+
+
+/******************************************************************************
+ *
+ * strip_time_dim
+ *
+ * Returns a string with any trailing "Time" dimension removed
+ *
+ * Inputs:
+ *   ...
+ *
+ * Return value: An integer indicating whether a "Time" dimension was removed.
+ *
+ ******************************************************************************/
+int strip_time_dim(const char *dims, char *dims_notime, size_t maxlen)
+{
+	size_t len, i;
+	const char *time = " Time";
+
+	strncpy(dims_notime, dims, maxlen);
+
+	len = strnlen(dims_notime, maxlen);
+
+	/*
+	 * If the string has fewer than 4 characters, it cannot contain "Time"
+	 * as a substring
+	 */
+	if (len < 4) return 0;
+
+
+	/*
+	 * Are the last 4 characters "Time"?
+	 */
+	for (i = 0; i < 4; i++) {
+		if (time[4 - i] != dims_notime[len - i - 1]) break;
+	}
+	if (i < 4) return 0;
+
+	/*
+	 * If the string has more than 4 characters, ensure there is a space
+	 * before "Time"
+	 */
+	if (len >= 5) {
+		/*
+		 * If >4 characters, ensure there is a space before "Time"
+		 */
+		if (time[4 - i] != dims_notime[len - i - 1]) return 0;
+
+		dims_notime[len - i - 1] = '\0';
+	} else {
+		/*
+		 * Otherwise, the string has exactly 4 characters
+		 */
+		dims_notime[0] = '\0';
+	}
+
+	return 1;
+}
 
 
 /**

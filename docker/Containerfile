@@ -27,7 +27,7 @@ RUN dnf -y update && dnf -y install \
     && dnf clean all
 
 ENV PATH="/usr/lib64/openmpi/bin:${PATH}" \
-    LD_LIBRARY_PATH="/usr/lib64/openmpi/lib:${LD_LIBRARY_PATH}" \
+    LD_LIBRARY_PATH="/usr/lib64/openmpi/lib:${LD_LIBRARY_PATH:-}" \
     MPI_DIR="/usr/lib64/openmpi"
 
 # ---- PnetCDF ----
@@ -82,7 +82,7 @@ RUN cd /tmp \
     && rm -rf /tmp/netcdf-fortran-*
 
 ENV NETCDF=/usr/local
-ENV PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH}"
+ENV PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 
 # ---- MUSICA ----
 ARG MUSICA_GIT_TAG=main
