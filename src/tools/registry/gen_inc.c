@@ -2684,6 +2684,7 @@ const char *varname;
 	fortprintf(fd, "      use mpas_runtime_vars, only : MPAS_var, MPAS_var_array, MPAS_VAR_REAL, MPAS_VAR_INTEGER, MPAS_VAR_CHARACTER, MPAS_VAR_LOGICAL\n");
 	fortprintf(fd, "      use mpas_pool_routines\n");
 	fortprintf(fd, "      use mpas_io, only : MPAS_REAL_FILLVAL, MPAS_INT_FILLVAL, MPAS_CHAR_FILLVAL\n");
+	fortprintf(fd, "      use mpas_runtime_vars, only : test_cb\n");
 	fortprintf(fd, "\n");
 	fortprintf(fd, "      implicit none\n");
 	fortprintf(fd, "\n");
@@ -2838,11 +2839,12 @@ const char *varname;
 int generate_var_array(FILE *fd, ezxml_t registry, ezxml_t superStruct, ezxml_t currentVarArray)/*{{{*/
 {
 	ezxml_t var_xml;
-	const char *varname, *vardims, *vartype, *vartimelevs, *vargroup;
+	const char *structname, *vararrname, *varname, *vardims, *vartype, *vartimelevs, *vargroup;
 	int time_levs;
 
 
-	varname = ezxml_attr(currentVarArray, "name");
+	structname = ezxml_attr(superStruct, "name");
+	vararrname = ezxml_attr(currentVarArray, "name");
 	vartimelevs = ezxml_attr(currentVarArray, "time_levs");
 	if(!vartimelevs){
 		vartimelevs = ezxml_attr(superStruct, "time_levs");
@@ -2857,7 +2859,7 @@ int generate_var_array(FILE *fd, ezxml_t registry, ezxml_t superStruct, ezxml_t 
 		time_levs = 1;
 	}
 
-	fortprintf(fd, "      newVarArray %% name = '%s'\n", varname);
+	fortprintf(fd, "      newVarArray %% name = '%s'\n", vararrname);
 	fortprintf(fd, "      newVarArray %% nTimeLevels = %i\n", time_levs);
 	fortprintf(fd, "\n");
 
@@ -2869,6 +2871,8 @@ int generate_var_array(FILE *fd, ezxml_t registry, ezxml_t superStruct, ezxml_t 
 		fortprintf(fd, "          ! var %s\n", varname);
 		generate_var(fd, registry, superStruct, var_xml, vardims, vartype, vargroup, 1);
 	}
+
+	fortprintf(fd, "      call test_cb(newSubPool, newVarArray, \'%s\', \'%s\')\n", structname, vararrname);
 
 	fortprintf(fd, "      call newVarArray %% add_to_pool(block, newSubPool, block %% packages, useNameInCode=.true.)\n");
 	fortprintf(fd, "      call newVarArray %% add_to_pool(block, block %% allFields, block %% packages, addIndices=.false.)\n");

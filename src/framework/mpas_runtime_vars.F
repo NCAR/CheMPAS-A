@@ -39,6 +39,8 @@ module mpas_runtime_vars
     public :: MPAS_var, &
               MPAS_var_array
 
+    public :: MPAS_var_add_callback
+
     integer, parameter, public :: MPAS_VAR_OK            =     0, &
                                   MPAS_VAR_INVALID_TYPE  = -1000, &
                                   MPAS_VAR_INVALID_NDIMS = -1001
@@ -135,6 +137,21 @@ module mpas_runtime_vars
         procedure :: reset => reset_var_array
         final :: destroy_mpas_var_array
     end type MPAS_var_array
+
+    abstract interface
+        subroutine mpas_runtime_var_callback(structPool, newVarArray, poolName, varArrayName)
+            use mpas_derived_types, only : mpas_pool_type
+            import MPAS_var_array
+
+            type (mpas_pool_type), intent(inout) :: structPool
+            type (MPAS_var_array) :: newVarArray
+            character(len=*), intent(in) :: poolName
+            character(len=*), intent(in) :: varArrayName
+        end subroutine mpas_runtime_var_callback
+    end interface
+
+    procedure (mpas_runtime_var_callback), pointer :: test_cb => null()
+    public :: test_cb
 
 
 contains
@@ -990,6 +1007,39 @@ contains
         end if
 
     end subroutine destroy_mpas_var_array
+
+
+    !-----------------------------------------------------------------------
+    !  routine foo_bar
+    !
+    !> \brief Foos the bar
+    !> \author Michael Duda
+    !> \date   22 August 2028
+    !> \details
+    !>  This routine returns a pointer to a newly allocated instance of an
+    !>  MPAS_streamInfo_type. The new instance has valid methods init(), query(),
+    !>  and finalize() that may be called.
+    !>
+    !>  After all queries via the MPAS_streamInfo_type instance have been
+    !>  completed, the instance finalize() method should be called before the
+    !>  instance is deallocated.
+    !
+    !-----------------------------------------------------------------------
+    subroutine MPAS_var_add_callback(poolName, varArrayName, callback)
+
+        implicit none
+
+        ! Arguments
+        character(len=*), intent(in) :: poolName, varArrayName
+        procedure (mpas_runtime_var_callback), pointer :: callback
+
+        ! Local variables
+
+        ! call mpas_log_write('registring callback for '//trim(poolName)//' '//trim(varArrayName))
+
+        test_cb => callback
+
+    end subroutine MPAS_var_add_callback
 
 
     !-----------------------------------------------------------------------
