@@ -9,6 +9,8 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}/chempas-deps
+  # Tag used to refer to the deps image locally within a single workflow run.
+  LOCAL_IMAGE: chempas-deps:ci
 
 jobs:
   build-deps-image:
@@ -16,8 +18,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-    outputs:
-      image: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:${{ steps.meta.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -25,7 +25,18 @@ jobs:
         id: image
         run: echo "name=${IMAGE_NAME,,}" >> "$GITHUB_OUTPUT"
 
+      - name: Determine registry push eligibility
+        id: push-check
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping ghcr.io push: this PR originates from a fork."
+          fi
+
       - name: Log in to container registry
+        if: steps.push-check.outputs.allowed == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -41,30 +52,60 @@ jobs:
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push deps image
+      - name: Build deps image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: docker/Containerfile
           target: dev
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          push: false
+          load: true
+          tags: ${{ env.LOCAL_IMAGE }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:latest
           cache-to: type=inline
+
+      - name: Push deps image to registry
+        if: steps.push-check.outputs.allowed == 'true'
+        run: |
+          while IFS= read -r tag; do
+            [ -z "${tag}" ] && continue
+            docker tag "${LOCAL_IMAGE}" "${tag}"
+            docker push "${tag}"
+          done <<< "${{ steps.meta.outputs.tags }}"
+
+      - name: Save deps image for downstream jobs
+        run: docker save "${LOCAL_IMAGE}" | gzip -1 > deps-image.tar.gz
+
+      - name: Upload deps image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chempas-deps-image
+          path: deps-image.tar.gz
+          retention-days: 1
 
   build-mpas:
     needs: build-deps-image
     runs-on: ubuntu-latest
-    container:
-      image: ${{ needs.build-deps-image.outputs.image }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: Download deps image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: chempas-deps-image
+
+      - name: Load deps image
+        run: docker load -i deps-image.tar.gz
+
       - name: Build init_atmosphere core
-        run: make -j$(nproc) gnu CORE=init_atmosphere
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/workspace" -w /workspace "${LOCAL_IMAGE}" \
+            bash -c 'make -j"$(nproc)" gnu CORE=init_atmosphere'
 
       - name: Build atmosphere core
-        run: make -j$(nproc) gnu CORE=atmosphere AUTOCLEAN=true
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/workspace" -w /workspace "${LOCAL_IMAGE}" \
+            bash -c 'make -j"$(nproc)" gnu CORE=atmosphere AUTOCLEAN=true'
 
       - name: Verify executables
         run: |
@@ -82,10 +123,16 @@ jobs:
   test-jw:
     needs: [build-deps-image, build-mpas]
     runs-on: ubuntu-latest
-    container:
-      image: ${{ needs.build-deps-image.outputs.image }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download deps image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: chempas-deps-image
+
+      - name: Load deps image
+        run: docker load -i deps-image.tar.gz
 
       - name: Download executables
         uses: actions/download-artifact@v4
@@ -96,12 +143,16 @@ jobs:
         run: chmod +x init_atmosphere_model atmosphere_model
 
       - name: Download mesh data
-        run: quacs/download_data.sh data
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/workspace" -w /workspace "${LOCAL_IMAGE}" \
+            quacs/download_data.sh data
 
       - name: Run JW baroclinic wave test
-        run: quacs/run_jw_test.sh 2
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/workspace" -w /workspace "${LOCAL_IMAGE}" \
+            quacs/run_jw_test.sh 2
 
       - name: Verify output
         run: |
-          ncdump -h data/jw_480km/output.nc | head -20
-          echo "JW test output verified"
+          docker run --rm -v "${{ github.workspace }}:/workspace" -w /workspace "${LOCAL_IMAGE}" \
+            bash -c 'ncdump -h data/jw_480km/output.nc | head -20 && echo "JW test output verified"'
