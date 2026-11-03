@@ -446,6 +446,57 @@ module atm_core_interface
    end function atm_setup_decompositions
 
 
+   subroutine cb(structPool, newVarArray, poolName, varArrayName)
+
+       use mpas_derived_types, only : mpas_pool_type
+       use mpas_runtime_vars, only : MPAS_var_array, MPAS_var, MPAS_VAR_REAL
+       use mpas_log, only : mpas_log_write
+
+       implicit none
+
+       ! Arguments
+       type (mpas_pool_type), intent(inout) :: structPool
+       type (MPAS_var_array) :: newVarArray
+       character(len=*), intent(in) :: poolName
+       character(len=*), intent(in) :: varArrayName
+
+       ! Local variables
+       type (MPAS_var) :: newVar
+
+       call mpas_log_write('MGD Here is our callback!')
+       call mpas_log_write('MGD pool='//trim(poolName))
+       call mpas_log_write('MGD var_array='//trim(varArrayName))
+
+       if (trim(varArrayName) == 'scalars') then
+           call mpas_log_write('Adding new scalar foo')
+
+           newVar % name = 'foo'
+           newVar % hasTimeDimension = .true.
+           newVar % vartype = MPAS_VAR_REAL
+           newVar % dimensions = 'nVertLevels nCells'
+           newVar % units = 'kg kg^{-1}'
+           newVar % description = 'Foo mixing ratio'
+           newVar % isPersistent = .true.
+           call newVarArray % add_constituent(newVar, 'chemistry')
+           call newVar % reset()
+       else if (trim(varArrayName) == 'scalars_tend') then
+           call mpas_log_write('Adding new scalar tendency tend_foo')
+
+           newVar % name = 'tend_foo'
+           newVar % name_in_code = 'foo'
+           newVar % hasTimeDimension = .true.
+           newVar % vartype = MPAS_VAR_REAL
+           newVar % dimensions = 'nVertLevels nCells'
+           newVar % units = 'kg m^{-3} s^{-1}'
+           newVar % description = 'Tendency of mixing ratio'
+           newVar % isPersistent = .true.
+           call newVarArray % add_constituent(newVar, 'chemistry')
+           call newVar % reset()
+       end if
+
+   end subroutine cb
+
+
    !***********************************************************************
    !
    !  function atm_setup_block
@@ -463,7 +514,7 @@ module atm_core_interface
       use mpas_derived_types, only : block_type
       use mpas_pool_routines, only : mpas_pool_get_config
       use mpas_log, only : mpas_log_write
-
+      use mpas_runtime_vars, only : MPAS_var_add_callback
 
       implicit none
 
@@ -475,8 +526,10 @@ module atm_core_interface
 
       ierr = 0
 
-      call atm_generate_structs(block, block % structs, block % dimensions, block % packages)
-!      call atm_generate_pools(block, block % structs, block % packages)
+      call MPAS_var_add_callback('any pool', 'any var_array', cb)
+
+!      call atm_generate_structs(block, block % structs, block % dimensions, block % packages)
+      call atm_generate_pools(block, block % structs, block % packages)
 
       !
       ! When MPAS-A is operating as a dycore in CAM, the scalars/scalars_tend var_arrays are
