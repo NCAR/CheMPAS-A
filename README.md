@@ -1,6 +1,12 @@
 MPAS-v8.4.1
 ====
 
+> [!WARNING]
+> CheMPAS-A is still very much work in progress and there is no published
+> description available yet. While the code is available, there are no
+> guarantees that any of it works out of the box and scientific validation
+> is still ongoing.
+
 The Model for Prediction Across Scales (MPAS) is a collaborative project for
 developing atmosphere, ocean, and other earth-system simulation components for
 use in climate, regional climate, and weather studies. The primary development
