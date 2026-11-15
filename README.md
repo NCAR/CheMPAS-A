@@ -1,5 +1,11 @@
 # CheMPAS-A
 
+> [!WARNING]
+> CheMPAS-A is still very much work in progress and there is no published
+> description available yet. While the code is available, there are no
+> guarantees that any of it works out of the box and scientific validation
+> is still ongoing.
+
 CheMPAS-A extends the MPAS-Atmosphere core with online, mechanism-configurable
 atmospheric chemistry. It couples MPAS transport and meteorology to
 [MUSICA](https://github.com/NCAR/MUSICA), using MICM for gas-phase chemistry,
